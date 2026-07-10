@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>2027 전문대 입시 상담</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}" media="print">
+  </head>
+  <body class="min-h-screen bg-slate-50 text-slate-950">
+    <header class="border-b border-slate-200 bg-white">
+      <div class="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
+        <a class="font-semibold" href="/">2027 전문대 입시 상담</a>
+        <span class="text-sm text-slate-500">Phase 0</span>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-16">
+      <section class="max-w-3xl" aria-labelledby="page-title">
+        <h1 id="page-title" class="text-3xl font-bold leading-tight sm:text-4xl">상담 시스템 기반을 준비하고 있습니다</h1>
+        <p class="mt-5 text-base leading-7 text-slate-600 sm:text-lg">
+          현재 저장소와 자료의 안전 정책을 확정하는 초기 단계입니다. 지원자격 판정과 성적 계산은 검증된 규칙이 준비된 뒤 순서대로 제공됩니다.
+        </p>
+      </section>
+
+      <section class="mt-12 border-y border-slate-200 bg-white" aria-labelledby="status-title">
+        <div class="grid gap-0 md:grid-cols-3">
+          <div class="border-b border-slate-200 p-6 md:border-b-0 md:border-r">
+            <h2 id="status-title" class="text-sm font-semibold text-slate-500">현재 단계</h2>
+            <p class="mt-2 text-lg font-semibold">프로젝트 초기화</p>
+          </div>
+          <div class="border-b border-slate-200 p-6 md:border-b-0 md:border-r">
+            <h2 class="text-sm font-semibold text-slate-500">자료 정책</h2>
+            <p class="mt-2 text-lg font-semibold">개인자료 로컬 전용</p>
+          </div>
+          <div class="p-6">
+            <h2 class="text-sm font-semibold text-slate-500">공개 데이터</h2>
+            <p class="mt-2 text-lg font-semibold">검수된 정제 자료만 허용</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="mt-10" aria-labelledby="principles-title">
+        <h2 id="principles-title" class="text-xl font-bold">적용 원칙</h2>
+        <ul class="mt-5 grid gap-4 text-sm leading-6 text-slate-700 sm:grid-cols-2">
+          <li class="border-l-4 border-emerald-600 bg-white px-5 py-4">지원자격을 먼저 확인하고 계산합니다.</li>
+          <li class="border-l-4 border-amber-500 bg-white px-5 py-4">근거가 없는 규칙은 추정하지 않습니다.</li>
+          <li class="border-l-4 border-sky-600 bg-white px-5 py-4">원적교 성적과 위탁 성적을 분리합니다.</li>
+          <li class="border-l-4 border-rose-600 bg-white px-5 py-4">학생 개인정보 저장을 최소화합니다.</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="border-t border-slate-200 bg-white">
+      <div class="mx-auto max-w-6xl px-5 py-5 text-sm text-slate-500 sm:px-8">
+        교사용 상담 보조 시스템 · 합격 확률을 제공하지 않습니다.
+      </div>
+    </footer>
+    <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+  </body>
+</html>

@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# Runtime data and databases
+instance/
+uploads/
+tmp/
+temp/
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Source and derived admission data are local-only. Only reviewed seed data is public.
+data/*
+!data/seed/
+!data/seed/**
+!data/sources/
+!data/sources/index.yaml
+
+# Original documents and spreadsheets
+*.pdf
+*.xlsx
+*.xls
+*.xlsm
+*.ods
+*.csv
+*.tsv
+
+# Uploaded or OCR-derived images
+*.png
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+*.webp
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+backups/
+
+# Reviewed public seed tables and application-owned visual assets
+!data/seed/*.csv
+!data/seed/**/*.csv
+!data/seed/*.tsv
+!data/seed/**/*.tsv
+!app/static/**/*.png
+!app/static/**/*.jpg
+!app/static/**/*.jpeg
+!app/static/**/*.webp
