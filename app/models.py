@@ -256,6 +256,33 @@ class TieBreakRule(RuleRecordMixin, Base):
     __table_args__ = rule_constraints()
 
 
+class ImportBatch(TimestampMixin, Base):
+    __tablename__ = "import_batches"
+    __table_args__ = (
+        CheckConstraint("char_length(source_hash) = 64", name="source_hash_length"),
+        CheckConstraint(
+            "source_format IN ('csv', 'pasted_table', 'xlsx')",
+            name="source_format_valid",
+        ),
+        CheckConstraint("confirmed_row_count > 0", name="confirmed_row_count_positive"),
+        CheckConstraint(
+            "status IN ('PENDING_PURGE', 'CONFIRMED')",
+            name="status_valid",
+        ),
+        CheckConstraint(
+            "status != 'CONFIRMED' OR original_purged_at IS NOT NULL",
+            name="confirmed_source_is_purged",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    source_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    source_format: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="PENDING_PURGE")
+    confirmed_row_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    original_purged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class StudentAcademicRecord(TimestampMixin, Base):
     __tablename__ = "student_academic_records"
     __table_args__ = (
@@ -285,8 +312,21 @@ class StudentAcademicRecord(TimestampMixin, Base):
 
 class StudentCourseRecord(TimestampMixin, Base):
     __tablename__ = "student_course_records"
+    __table_args__ = (
+        CheckConstraint(
+            "raw_score_label IS NULL OR raw_score_label = 'P'",
+            name="raw_score_label_valid",
+        ),
+        CheckConstraint(
+            "raw_score IS NULL OR raw_score_label IS NULL",
+            name="raw_score_value_or_label",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    import_batch_id: Mapped[str | None] = mapped_column(
+        ForeignKey("import_batches.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
     academic_record_id: Mapped[str] = mapped_column(
         ForeignKey("student_academic_records.id", ondelete="CASCADE"), nullable=False, index=True
     )
@@ -294,6 +334,7 @@ class StudentCourseRecord(TimestampMixin, Base):
     subject_name: Mapped[str] = mapped_column(String(200), nullable=False)
     credits: Mapped[Decimal | None] = mapped_column(Numeric(7, 2))
     raw_score: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
+    raw_score_label: Mapped[str | None] = mapped_column(String(20))
     course_mean: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
     standard_deviation: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
     achievement_level: Mapped[str | None] = mapped_column(String(20))
@@ -367,6 +408,7 @@ __all__ = [
     "DisqualificationRule",
     "DocumentRequirement",
     "GradeSourceScopeRule",
+    "ImportBatch",
     "Institution",
     "MultipleApplicationRule",
     "Program",

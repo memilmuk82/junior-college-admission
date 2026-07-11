@@ -21,6 +21,7 @@ def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> No
         "disqualification_rules",
         "document_requirements",
         "grade_source_scope_rules",
+        "import_batches",
         "institutions",
         "multiple_application_rules",
         "programs",
@@ -39,6 +40,14 @@ def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> No
     }
 
     assert required <= tables
+    course_checks = {
+        constraint["name"]
+        for constraint in inspect(postgres_engine).get_check_constraints("student_course_records")
+    }
+    assert {
+        "ck_student_course_records_raw_score_label_valid",
+        "ck_student_course_records_raw_score_value_or_label",
+    } <= course_checks
 
 
 def test_flask_db_upgrade_and_migrate_commands(postgres_engine: Engine, tmp_path: Path) -> None:
