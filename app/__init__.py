@@ -8,6 +8,9 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.config.from_mapping(
         SECRET_KEY=os.environ.get("SECRET_KEY", "development-only-change-me"),
         DATABASE_URL=os.environ.get("DATABASE_URL"),
+        TEMP_UPLOAD_ROOT=os.environ.get(
+            "TEMP_UPLOAD_ROOT", "/tmp/junior-college-admission/uploads"
+        ),
     )
 
     if test_config:
