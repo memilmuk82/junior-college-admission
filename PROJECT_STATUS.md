@@ -1,9 +1,9 @@
 # 프로젝트 상태
 
-- 기준일: 2026-07-10
-- 현재 단계: Phase 0 저장소·자료 안전화 완료
+- 기준일: 2026-07-11
+- 현재 단계: Phase 1 하네스·스키마·삭제 기반 완료
 - 단계 판정: PASS
-- 다음 게이트: Phase 1 하네스·스키마·삭제 기반
+- 다음 게이트: Phase 2 입력 게이트웨이
 
 ## 저장소 인벤토리
 
@@ -25,3 +25,15 @@
 - [x] 최소 Flask 앱 셸과 헬스체크 작성
 - [x] 테스트와 민감자료 검사 통과
 - [x] Git 변경 검토, 단일 커밋, 원격 push
+
+## Phase 1 완료 항목
+
+- [x] PostgreSQL 전용 SQLAlchemy 2.x 핵심 스키마와 Alembic 최초 migration
+- [x] Flask-SQLAlchemy·Flask-Migrate 앱 팩토리 및 `flask db migrate/upgrade` 연동
+- [x] 문서 혼합연도 게시 및 근거 없는 규칙 게시의 DB 제약 차단
+- [x] 원적교·위탁기관 학생 성적 출처 분리
+- [x] 임시 원본·파생물 세션 저장과 삭제 검증 서비스
+- [x] PostgreSQL 17 `tmpfs` 통합 테스트 컨테이너
+- [x] `make` 자동 실행 하네스와 Ruff·mypy·pytest 구성
+- [x] 단위 7건·PostgreSQL 통합 7건·규칙·민감정보 검사 통과
+- [x] 실제 학생 자료·원본·DB 파일 Git 포함 0건

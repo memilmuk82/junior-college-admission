@@ -13,6 +13,10 @@ def create_app(test_config: dict | None = None) -> Flask:
     if test_config:
         app.config.update(test_config)
 
+    from app.database import init_database
+
+    init_database(app)
+
     from app.routes import bp
 
     app.register_blueprint(bp)

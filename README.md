@@ -2,16 +2,17 @@
 
 고등학교 3학년 직업위탁 학생을 상담하는 교사를 위한 Flask 기반 상담 보조 시스템입니다. 이 시스템은 합격 예측기가 아니며, 지원자격 판정과 근거가 확인된 전형만 계산 대상으로 다룹니다.
 
-현재 상태는 **Phase 0: 저장소·자료 안전화**입니다. 초기 화면은 프로젝트 구동과 안전 정책을 확인하기 위한 앱 셸이며, 전형 판정·점수 계산 기능은 아직 제공하지 않습니다.
+현재 상태는 **Phase 1: 하네스·스키마·삭제 기반 완료**입니다. PostgreSQL 문서·규칙·학생성적 스키마와 임시 원본 삭제 기반까지 제공하며, 전형 판정·점수 계산 기능은 아직 제공하지 않습니다.
 
 ## 기술 방향
 
 - Python 3.12+, Flask, Jinja2
+- SQLAlchemy 2.x, Flask-SQLAlchemy, Alembic, Flask-Migrate
 - Flask Jinja2 서버 렌더링(SSR), HTML, Tailwind CSS
 - 필요한 상호작용만 Vanilla JavaScript와 fetch API 사용
 - SPA 프레임워크와 TypeScript 미사용
 - PostgreSQL 17, 애플리케이션과 분리된 DB 컨테이너 및 named volume
-- pytest 기반 테스트 예정
+- pytest, Ruff, mypy와 PostgreSQL 17 통합 테스트
 
 ## 로컬 실행
 
@@ -28,8 +29,10 @@ docker compose up --build
 ## 검증
 
 ```bash
-uv run pytest
-uv run python scripts/check_sensitive_data.py
+make test-unit
+make test-integration
+make lint
+make check
 ```
 
 ## 데이터 취급
@@ -55,6 +58,6 @@ docker compose up --build
 # pg_dump custom-format 백업, 결과는 Git 제외 backups/에 저장
 ./scripts/backup_postgres.sh
 
-# Phase 1 Alembic 초기화 후 사용할 마이그레이션 명령
-docker compose run --rm web uv run alembic upgrade head
+# PostgreSQL Flask-Migrate/Alembic 마이그레이션
+docker compose run --rm web uv run flask --app wsgi db upgrade
 ```

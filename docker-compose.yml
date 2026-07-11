@@ -30,6 +30,25 @@ services:
       - backend
     restart: unless-stopped
 
+  db-test:
+    image: postgres:17-alpine
+    profiles: ["test"]
+    environment:
+      POSTGRES_DB: admission_test
+      POSTGRES_USER: admission_test
+      POSTGRES_PASSWORD: test-only-password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admission_test -d admission_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "127.0.0.1:${TEST_POSTGRES_PORT:-55432}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks:
+      - backend
+
 networks:
   backend:
     driver: bridge

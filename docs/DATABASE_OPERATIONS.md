@@ -15,10 +15,25 @@
 
 ## 마이그레이션
 
-Phase 1에서 Alembic 설정과 최초 migration을 추가한다. 개발·운영 모두 다음 실행 형태를 사용한다.
+Flask-Migrate가 Alembic을 Flask 애플리케이션 팩토리와 연결한다. PostgreSQL 전용 연결 문자열을 설정한 뒤 개발·운영 모두 다음 실행 형태를 사용한다.
 
 ```bash
-docker compose run --rm web uv run alembic upgrade head
+docker compose run --rm web uv run flask --app wsgi db upgrade
+```
+
+모델 변경 후 migration 후보를 만들 때는 자동 생성 결과를 반드시 검토한 뒤 적용한다.
+
+```bash
+docker compose run --rm web uv run flask --app wsgi db migrate -m "변경 내용"
+docker compose run --rm web uv run flask --app wsgi db upgrade
+```
+
+## PostgreSQL 통합 테스트
+
+`db-test`는 호스트 loopback에만 포트를 열고 `tmpfs`를 사용한다. 테스트 종료 시 컨테이너를 제거하며 운영 `postgres_data` volume에 접근하지 않는다.
+
+```bash
+make test-integration
 ```
 
 ## 백업

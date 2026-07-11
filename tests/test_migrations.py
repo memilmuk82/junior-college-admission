@@ -1,0 +1,74 @@
+from __future__ import annotations
+
+import shutil
+from pathlib import Path
+
+from sqlalchemy import Engine, inspect
+
+from app import create_app
+
+
+def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> None:
+    assert postgres_engine.dialect.name == "postgresql"
+    tables = set(inspect(postgres_engine).get_table_names())
+    required = {
+        "admission_eligibility_rules",
+        "admission_rounds",
+        "admission_tracks",
+        "alembic_version",
+        "assessment_components",
+        "campuses",
+        "disqualification_rules",
+        "document_requirements",
+        "grade_source_scope_rules",
+        "institutions",
+        "multiple_application_rules",
+        "programs",
+        "rule_reviews",
+        "score_adjustment_rules",
+        "score_rules",
+        "source_citations",
+        "source_document_pages",
+        "source_documents",
+        "student_academic_records",
+        "student_course_records",
+        "tie_break_rules",
+        "vocational_course_reports",
+        "vocational_course_statistics",
+        "vocational_student_results",
+    }
+
+    assert required <= tables
+
+
+def test_flask_db_upgrade_and_migrate_commands(postgres_engine: Engine, tmp_path: Path) -> None:
+    app = create_app(
+        {
+            "TESTING": True,
+            "SECRET_KEY": "test-only-secret",
+            "DATABASE_URL": str(postgres_engine.url),
+        }
+    )
+    runner = app.test_cli_runner()
+
+    upgrade_result = runner.invoke(args=["db", "upgrade"])
+
+    assert upgrade_result.exit_code == 0, upgrade_result.output
+
+    temporary_migrations = tmp_path / "migrations"
+    shutil.copytree("migrations", temporary_migrations)
+    existing_revisions = set((temporary_migrations / "versions").glob("*.py"))
+
+    migrate_result = runner.invoke(
+        args=[
+            "db",
+            "--directory",
+            str(temporary_migrations),
+            "migrate",
+            "--message",
+            "schema drift verification",
+        ]
+    )
+
+    assert migrate_result.exit_code == 0, migrate_result.output
+    assert set((temporary_migrations / "versions").glob("*.py")) == existing_revisions
