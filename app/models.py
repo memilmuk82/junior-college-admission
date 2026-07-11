@@ -11,12 +11,14 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -218,7 +220,15 @@ def rule_constraints() -> tuple[CheckConstraint, CheckConstraint, UniqueConstrai
 
 class AdmissionEligibilityRule(RuleRecordMixin, Base):
     __tablename__ = "admission_eligibility_rules"
-    __table_args__ = rule_constraints()
+    __table_args__ = (
+        *rule_constraints(),
+        Index(
+            "uq_admission_eligibility_rules_one_published_per_track",
+            "admission_track_id",
+            unique=True,
+            postgresql_where=text("lifecycle_status = 'PUBLISHED'"),
+        ),
+    )
 
 
 class GradeSourceScopeRule(RuleRecordMixin, Base):
@@ -233,12 +243,28 @@ class ScoreRule(RuleRecordMixin, Base):
 
 class MultipleApplicationRule(RuleRecordMixin, Base):
     __tablename__ = "multiple_application_rules"
-    __table_args__ = rule_constraints()
+    __table_args__ = (
+        *rule_constraints(),
+        Index(
+            "uq_multiple_application_rules_one_published_per_track",
+            "admission_track_id",
+            unique=True,
+            postgresql_where=text("lifecycle_status = 'PUBLISHED'"),
+        ),
+    )
 
 
 class DisqualificationRule(RuleRecordMixin, Base):
     __tablename__ = "disqualification_rules"
-    __table_args__ = rule_constraints()
+    __table_args__ = (
+        *rule_constraints(),
+        Index(
+            "uq_disqualification_rules_one_published_per_track",
+            "admission_track_id",
+            unique=True,
+            postgresql_where=text("lifecycle_status = 'PUBLISHED'"),
+        ),
+    )
 
 
 class ScoreAdjustmentRule(RuleRecordMixin, Base):

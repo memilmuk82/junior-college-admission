@@ -14,3 +14,21 @@ def test_published_rule_without_human_evidence_is_rejected() -> None:
 
 def test_empty_rule_seed_directory_is_valid(tmp_path: Path) -> None:
     assert inspect_rule_seeds(tmp_path) == []
+
+
+def test_published_eligibility_rule_with_executable_expression_is_rejected() -> None:
+    violations = validate_rule(
+        {
+            "rule_type": "ADMISSION_ELIGIBILITY",
+            "lifecycle_status": "PUBLISHED",
+            "source_citation_id": "synthetic-citation",
+            "golden_test_ref": "synthetic-golden",
+            "human_approved_at": "2026-07-12T00:00:00Z",
+            "independent_verified": True,
+            "rule_payload": {"expression": "student.school == 'GENERAL'"},
+        },
+        Path("synthetic-rule.json"),
+    )
+
+    assert len(violations) == 1
+    assert "payload 오류" in violations[0]

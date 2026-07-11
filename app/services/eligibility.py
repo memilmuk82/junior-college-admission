@@ -269,6 +269,10 @@ def evaluate_eligibility(facts: StudentFacts, rule: EligibilityRule) -> Eligibil
     )
 
 
+def validate_eligibility_rule_payload(payload: Mapping[str, object]) -> None:
+    _parse_rule_payload(payload)
+
+
 def require_score_calculation_allowed(decision: EligibilityDecision) -> None:
     if not decision.allows_score_calculation:
         raise ScoreCalculationBlocked(
@@ -644,4 +648,5 @@ __all__ = [
     "UnusableEligibilityRule",
     "evaluate_eligibility",
     "require_score_calculation_allowed",
+    "validate_eligibility_rule_payload",
 ]

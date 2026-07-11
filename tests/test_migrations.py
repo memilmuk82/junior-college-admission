@@ -48,6 +48,13 @@ def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> No
         "ck_student_course_records_raw_score_label_valid",
         "ck_student_course_records_raw_score_value_or_label",
     } <= course_checks
+    for table_name in (
+        "admission_eligibility_rules",
+        "multiple_application_rules",
+        "disqualification_rules",
+    ):
+        index_names = {index["name"] for index in inspect(postgres_engine).get_indexes(table_name)}
+        assert f"uq_{table_name}_one_published_per_track" in index_names
 
 
 def test_flask_db_upgrade_and_migrate_commands(postgres_engine: Engine, tmp_path: Path) -> None:

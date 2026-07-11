@@ -30,3 +30,11 @@
 - 검수 화면에는 원본 파일명과 학생 식별자를 렌더링하지 않는다.
 - 검수·완료 응답은 `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, CSP와 frame 차단을 적용한다.
 - 행 확정과 세션 폐기는 CSRF 검증 POST만 허용하며 검증 실패 시 세션을 삭제하거나 DB에 저장하지 않는다.
+
+## Phase 3 민감 결격 입력
+
+- 학교폭력 등 민감 결격 사실은 영구 학생 사실 모델이나 규칙 payload에 저장하지 않는다.
+- 결격 판정 함수에는 제한된 이름의 bool 사실만 요청 메모리로 전달한다.
+- 설명 trace에는 사실 이름·조건 결과만 남기고 실제 bool 값은 복사하지 않는다.
+- 결격 사실 누락은 허용 또는 결격으로 추정하지 않고 `INSUFFICIENT_DATA`로 처리한다.
+- 결격 결과를 점수 감점으로 변환하거나 `score_adjustment_rules`에 전달하지 않는다.

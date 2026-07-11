@@ -17,3 +17,9 @@
 학교 유형 코드는 `GENERAL`, `VOCATIONAL`, `MEISTER`, `COMPREHENSIVE_VOCATIONAL`, `LIFELONG_EDUCATION`, `FOREIGN`을 사용한다. 값이 확인되지 않았으면 별도 추정 코드가 아니라 `None`으로 유지한다.
 
 현재 정의는 엔진 실행 계약이며 실제 대학별 의미는 검수 완료된 공식 규칙과 출처 인용이 연결된 뒤에만 공개한다.
+
+## 복수지원과 결격
+
+복수지원 상태는 `ALLOWED`, `BLOCKED`, `NEEDS_REVIEW`다. 이는 한 전형 자체의 지원자격과 독립적이며 지원 이력 조합만 설명한다.
+
+결격 상태는 `CLEAR`, `DISQUALIFIED`, `NEEDS_REVIEW`, `INSUFFICIENT_DATA`다. 민감 결격 사실은 학생 사실 모델이나 영구 DB 행에 합치지 않고 판정 요청의 세션 전용 입력으로만 사용한다. 결격과 점수 감점은 서로 다른 규칙 유형이다.

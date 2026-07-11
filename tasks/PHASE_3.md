@@ -18,7 +18,7 @@
 - 규칙 저장 계약: `app/models.py`, `migrations/`
 - 규칙 검증: `scripts/validate_rules.py`
 - 검증: `tests/`, `Makefile`
-- 기록: `README.md`, `PROJECT_STATUS.md`, `DEVELOPMENT_LOG.md`, `docs/RULE_SCHEMA.md`, `docs/DOMAIN_GLOSSARY.md`, `docs/TEST_STRATEGY.md`, `tasks/PHASE_3.md`
+- 기록: `README.md`, `PROJECT_STATUS.md`, `DEVELOPMENT_LOG.md`, `docs/RULE_SCHEMA.md`, `docs/DOMAIN_GLOSSARY.md`, `docs/PRIVACY_DATA_RETENTION.md`, `docs/TEST_STRATEGY.md`, `tasks/PHASE_3.md`
 
 ## 금지 사항
 
@@ -64,3 +64,12 @@ make check
 
 - 독립 검증 역할: 규칙 후보와 반례를 분리해 누락 사실이 결격으로 바뀌지 않는지, 전형 간 결과가 공유되지 않는지, 계산 코드가 먼저 실행되지 않는지 대조한다.
 - 남은 위험: 공식 모집요강과 사람 검수 규칙 seed가 없으므로 이번 단계는 실행 계약과 합성 규칙만 검증한다. 실제 대학 결과는 Phase 5 파일럿 전까지 공개하지 않는다.
+
+## 완료 판정
+
+- 상태: `PASS` (2026-07-12)
+- 학생 사실·제한형 DSL·5개 상태·설명 trace와 계산 진입 차단 계약을 검증했다.
+- 지원자격·복수지원·결격 규칙을 서로 다른 테이블·서비스·결과 상태로 유지한다.
+- 전형별 세 규칙 유형은 PostgreSQL에서 활성 `PUBLISHED` 버전을 하나만 허용한다.
+- 민감 결격 사실은 요청 메모리에서만 평가하고 규칙 payload·trace·DB에 실제 값을 저장하지 않는다.
+- 공식 대학 규칙과 실제 학생 자료 없이 합성 규칙·합성 사실만 사용했다.
