@@ -28,3 +28,6 @@ Phase 0 검증 범위는 다음과 같다.
 - PostgreSQL에 확인 행만 저장하고 미확인 행은 제외
 - 원본·파생물 삭제 성공과 삭제 실패 시 DB rollback
 - `P`의 비수치 라벨 보존과 DB CHECK 제약
+- 합성 텍스트 PDF의 교과 표 위치 변화와 페이지 trace
+- 세부능력 및 특기사항 제외, 암호화·과대 PDF 거부
+- `text_pdf` ImportBatch 저장과 Flask-Migrate schema drift 검사

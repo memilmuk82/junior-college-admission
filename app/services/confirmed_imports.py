@@ -23,6 +23,7 @@ EXTRACTION_METHODS = {
     "csv": "STRUCTURED_CSV",
     "pasted_table": "PASTED_TABLE",
     "xlsx": "STRUCTURED_XLSX",
+    "text_pdf": "TEXT_PDF",
 }
 
 
@@ -159,6 +160,7 @@ def confirm_structured_import(
                 achievement_level=row.achievement_level,
                 enrollment_count=row.enrollment_count,
                 rank_grade=row.rank_grade,
+                source_page=row.source_page,
                 extraction_method=EXTRACTION_METHODS[preview.source_format],
                 user_verified=True,
             )

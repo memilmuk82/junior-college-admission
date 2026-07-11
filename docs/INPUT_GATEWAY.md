@@ -57,3 +57,16 @@ CSV·표 붙여넣기·XLSX 학급표의 `학생식별자` 또는 `student_refer
 삭제 검증이 실패하면 DB 변경을 rollback하고 `DeletionVerificationError`를 호출자에게 전달한다. 삭제가 성공한 뒤 DB commit 자체가 실패하는 경우에는 개인정보 최소 보유를 우선해 삭제된 원본을 복원하지 않는다.
 
 원점수의 `P`는 `raw_score`에 0을 넣지 않고 `raw_score_label='P'`로 보존한다. DB CHECK 제약은 숫자 점수와 라벨의 동시 저장 및 `P` 이외의 임의 라벨을 차단한다.
+
+## 텍스트 PDF
+
+텍스트 PDF는 `pypdf`를 사용해 서버 내부 메모리에서만 추출한다. 고정 페이지 번호를 사용하지 않고 모든 페이지에서 `교과학습발달상황` 머리글을 찾은 뒤 표준 머리글이 있는 표만 미리보기로 변환한다.
+
+- 최대 원본 크기: 20 MiB
+- 최대 페이지 수: 100쪽
+- 암호화 PDF: 비밀번호를 추정하지 않고 `EncryptedTextPdfError`
+- 텍스트가 없는 PDF: 값을 추정하지 않고 `TEXT_NOT_AVAILABLE`
+- 교과 구간 없음: `ACADEMIC_SECTION_NOT_FOUND`
+- 표 머리글 없음: `TABLE_HEADER_NOT_FOUND`
+
+`세부능력 및 특기사항` 머리글을 만나면 이후 텍스트 처리를 즉시 중단한다. 해당 원문은 정규화 행, 검수 이슈, DB 저장 또는 외부 payload에 포함하지 않는다. 확인된 PDF 행은 `TEXT_PDF` 추출 방식과 원본 페이지 번호를 함께 저장한다.

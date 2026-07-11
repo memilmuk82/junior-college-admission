@@ -9,7 +9,7 @@ setup:
 	npm ci
 
 test-unit:
-	$(PYTHON) pytest tests/test_app.py tests/test_structured_imports.py tests/test_temporary_uploads.py tests/test_validate_rules.py
+	$(PYTHON) pytest tests/test_app.py tests/test_structured_imports.py tests/test_temporary_uploads.py tests/test_text_pdf_imports.py tests/test_validate_rules.py
 
 test-integration:
 	$(COMPOSE_TEST_ENV) docker compose --profile test rm -f -s -v db-test

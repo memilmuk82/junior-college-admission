@@ -15,6 +15,7 @@ from app.services.temporary_uploads import (
     DeletionVerificationError,
     TemporaryUploadStore,
 )
+from app.services.text_pdf_imports import parse_academic_record_page_texts
 
 
 @pytest.fixture
@@ -152,3 +153,36 @@ def test_deletion_failure_rolls_back_confirmed_database_rows(
         session.scalar(select(ImportBatch).where(ImportBatch.source_hash == _preview().source_hash))
         is None
     )
+
+
+def test_confirmed_text_pdf_row_keeps_page_trace(session: Session, tmp_path: Path) -> None:
+    preview = parse_academic_record_page_texts(
+        (
+            "합성 표지",
+            "교과학습발달상황\n학년도|학년|학기|과목|원점수\n2026|3|1|합성 PDF 과목|91",
+        ),
+        source_hash="c" * 64,
+    )
+    store, review_session_id = _temporary_session(tmp_path)
+
+    result = confirm_structured_import(
+        session,
+        preview=preview,
+        confirmed_row_indices=(0,),
+        student_id="synthetic-pdf-student",
+        record_source="HOME_SCHOOL_RECORD",
+        upload_store=store,
+        review_session_id=review_session_id,
+    )
+
+    course = session.scalar(
+        select(StudentCourseRecord).where(
+            StudentCourseRecord.import_batch_id == result.import_batch_id
+        )
+    )
+    batch = session.get(ImportBatch, result.import_batch_id)
+    assert course is not None
+    assert batch is not None
+    assert course.extraction_method == "TEXT_PDF"
+    assert course.source_page == 2
+    assert batch.source_format == "text_pdf"

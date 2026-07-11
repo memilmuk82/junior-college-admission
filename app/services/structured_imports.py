@@ -11,7 +11,7 @@ from typing import Literal
 from openpyxl import load_workbook
 
 TextSourceFormat = Literal["csv", "pasted_table"]
-SourceFormat = Literal["csv", "pasted_table", "xlsx"]
+SourceFormat = Literal["csv", "pasted_table", "xlsx", "text_pdf"]
 ScoreValue = Decimal | Literal["P"] | None
 MAX_XLSX_BYTES = 20 * 1024 * 1024
 MAX_XLSX_SHEETS = 20
@@ -62,6 +62,7 @@ class NormalizationIssue:
     field: str
     row_number: int
     sheet_name: str | None = None
+    source_page: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +81,7 @@ class NormalizedCourseRow:
     rank_grade: Decimal | None
     source_sheet: str | None = None
     source_row_number: int | None = None
+    source_page: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
