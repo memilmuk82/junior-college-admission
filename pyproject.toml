@@ -9,6 +9,7 @@ dependencies = [
     "flask>=3.1,<4",
     "flask-migrate>=4,<5",
     "flask-sqlalchemy>=3.1,<4",
+    "openpyxl>=3.1,<4",
     "psycopg[binary]>=3.2,<4",
     "python-dotenv>=1,<2",
     "sqlalchemy>=2,<3",
@@ -21,6 +22,7 @@ dev = [
     "pytest-cov>=6,<8",
     "ruff>=0.11,<1",
     "types-flask-migrate>=4,<5",
+    "types-openpyxl>=3.1,<4",
 ]
 
 [tool.pytest.ini_options]
