@@ -34,3 +34,6 @@ Phase 0 검증 범위는 다음과 같다.
 - 합성 PNG·JPEG·클립보드 입력의 동일 정규화 결과와 signature 검증
 - 이미지 픽셀 제한, 세부능력 및 특기사항 제외, OCR 검수 필수 표시
 - 컨테이너 Tesseract `kor+eng` 언어팩과 실제 stdin OCR 실행
+- 합성 다중 페이지 이미지형 PDF의 교과 구간 위치 변화와 페이지 trace
+- EOF 누락 경미 손상 복구, 암호화·복구 불가·페이지 초과 PDF 거부
+- PDFium 메모리 렌더링과 `scanned_pdf` ImportBatch 저장

@@ -27,6 +27,7 @@ EXTRACTION_METHODS = {
     "image_png": "LOCAL_OCR_IMAGE",
     "image_jpeg": "LOCAL_OCR_IMAGE",
     "clipboard_image": "LOCAL_OCR_CLIPBOARD",
+    "scanned_pdf": "LOCAL_OCR_PDF",
 }
 
 

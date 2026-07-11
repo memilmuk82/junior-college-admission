@@ -7,12 +7,15 @@ from unittest.mock import patch
 
 import pytest
 from PIL import Image
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen.canvas import Canvas
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
 from app.models import ImportBatch, StudentAcademicRecord, StudentCourseRecord
 from app.services.confirmed_imports import confirm_structured_import
 from app.services.image_imports import parse_image_bytes
+from app.services.scanned_pdf_imports import parse_scanned_pdf_bytes
 from app.services.structured_imports import StructuredImportPreview, parse_structured_text
 from app.services.temporary_uploads import (
     DeletionVerificationError,
@@ -227,3 +230,46 @@ def test_confirmed_clipboard_ocr_row_uses_local_ocr_method(
     assert batch is not None
     assert course.extraction_method == "LOCAL_OCR_CLIPBOARD"
     assert batch.source_format == "clipboard_image"
+
+
+def test_confirmed_scanned_pdf_row_keeps_ocr_page_trace(session: Session, tmp_path: Path) -> None:
+    output = BytesIO()
+    canvas = Canvas(output, pagesize=A4)
+    page_image = Image.new("RGB", (320, 480), "white")
+    for _ in range(2):
+        canvas.drawInlineImage(page_image, 0, 0, width=A4[0], height=A4[1])
+        canvas.showPage()
+    canvas.save()
+    page_image.close()
+    ocr_results = iter(
+        (
+            "합성 표지",
+            "교과학습발달상황\n학년도|학년|학기|과목|원점수\n2026|3|1|합성 스캔 PDF 과목|91",
+        )
+    )
+    preview = parse_scanned_pdf_bytes(
+        output.getvalue(), ocr_engine=lambda _image: next(ocr_results)
+    )
+    store, review_session_id = _temporary_session(tmp_path)
+
+    result = confirm_structured_import(
+        session,
+        preview=preview,
+        confirmed_row_indices=(0,),
+        student_id="synthetic-scanned-pdf-student",
+        record_source="HOME_SCHOOL_RECORD",
+        upload_store=store,
+        review_session_id=review_session_id,
+    )
+
+    course = session.scalar(
+        select(StudentCourseRecord).where(
+            StudentCourseRecord.import_batch_id == result.import_batch_id
+        )
+    )
+    batch = session.get(ImportBatch, result.import_batch_id)
+    assert course is not None
+    assert batch is not None
+    assert course.extraction_method == "LOCAL_OCR_PDF"
+    assert course.source_page == 2
+    assert batch.source_format == "scanned_pdf"

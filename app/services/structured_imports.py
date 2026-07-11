@@ -19,6 +19,7 @@ SourceFormat = Literal[
     "image_png",
     "image_jpeg",
     "clipboard_image",
+    "scanned_pdf",
 ]
 ScoreValue = Decimal | Literal["P"] | None
 MAX_XLSX_BYTES = 20 * 1024 * 1024

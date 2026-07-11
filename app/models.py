@@ -262,7 +262,7 @@ class ImportBatch(TimestampMixin, Base):
         CheckConstraint("char_length(source_hash) = 64", name="source_hash_length"),
         CheckConstraint(
             "source_format IN ('csv', 'pasted_table', 'xlsx', 'text_pdf', "
-            "'image_png', 'image_jpeg', 'clipboard_image')",
+            "'image_png', 'image_jpeg', 'clipboard_image', 'scanned_pdf')",
             name="source_format_valid",
         ),
         CheckConstraint("confirmed_row_count > 0", name="confirmed_row_count_positive"),
