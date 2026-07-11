@@ -24,6 +24,9 @@ EXTRACTION_METHODS = {
     "pasted_table": "PASTED_TABLE",
     "xlsx": "STRUCTURED_XLSX",
     "text_pdf": "TEXT_PDF",
+    "image_png": "LOCAL_OCR_IMAGE",
+    "image_jpeg": "LOCAL_OCR_IMAGE",
+    "clipboard_image": "LOCAL_OCR_CLIPBOARD",
 }
 
 

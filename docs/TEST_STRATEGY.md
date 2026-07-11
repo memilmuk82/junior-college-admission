@@ -31,3 +31,6 @@ Phase 0 검증 범위는 다음과 같다.
 - 합성 텍스트 PDF의 교과 표 위치 변화와 페이지 trace
 - 세부능력 및 특기사항 제외, 암호화·과대 PDF 거부
 - `text_pdf` ImportBatch 저장과 Flask-Migrate schema drift 검사
+- 합성 PNG·JPEG·클립보드 입력의 동일 정규화 결과와 signature 검증
+- 이미지 픽셀 제한, 세부능력 및 특기사항 제외, OCR 검수 필수 표시
+- 컨테이너 Tesseract `kor+eng` 언어팩과 실제 stdin OCR 실행

@@ -11,7 +11,15 @@ from typing import Literal
 from openpyxl import load_workbook
 
 TextSourceFormat = Literal["csv", "pasted_table"]
-SourceFormat = Literal["csv", "pasted_table", "xlsx", "text_pdf"]
+SourceFormat = Literal[
+    "csv",
+    "pasted_table",
+    "xlsx",
+    "text_pdf",
+    "image_png",
+    "image_jpeg",
+    "clipboard_image",
+]
 ScoreValue = Decimal | Literal["P"] | None
 MAX_XLSX_BYTES = 20 * 1024 * 1024
 MAX_XLSX_SHEETS = 20

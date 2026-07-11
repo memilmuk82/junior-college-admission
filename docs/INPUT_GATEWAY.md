@@ -70,3 +70,16 @@ CSV·표 붙여넣기·XLSX 학급표의 `학생식별자` 또는 `student_refer
 - 표 머리글 없음: `TABLE_HEADER_NOT_FOUND`
 
 `세부능력 및 특기사항` 머리글을 만나면 이후 텍스트 처리를 즉시 중단한다. 해당 원문은 정규화 행, 검수 이슈, DB 저장 또는 외부 payload에 포함하지 않는다. 확인된 PDF 행은 `TEXT_PDF` 추출 방식과 원본 페이지 번호를 함께 저장한다.
+
+## 이미지와 클립보드 로컬 OCR
+
+PNG·JPEG 파일과 브라우저 클립보드 이미지 바이트는 같은 검증·OCR 계약을 사용한다. 확장자를 신뢰하지 않고 Pillow가 확인한 실제 PNG/JPEG 형식만 허용하며 EXIF 방향을 적용한 RGB 이미지로 정규화한다.
+
+- 최대 원본 크기: 10 MiB
+- 최대 픽셀 수: 20,000,000
+- 한 변 최대 길이: 12,000px
+- OCR 엔진: 컨테이너 내부 Tesseract `kor+eng`
+- OCR 제한 시간: 45초
+- 외부 OCR·외부 AI 전송: 사용하지 않음
+
+Tesseract에는 shell 없이 PNG 바이트를 stdin으로 전달하고 stderr 원문은 보존하지 않는다. OCR 전체 텍스트는 반환·로그·DB에 남기지 않고 기존 교과 구간 파서의 표준 행만 반환한다. 모든 OCR 미리보기에는 `OCR_REVIEW_REQUIRED`를 추가하며 교사가 선택한 행만 기존 삭제 검증 transaction으로 저장한다.
