@@ -5,6 +5,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from io import StringIO
+from typing import cast
 
 SCORE_RULE_CSV_HEADERS = (
     "schema_version",
@@ -665,6 +666,82 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
     maximum_score = _payload_decimal(payload.get("maximum_score"))
     if maximum_score is not None and maximum_score <= 0:
         raise ValueError("maximum_score는 양수여야 합니다.")
+
+
+def score_rule_definition_from_payload(
+    payload: Mapping[str, object],
+) -> ScoreRuleDefinition:
+    validate_score_rule_payload(payload)
+    inclusion = _payload_mapping(payload, "source_inclusion")
+    semester = _payload_mapping(payload, "semester_selection")
+    subject = _payload_mapping(payload, "subject_selection")
+    semester_rounding = _payload_mapping(payload, "semester_rounding")
+    grade_weights = _payload_mapping(payload, "grade_weights")
+    semester_weights = _payload_mapping(payload, "semester_weights")
+    achievement = _payload_mapping(payload, "achievement")
+    z_score = _payload_mapping(payload, "z_score")
+    attendance = _payload_mapping(payload, "attendance")
+    components = _payload_mapping(payload, "non_predictive_components")
+    rounding = _payload_mapping(payload, "rounding")
+    transform = _payload_mapping(payload, "score_transform")
+    return ScoreRuleDefinition(
+        home_grade_1_included=cast(bool | None, inclusion["home_grade_1"]),
+        home_grade_2_included=cast(bool | None, inclusion["home_grade_2"]),
+        home_grade_3_semester_1_included=cast(bool | None, inclusion["home_grade_3_semester_1"]),
+        home_grade_3_semester_2_included=cast(bool | None, inclusion["home_grade_3_semester_2"]),
+        vocational_grade_included=cast(bool | None, inclusion["vocational_grade"]),
+        vocational_semester_1_included=cast(bool | None, inclusion["vocational_semester_1"]),
+        vocational_semester_2_included=cast(bool | None, inclusion["vocational_semester_2"]),
+        value_direction=cast(str, payload["value_direction"]),
+        semester_selection_method=cast(str, semester["method"]),
+        semester_selection_scope=cast(str, semester["scope"]),
+        best_semester_count=cast(int | None, semester["best_count"]),
+        subject_selection_method=cast(str, subject["method"]),
+        best_subject_count=cast(int | None, subject["best_count"]),
+        subject_scope=cast(str, subject["scope"]),
+        credit_weighted=cast(bool | None, subject["credit_weighted"]),
+        semester_rounding_mode=cast(str | None, semester_rounding["mode"]),
+        semester_rounding_scale=cast(int | None, semester_rounding["scale"]),
+        grade_weight_1=_payload_decimal(grade_weights["grade_1"]),
+        grade_weight_2=_payload_decimal(grade_weights["grade_2"]),
+        grade_weight_3=_payload_decimal(grade_weights["grade_3"]),
+        semester_weight_1_1=_payload_decimal(semester_weights["grade_1_semester_1"]),
+        semester_weight_1_2=_payload_decimal(semester_weights["grade_1_semester_2"]),
+        semester_weight_2_1=_payload_decimal(semester_weights["grade_2_semester_1"]),
+        semester_weight_2_2=_payload_decimal(semester_weights["grade_2_semester_2"]),
+        semester_weight_3_1=_payload_decimal(semester_weights["grade_3_semester_1"]),
+        semester_weight_3_2=_payload_decimal(semester_weights["grade_3_semester_2"]),
+        weighting_mode=cast(str, payload["weighting_mode"]),
+        achievement_handling=cast(str, achievement["handling"]),
+        achievement_table_code=cast(str | None, achievement["table_code"]),
+        achievement_source=cast(str | None, achievement["source"]),
+        achievement_distribution_scale=cast(str | None, achievement["distribution_scale"]),
+        career_subject_included=cast(bool | None, achievement["career_subject_included"]),
+        z_score_policy=cast(str, z_score["policy"]),
+        z_score_source=cast(str | None, z_score["source"]),
+        z_score_table_code=cast(str | None, z_score["table_code"]),
+        z_score_formula_version=cast(str | None, z_score["formula_version"]),
+        z_score_rounding_mode=cast(str | None, z_score["rounding_mode"]),
+        z_score_rounding_scale=cast(int | None, z_score["rounding_scale"]),
+        z_score_clip_min=_payload_decimal(z_score["clip_min"]),
+        z_score_clip_max=_payload_decimal(z_score["clip_max"]),
+        attendance_included=cast(bool | None, attendance["attendance_included"]),
+        attendance_table_code=cast(str | None, attendance["table_code"]),
+        attendance_source=cast(str | None, attendance["source"]),
+        attendance_minor_event_conversion_unit=cast(
+            int | None, attendance["minor_event_conversion_unit"]
+        ),
+        interview_ratio=_payload_decimal(components["interview_ratio"]),
+        practical_ratio=_payload_decimal(components["practical_ratio"]),
+        rounding_mode=cast(str, rounding["mode"]),
+        rounding_stage=cast(str, rounding["stage"]),
+        rounding_scale=cast(int | None, rounding["scale"]),
+        display_scale=cast(int | None, rounding["display_scale"]),
+        score_transform_mode=cast(str, transform["mode"]),
+        score_base=_payload_decimal(transform["base"]),
+        score_multiplier=_payload_decimal(transform["multiplier"]),
+        maximum_score=_payload_decimal(payload["maximum_score"]),
+    )
 
 
 def parse_z_score_table_csv(data: bytes) -> ZScoreTableCsvResult:
@@ -1742,6 +1819,7 @@ __all__ = [
     "ZScoreTableRow",
     "parse_score_rule_csv",
     "parse_z_score_table_csv",
+    "score_rule_definition_from_payload",
     "score_rule_to_payload",
     "validate_score_rule_payload",
     "write_score_rule_csv",

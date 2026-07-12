@@ -10,6 +10,7 @@ from app.services.score_rule_schema import (
     ManagedScoreRule,
     parse_score_rule_csv,
     parse_z_score_table_csv,
+    score_rule_definition_from_payload,
     score_rule_to_payload,
     validate_score_rule_payload,
     write_score_rule_csv,
@@ -109,6 +110,15 @@ def test_utf8_bom_csv_round_trip_uses_same_canonical_rule_schema() -> None:
     assert exported.startswith(b"\xef\xbb\xbf")
     assert reparsed.issues == ()
     assert score_rule_to_payload(reparsed.rows[0]) == direct_payload
+
+
+def test_canonical_payload_restores_the_same_executable_definition() -> None:
+    parsed = parse_score_rule_csv(_csv_bytes([_valid_row()]))
+    original = parsed.rows[0].definition
+
+    restored = score_rule_definition_from_payload(score_rule_to_payload(parsed.rows[0]))
+
+    assert restored == original
 
 
 def test_boolean_codes_are_uppercase_only() -> None:
