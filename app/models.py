@@ -233,7 +233,15 @@ class AdmissionEligibilityRule(RuleRecordMixin, Base):
 
 class GradeSourceScopeRule(RuleRecordMixin, Base):
     __tablename__ = "grade_source_scope_rules"
-    __table_args__ = rule_constraints()
+    __table_args__ = (
+        *rule_constraints(),
+        Index(
+            "uq_grade_source_scope_rules_one_published_per_track",
+            "admission_track_id",
+            unique=True,
+            postgresql_where=text("lifecycle_status = 'PUBLISHED'"),
+        ),
+    )
 
 
 class ScoreRule(RuleRecordMixin, Base):

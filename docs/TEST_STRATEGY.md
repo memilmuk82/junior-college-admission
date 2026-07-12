@@ -60,3 +60,20 @@ Phase 0 검증 범위는 다음과 같다.
 - 결격 `CLEAR`·`DISQUALIFIED`·`NEEDS_REVIEW`·`INSUFFICIENT_DATA`
 - 민감 결격 실제 값의 규칙 payload·trace·DB 비저장
 - 게시 seed의 지원자격·복수지원·결격 payload 계약 검사
+
+## Phase 4 진행 중 검증 범위
+
+- 자격 미확정 상태의 DB 조회 이전 차단
+- 원적교 전용·위탁 포함·위탁 전용·위탁학기 제외 정책
+- 전형 의존·수동 검토 정책의 `NEEDS_REVIEW`
+- 검증되지 않은 학기·과목 제외와 빈 범위 `INSUFFICIENT_DATA`
+- `P` 원문 라벨 보존과 0점 변환 없음
+- 선택 출처·학기·과목·제외 이유 trace
+- 게시 성적 범위 규칙 조회·단일 활성 버전·Alembic drift
+- 규칙 seed의 성적 범위 payload 검증
+- 표준 성적 규칙 CSV의 UTF-8·UTF-8 BOM 왕복
+- 고정 헤더·중복 업무키·행별 오류와 유효 행 분리
+- TRUE/FALSE, 선택 코드, Decimal 범위·합계, 빈값과 0 구분
+- 자유 수식 열·수식형 셀·canonical payload 추가 필드 거부
+- 관리자 직접 생성 규칙의 동일 CSV 재내보내기
+- 별도 Z점수 표의 열린 경계와 구간 중복 차단

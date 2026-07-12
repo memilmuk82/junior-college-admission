@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.models import (
     AdmissionEligibilityRule,
     DisqualificationRule,
+    GradeSourceScopeRule,
     MultipleApplicationRule,
 )
 from app.services.eligibility import (
@@ -80,6 +81,18 @@ def load_published_disqualification_rule(
     return _exactly_one(rows, admission_track_id, "결격")
 
 
+def load_published_grade_source_scope_rule(
+    session: Session, admission_track_id: str
+) -> PublishedRule:
+    rows = session.scalars(
+        select(GradeSourceScopeRule).where(
+            GradeSourceScopeRule.admission_track_id == admission_track_id,
+            GradeSourceScopeRule.lifecycle_status == "PUBLISHED",
+        )
+    ).all()
+    return _exactly_one(rows, admission_track_id, "성적 출처 범위")
+
+
 def evaluate_published_eligibility(
     session: Session,
     admission_track_id: str,
@@ -117,7 +130,12 @@ def require_published_rule_usable(rule: PublishedRule) -> None:
 
 
 def _exactly_one(
-    rows: Sequence[AdmissionEligibilityRule | MultipleApplicationRule | DisqualificationRule],
+    rows: Sequence[
+        AdmissionEligibilityRule
+        | MultipleApplicationRule
+        | DisqualificationRule
+        | GradeSourceScopeRule
+    ],
     admission_track_id: str,
     rule_label: str,
 ) -> PublishedRule:
@@ -155,6 +173,7 @@ __all__ = [
     "evaluate_published_eligibility",
     "load_published_disqualification_rule",
     "load_published_eligibility_rule",
+    "load_published_grade_source_scope_rule",
     "load_published_multiple_application_rule",
     "require_published_rule_usable",
     "to_eligibility_rule",

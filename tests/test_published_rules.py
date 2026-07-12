@@ -14,11 +14,14 @@ from app.models import (
     AdmissionTrack,
     Campus,
     DisqualificationRule,
+    GradeSourceScopeRule,
     Institution,
     MultipleApplicationRule,
     Program,
     SourceCitation,
     SourceDocument,
+    StudentAcademicRecord,
+    StudentCourseRecord,
 )
 from app.services.application_policies import (
     ApplicationChoice,
@@ -29,12 +32,19 @@ from app.services.application_policies import (
     evaluate_published_disqualification,
     evaluate_published_multiple_application,
 )
-from app.services.eligibility import EligibilityStatus, RuleSchemaError, StudentFacts
+from app.services.eligibility import (
+    EligibilityDecision,
+    EligibilityStatus,
+    EligibilityTrace,
+    RuleSchemaError,
+    StudentFacts,
+)
 from app.services.published_rules import (
     PublishedRuleNotFound,
     evaluate_published_eligibility,
     load_published_multiple_application_rule,
 )
+from app.services.score_inputs import ScoreInputStatus, evaluate_published_score_inputs
 
 
 @pytest.fixture
@@ -183,11 +193,21 @@ def test_invalid_published_eligibility_payload_is_explicit(session: Session) -> 
 
 @pytest.mark.parametrize(
     "model",
-    [AdmissionEligibilityRule, MultipleApplicationRule, DisqualificationRule],
+    [
+        AdmissionEligibilityRule,
+        MultipleApplicationRule,
+        DisqualificationRule,
+        GradeSourceScopeRule,
+    ],
 )
 def test_database_rejects_two_published_versions_per_track(
     session: Session,
-    model: type[AdmissionEligibilityRule | MultipleApplicationRule | DisqualificationRule],
+    model: type[
+        AdmissionEligibilityRule
+        | MultipleApplicationRule
+        | DisqualificationRule
+        | GradeSourceScopeRule
+    ],
 ) -> None:
     track, citation = _track_and_citation(session)
     session.add_all(
@@ -275,3 +295,79 @@ def test_sensitive_disqualification_value_is_not_persisted(session: Session) -> 
     assert decision.status is DisqualificationStatus.DISQUALIFIED
     assert persisted_payload == stored_payload
     assert "actual_value" not in repr(decision.trace)
+
+
+def test_published_grade_scope_selects_verified_database_records(
+    session: Session,
+) -> None:
+    track, citation = _track_and_citation(session)
+    session.add(
+        GradeSourceScopeRule(
+            version="synthetic-scope-v1",
+            rule_payload={"schema_version": 1, "policy": "HOME_ONLY"},
+            **_metadata(track, citation),
+        )
+    )
+    home_record = StudentAcademicRecord(
+        student_id="synthetic-score-student",
+        academic_year=2026,
+        grade=2,
+        semester=2,
+        record_source="HOME_SCHOOL_RECORD",
+        verification_status="USER_VERIFIED",
+    )
+    vocational_record = StudentAcademicRecord(
+        student_id="synthetic-score-student",
+        academic_year=2026,
+        grade=3,
+        semester=1,
+        record_source="VOCATIONAL_TRAINING_RECORD",
+        is_vocational_training_semester=True,
+        verification_status="USER_VERIFIED",
+    )
+    session.add_all([home_record, vocational_record])
+    session.flush()
+    session.add_all(
+        [
+            StudentCourseRecord(
+                academic_record_id=home_record.id,
+                subject_name="합성 원적교 과목",
+                raw_score=90,
+                extraction_method="MANUAL_TEST",
+                user_verified=True,
+            ),
+            StudentCourseRecord(
+                academic_record_id=vocational_record.id,
+                subject_name="합성 위탁 과목",
+                raw_score_label="P",
+                extraction_method="MANUAL_TEST",
+                user_verified=True,
+            ),
+        ]
+    )
+    session.flush()
+
+    decision = evaluate_published_score_inputs(
+        session,
+        track.id,
+        "synthetic-score-student",
+        _eligible_decision(),
+    )
+
+    assert decision.status is ScoreInputStatus.READY
+    assert [record.record_source for record in decision.records] == ["HOME_SCHOOL_RECORD"]
+    assert decision.trace.selected_terms[0].subjects == ("합성 원적교 과목",)
+
+
+def _eligible_decision() -> EligibilityDecision:
+    return EligibilityDecision(
+        status=EligibilityStatus.ELIGIBLE,
+        reason_code="SYNTHETIC_ELIGIBLE",
+        matched_case_id="synthetic_case",
+        missing_facts=(),
+        trace=EligibilityTrace(
+            rule_id="synthetic-eligibility",
+            rule_version="synthetic-v1",
+            conditions=(),
+        ),
+    )

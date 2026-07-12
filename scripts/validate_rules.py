@@ -9,6 +9,8 @@ from app.services.application_policies import (
     validate_multiple_application_rule_payload,
 )
 from app.services.eligibility import validate_eligibility_rule_payload
+from app.services.score_inputs import validate_grade_source_scope_payload
+from app.services.score_rule_schema import validate_score_rule_payload
 
 ROOT = Path(__file__).resolve().parents[1]
 RULE_SEED_ROOT = ROOT / "data" / "seed" / "rules"
@@ -36,6 +38,8 @@ def validate_rule(rule: dict[str, Any], source: Path) -> list[str]:
         "ADMISSION_ELIGIBILITY": validate_eligibility_rule_payload,
         "MULTIPLE_APPLICATION": validate_multiple_application_rule_payload,
         "DISQUALIFICATION": validate_disqualification_rule_payload,
+        "GRADE_SOURCE_SCOPE": validate_grade_source_scope_payload,
+        "SCORE_RULE": validate_score_rule_payload,
     }
     if rule_type in validators:
         if not isinstance(payload, dict):

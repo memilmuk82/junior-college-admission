@@ -56,6 +56,22 @@
 - 민감 결격 사실은 bool 세션 입력으로만 받고 실제 값은 DB·규칙 payload·trace에 복사하지 않는다.
 - 게시 규칙 seed 검사에서 지원자격·복수지원·결격 payload 계약도 검증해 Phase 3를 완료했다.
 
+## 2026-07-12 · Phase 4 시작
+
+- 지원자격이 `ELIGIBLE` 또는 `CONDITIONALLY_ELIGIBLE`인 경우에만 성적 범위 조회를 시작한다.
+- `HOME_ONLY`, `VOCATIONAL_INCLUDED`, `VOCATIONAL_ONLY`, `EXCLUDE_VOCATIONAL_SEMESTER`를 출처·위탁학기 사실로 선택한다.
+- `TRACK_DEPENDENT`와 `MANUAL_REVIEW`는 범위를 추정하지 않고 `NEEDS_REVIEW`로 반환한다.
+- 교사 검증 완료 과목만 후보에 남기고 `P`는 숫자 0이 아닌 원문 라벨로 보존한다.
+- trace에는 규칙 버전, 선택 출처·학기·과목과 제외 이유를 기록하되 학생 식별자는 포함하지 않는다.
+- 전형별 활성 성적 범위 규칙을 하나만 허용하는 PostgreSQL partial unique index와 게시 규칙 조회 서비스를 추가했다.
+- 실제 대학 산식 없이 합성 범위 규칙과 합성 익명 성적만 사용했다.
+- 관리자 직접 편집과 CSV import/export가 공유하는 `ManagedScoreRule` canonical 스키마를 추가했다.
+- 표준 CSV는 고정 헤더·UTF-8/BOM·TRUE/FALSE·Decimal·빈값/0·중복 업무키를 엄격히 검증한다.
+- 자유 수식과 수식형 셀을 거부하고 오류 행과 유효 행을 분리하되 DB 저장이나 부분 게시를 수행하지 않는다.
+- 면접·실기 비율은 비예측 메타데이터로만 보존하고 검정고시 변환표는 현재 범위에서 제외했다.
+- 복잡한 Z점수 표는 JSON 셀이 아닌 별도 `z_score_tables.csv`와 `z_score_table_code`로 연결한다.
+- CSV 업로드·변경 비교·관리자 확인·DRAFT 생성·승인 UI는 Phase 7 경계로 남겼다.
+
 
 ## 확정 기술 결정
 
