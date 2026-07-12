@@ -10,6 +10,11 @@ from app.services.score_calculation import (
     ScoreCalculationResult,
     calculate_selected_score,
 )
+from app.services.score_components import (
+    AttendanceInput,
+    AttendanceTableRow,
+    convert_attendance,
+)
 from app.services.score_rule_schema import ScoreRuleDefinition
 from app.services.score_selection import ScoreSelectionResult, select_terms_and_subjects
 from tests.test_score_selection import _definition, _selection, _values
@@ -176,3 +181,54 @@ def test_interview_and_practical_ratios_do_not_change_predicted_score() -> None:
         ("practical_ratio", Decimal("0.30")),
     )
     assert informational.trace.rule_version == "synthetic-v1"
+
+
+def test_verified_attendance_is_added_separately_with_table_trace() -> None:
+    definition = replace(
+        _definition(),
+        attendance_included=True,
+        attendance_table_code="SYNTHETIC_ATTENDANCE_V1",
+        attendance_source="UNIVERSITY_OFFICIAL",
+        attendance_minor_event_conversion_unit=3,
+        maximum_score=Decimal("120"),
+    )
+    selection, definition = _selected(definition)
+    attendance = convert_attendance(
+        attendance=AttendanceInput(1, 2, 1, 0, True),
+        table_rows=(
+            AttendanceTableRow(
+                table_code="SYNTHETIC_ATTENDANCE_V1",
+                absence_min=0,
+                absence_max=None,
+                score=Decimal("18"),
+                maximum_score=Decimal("20"),
+                evidence_document_id="synthetic-guide",
+                evidence_page=10,
+                evidence_location="합성 출결 표",
+                source_status="FINAL_GUIDE",
+            ),
+        ),
+        table_code="SYNTHETIC_ATTENDANCE_V1",
+        table_version="synthetic-v1",
+        source="UNIVERSITY_OFFICIAL",
+        minor_event_conversion_unit=3,
+    )
+
+    result = calculate_selected_score(
+        selection,
+        definition,
+        rule_id="synthetic-score-rule",
+        rule_version="synthetic-v1",
+        attendance=attendance,
+    )
+
+    assert result.trace.academic_score == Decimal("74.0")
+    assert result.trace.attendance_score == Decimal("18")
+    assert result.final_score == Decimal("92.00")
+    assert result.trace.attendance_table_version == "synthetic-v1"
+
+
+def test_attendance_is_not_guessed_or_added_to_non_attendance_rule() -> None:
+    selection, definition = _selected(replace(_definition(), attendance_included=True))
+    with pytest.raises(ScoreCalculationError):
+        _calculate(selection, definition)

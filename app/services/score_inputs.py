@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
@@ -49,6 +50,7 @@ class CourseRecordInput:
     enrollment_count: int | None
     rank_grade: Decimal | None
     user_verified: bool
+    achievement_distribution: Mapping[str, Decimal] | None = None
 
 
 @dataclass(frozen=True)
@@ -213,6 +215,7 @@ def load_academic_record_inputs(
                 enrollment_count=course.enrollment_count,
                 rank_grade=course.rank_grade,
                 user_verified=course.user_verified,
+                achievement_distribution=_achievement_distribution(course.achievement_distribution),
             )
         )
     return tuple(
@@ -242,6 +245,25 @@ def validate_grade_source_scope_payload(payload: dict[str, object]) -> GradeSour
         return GradeSourcePolicy(raw_policy)
     except ValueError as error:
         raise ScopeRuleSchemaError(f"허용되지 않은 성적 출처 범위입니다: {raw_policy}") from error
+
+
+def _achievement_distribution(
+    value: dict[str, object] | None,
+) -> dict[str, Decimal] | None:
+    if value is None:
+        return None
+    converted: dict[str, Decimal] = {}
+    for key, raw in value.items():
+        if not key or isinstance(raw, bool):
+            raise ValueError("성취도 분포는 코드별 Decimal 값이어야 합니다.")
+        try:
+            decimal_value = Decimal(str(raw))
+        except Exception as error:
+            raise ValueError("성취도 분포는 코드별 Decimal 값이어야 합니다.") from error
+        if not decimal_value.is_finite():
+            raise ValueError("성취도 분포는 유한한 Decimal이어야 합니다.")
+        converted[key] = decimal_value
+    return converted
 
 
 def _record_exclusion_reason(record: AcademicRecordInput, policy: GradeSourcePolicy) -> str | None:

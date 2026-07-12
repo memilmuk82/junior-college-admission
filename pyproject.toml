@@ -20,6 +20,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.130,<7",
     "mypy>=1.15,<2",
     "pytest>=8.3,<9",
     "pytest-cov>=6,<8",

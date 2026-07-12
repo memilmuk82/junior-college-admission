@@ -85,6 +85,10 @@ policy는 `HOME_ONLY`, `VOCATIONAL_INCLUDED`, `VOCATIONAL_ONLY`, `EXCLUDE_VOCATI
 
 Z점수 변환표는 하한·상한과 각 경계의 포함 여부를 별도 값으로 저장한다. `STANDARD_Z_V1` 계산의 원값·반올림값·절단값, 표 코드·버전, 근거 상태를 trace에 남긴다. 참고표는 `UNIVERSITY_OFFICIAL`로 승격할 수 없으며 공식 PDF 근거가 없는 경우 자동 게시하지 않는다.
 
+성취도는 `EXCLUDE`, `GRADE_TABLE`, `DISTRIBUTION`, `MANUAL_REVIEW`로 분기한다. 자동 변환은 표 코드·버전·출처를 요구하며 분포값은 `RATIO` 또는 `PERCENT` 척도와 합계를 검증한다. `P`, 빈 분포, 잘못된 합계를 0으로 바꾸지 않는다.
+
+출결 반영은 표 코드·버전·출처와 미인정 지각·조퇴·결과의 결석 환산 단위를 고정한다. 검증된 네 종류 횟수가 모두 있을 때만 별도 출결 점수를 만들고 교과 점수와 구분된 trace를 남긴다. 면접·실기는 계속 비예측 안내 값이며 출결과 같은 방식으로 합산하지 않는다.
+
 규칙의 `evidence_level`은 `UNIVERSITY_OFFICIAL`, `COMMON_OFFICIAL`, `VERIFIED_REFERENCE`, `INTERNAL_CALCULATION`, `MANUAL_REVIEW`를 사용하고 생명주기와 분리한다. `source_status`는 최종 모집요강·시행계획·공통자료·참고자료라는 문서 상태를 나타내므로 두 필드를 서로 대체하지 않는다.
 
 면접·실기 비율은 `non_predictive_components` 아래에 보존하여 안내 배점과 예상점수 계산 입력을 분리한다. 상세 CSV 열·허용 코드는 `docs/SCORE_RULE_CSV.md`를 따른다.

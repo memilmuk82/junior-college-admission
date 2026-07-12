@@ -44,6 +44,9 @@ SCORE_RULE_CSV_HEADERS = (
     "semester_weight_3_1",
     "semester_weight_3_2",
     "achievement_handling",
+    "achievement_table_code",
+    "achievement_source",
+    "achievement_distribution_scale",
     "career_subject_included",
     "z_score_policy",
     "z_score_source",
@@ -54,6 +57,9 @@ SCORE_RULE_CSV_HEADERS = (
     "z_score_clip_min",
     "z_score_clip_max",
     "attendance_included",
+    "attendance_table_code",
+    "attendance_source",
+    "attendance_minor_event_conversion_unit",
     "interview_ratio",
     "practical_ratio",
     "rounding_mode",
@@ -119,6 +125,7 @@ SUBJECT_SCOPES = {
     "MANUAL_REVIEW",
 }
 ACHIEVEMENT_HANDLING_CODES = {"EXCLUDE", "GRADE_TABLE", "DISTRIBUTION", "MANUAL_REVIEW"}
+ACHIEVEMENT_DISTRIBUTION_SCALES = {"RATIO", "PERCENT"}
 Z_SCORE_POLICIES = {"NOT_USED", "INTERNAL_CALCULATION", "TABLE_LOOKUP", "MANUAL_REVIEW"}
 Z_SCORE_FORMULA_VERSIONS = {"STANDARD_Z_V1", "MANUAL_REVIEW"}
 Z_SCORE_SOURCES = {
@@ -223,6 +230,9 @@ class ScoreRuleDefinition:
     semester_weight_3_2: Decimal | None
     weighting_mode: str
     achievement_handling: str
+    achievement_table_code: str | None
+    achievement_source: str | None
+    achievement_distribution_scale: str | None
     career_subject_included: bool | None
     z_score_policy: str
     z_score_source: str | None
@@ -233,6 +243,9 @@ class ScoreRuleDefinition:
     z_score_clip_min: Decimal | None
     z_score_clip_max: Decimal | None
     attendance_included: bool | None
+    attendance_table_code: str | None
+    attendance_source: str | None
+    attendance_minor_event_conversion_unit: int | None
     interview_ratio: Decimal | None
     practical_ratio: Decimal | None
     rounding_mode: str
@@ -388,6 +401,9 @@ def score_rule_to_payload(row: ManagedScoreRule) -> dict[str, object]:
         "weighting_mode": definition.weighting_mode,
         "achievement": {
             "handling": definition.achievement_handling,
+            "table_code": definition.achievement_table_code,
+            "source": definition.achievement_source,
+            "distribution_scale": definition.achievement_distribution_scale,
             "career_subject_included": definition.career_subject_included,
         },
         "z_score": {
@@ -400,8 +416,13 @@ def score_rule_to_payload(row: ManagedScoreRule) -> dict[str, object]:
             "clip_min": _decimal_text(definition.z_score_clip_min),
             "clip_max": _decimal_text(definition.z_score_clip_max),
         },
-        "non_predictive_components": {
+        "attendance": {
             "attendance_included": definition.attendance_included,
+            "table_code": definition.attendance_table_code,
+            "source": definition.attendance_source,
+            "minor_event_conversion_unit": definition.attendance_minor_event_conversion_unit,
+        },
+        "non_predictive_components": {
             "interview_ratio": _decimal_text(definition.interview_ratio),
             "practical_ratio": _decimal_text(definition.practical_ratio),
         },
@@ -436,6 +457,7 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
             "weighting_mode",
             "achievement",
             "z_score",
+            "attendance",
             "non_predictive_components",
             "rounding",
             "score_transform",
@@ -531,13 +553,23 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
     _validate_weighting_mode(weighting_mode, weights, semester_weights)
 
     achievement = _payload_mapping(payload, "achievement")
-    _payload_exact_keys(achievement, {"handling", "career_subject_included"}, "achievement")
+    _payload_exact_keys(
+        achievement,
+        {"handling", "table_code", "source", "distribution_scale", "career_subject_included"},
+        "achievement",
+    )
     if achievement.get("handling") not in ACHIEVEMENT_HANDLING_CODES:
         raise ValueError("허용되지 않은 achievement.handling입니다.")
     if achievement.get("career_subject_included") is not None and not isinstance(
         achievement.get("career_subject_included"), bool
     ):
         raise ValueError("career_subject_included는 bool 또는 null이어야 합니다.")
+    _validate_achievement_settings(
+        achievement.get("handling"),
+        achievement.get("table_code"),
+        achievement.get("source"),
+        achievement.get("distribution_scale"),
+    )
 
     z_score = _payload_mapping(payload, "z_score")
     _payload_exact_keys(
@@ -569,16 +601,29 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
         _payload_decimal(z_score.get("clip_max")),
     )
 
+    attendance = _payload_mapping(payload, "attendance")
+    _payload_exact_keys(
+        attendance,
+        {"attendance_included", "table_code", "source", "minor_event_conversion_unit"},
+        "attendance",
+    )
+    if attendance.get("attendance_included") is not None and not isinstance(
+        attendance.get("attendance_included"), bool
+    ):
+        raise ValueError("attendance_included는 bool 또는 null이어야 합니다.")
+    _validate_attendance_settings(
+        attendance.get("attendance_included"),
+        attendance.get("table_code"),
+        attendance.get("source"),
+        attendance.get("minor_event_conversion_unit"),
+    )
+
     components = _payload_mapping(payload, "non_predictive_components")
     _payload_exact_keys(
         components,
-        {"attendance_included", "interview_ratio", "practical_ratio"},
+        {"interview_ratio", "practical_ratio"},
         "non_predictive_components",
     )
-    if components.get("attendance_included") is not None and not isinstance(
-        components.get("attendance_included"), bool
-    ):
-        raise ValueError("attendance_included는 bool 또는 null이어야 합니다.")
     ratios = (
         _payload_decimal(components.get("interview_ratio")),
         _payload_decimal(components.get("practical_ratio")),
@@ -872,6 +917,21 @@ def _parse_score_rule_row(
         "achievement_handling",
         issue,
     )
+    achievement_source = (
+        _choice(raw["achievement_source"], Z_SCORE_SOURCES, "achievement_source", issue)
+        if raw["achievement_source"]
+        else None
+    )
+    achievement_distribution_scale = (
+        _choice(
+            raw["achievement_distribution_scale"],
+            ACHIEVEMENT_DISTRIBUTION_SCALES,
+            "achievement_distribution_scale",
+            issue,
+        )
+        if raw["achievement_distribution_scale"]
+        else None
+    )
     z_policy = _choice(raw["z_score_policy"], Z_SCORE_POLICIES, "z_score_policy", issue)
     z_source = (
         _choice(raw["z_score_source"], Z_SCORE_SOURCES, "z_score_source", issue)
@@ -917,6 +977,11 @@ def _parse_score_rule_row(
         "score_transform_mode",
         issue,
     )
+    attendance_source = (
+        _choice(raw["attendance_source"], Z_SCORE_SOURCES, "attendance_source", issue)
+        if raw["attendance_source"]
+        else None
+    )
 
     best_semester_count = _optional_integer(
         raw["best_semester_count"], "best_semester_count", issue
@@ -938,6 +1003,11 @@ def _parse_score_rule_row(
     )
     z_clip_min = _optional_decimal(raw["z_score_clip_min"], "z_score_clip_min", issue)
     z_clip_max = _optional_decimal(raw["z_score_clip_max"], "z_score_clip_max", issue)
+    attendance_conversion_unit = _optional_integer(
+        raw["attendance_minor_event_conversion_unit"],
+        "attendance_minor_event_conversion_unit",
+        issue,
+    )
     score_base = _optional_decimal(raw["score_base"], "score_base", issue)
     score_multiplier = _optional_decimal(raw["score_multiplier"], "score_multiplier", issue)
     try:
@@ -955,6 +1025,24 @@ def _parse_score_rule_row(
         )
     except ValueError as error:
         issue("z_score_policy", "Z_SCORE_SETTINGS", str(error))
+    try:
+        _validate_achievement_settings(
+            achievement,
+            raw["achievement_table_code"] or None,
+            achievement_source,
+            achievement_distribution_scale,
+        )
+    except ValueError as error:
+        issue("achievement_handling", "ACHIEVEMENT_SETTINGS", str(error))
+    try:
+        _validate_attendance_settings(
+            booleans["attendance_included"],
+            raw["attendance_table_code"] or None,
+            attendance_source,
+            attendance_conversion_unit,
+        )
+    except ValueError as error:
+        issue("attendance_included", "ATTENDANCE_SETTINGS", str(error))
     if semester_method in {"FIRST_N", "RECENT_N", "BEST_N"} and (
         best_semester_count is None or best_semester_count <= 0
     ):
@@ -1059,6 +1147,25 @@ def _parse_score_rule_row(
             "OFFICIAL_SOURCE_REQUIRED",
             "UNIVERSITY_OFFICIAL은 해당 대학의 공식 문서 근거가 필요합니다.",
         )
+    for column, component_source in (
+        ("achievement_source", achievement_source),
+        ("attendance_source", attendance_source),
+    ):
+        if component_source == "UNIVERSITY_OFFICIAL" and (
+            source_status
+            not in {
+                "AMENDED_FINAL_GUIDE",
+                "FINAL_GUIDE",
+                "AMENDED_IMPLEMENTATION_PLAN",
+                "IMPLEMENTATION_PLAN",
+            }
+            or evidence_level != "UNIVERSITY_OFFICIAL"
+        ):
+            issue(
+                column,
+                "OFFICIAL_SOURCE_REQUIRED",
+                "UNIVERSITY_OFFICIAL은 해당 대학의 공식 문서 근거가 필요합니다.",
+            )
     if evidence_level == "UNIVERSITY_OFFICIAL" and source_status not in {
         "AMENDED_FINAL_GUIDE",
         "FINAL_GUIDE",
@@ -1108,6 +1215,9 @@ def _parse_score_rule_row(
         semester_weight_3_2=semester_weights[5],
         weighting_mode=weighting_mode,
         achievement_handling=achievement,
+        achievement_table_code=raw["achievement_table_code"] or None,
+        achievement_source=achievement_source,
+        achievement_distribution_scale=achievement_distribution_scale,
         career_subject_included=booleans["career_subject_included"],
         z_score_policy=z_policy,
         z_score_source=z_source,
@@ -1118,6 +1228,9 @@ def _parse_score_rule_row(
         z_score_clip_min=z_clip_min,
         z_score_clip_max=z_clip_max,
         attendance_included=booleans["attendance_included"],
+        attendance_table_code=raw["attendance_table_code"] or None,
+        attendance_source=attendance_source,
+        attendance_minor_event_conversion_unit=attendance_conversion_unit,
         interview_ratio=interview_ratio,
         practical_ratio=practical_ratio,
         rounding_mode=rounding_mode,
@@ -1357,6 +1470,9 @@ def _score_rule_to_csv_values(row: ManagedScoreRule) -> dict[str, str]:
         "semester_weight_3_1": _decimal_text(definition.semester_weight_3_1) or "",
         "semester_weight_3_2": _decimal_text(definition.semester_weight_3_2) or "",
         "achievement_handling": definition.achievement_handling,
+        "achievement_table_code": definition.achievement_table_code or "",
+        "achievement_source": definition.achievement_source or "",
+        "achievement_distribution_scale": definition.achievement_distribution_scale or "",
         "z_score_policy": definition.z_score_policy,
         "z_score_source": definition.z_score_source or "",
         "z_score_table_code": definition.z_score_table_code or "",
@@ -1365,6 +1481,11 @@ def _score_rule_to_csv_values(row: ManagedScoreRule) -> dict[str, str]:
         "z_score_rounding_scale": _optional_text(definition.z_score_rounding_scale),
         "z_score_clip_min": _decimal_text(definition.z_score_clip_min) or "",
         "z_score_clip_max": _decimal_text(definition.z_score_clip_max) or "",
+        "attendance_table_code": definition.attendance_table_code or "",
+        "attendance_source": definition.attendance_source or "",
+        "attendance_minor_event_conversion_unit": _optional_text(
+            definition.attendance_minor_event_conversion_unit
+        ),
         "interview_ratio": _decimal_text(definition.interview_ratio) or "",
         "practical_ratio": _decimal_text(definition.practical_ratio) or "",
         "rounding_mode": definition.rounding_mode,
@@ -1453,6 +1574,52 @@ def _payload_count(value: object, method: object, label: str) -> None:
         count_methods.update({"FIRST_N", "RECENT_N"})
     if method in count_methods and value is None:
         raise ValueError(f"{method} {label} 선택에는 개수가 필요합니다.")
+
+
+def _validate_achievement_settings(
+    handling: object,
+    table_code: object,
+    source: object,
+    distribution_scale: object,
+) -> None:
+    if source is not None and source not in Z_SCORE_SOURCES:
+        raise ValueError("허용되지 않은 achievement.source입니다.")
+    if distribution_scale is not None and distribution_scale not in ACHIEVEMENT_DISTRIBUTION_SCALES:
+        raise ValueError("허용되지 않은 achievement.distribution_scale입니다.")
+    if handling == "EXCLUDE" and any(
+        value is not None for value in (table_code, source, distribution_scale)
+    ):
+        raise ValueError("EXCLUDE 성취도 규칙에는 표·출처·분포 척도를 지정할 수 없습니다.")
+    if handling == "GRADE_TABLE" and (
+        not table_code or source is None or distribution_scale is not None
+    ):
+        raise ValueError("GRADE_TABLE에는 표 코드와 출처가 필요하며 분포 척도는 비워야 합니다.")
+    if handling == "DISTRIBUTION" and (
+        not table_code or source is None or distribution_scale is None
+    ):
+        raise ValueError("DISTRIBUTION에는 표 코드·출처·분포 척도가 필요합니다.")
+
+
+def _validate_attendance_settings(
+    included: object,
+    table_code: object,
+    source: object,
+    conversion_unit: object,
+) -> None:
+    if source is not None and source not in Z_SCORE_SOURCES:
+        raise ValueError("허용되지 않은 attendance.source입니다.")
+    if conversion_unit is not None and (
+        not isinstance(conversion_unit, int)
+        or isinstance(conversion_unit, bool)
+        or conversion_unit <= 0
+    ):
+        raise ValueError("attendance.minor_event_conversion_unit은 양의 정수여야 합니다.")
+    if included is False and any(
+        value is not None for value in (table_code, source, conversion_unit)
+    ):
+        raise ValueError("출결 미반영 규칙에는 표·출처·환산 단위를 지정할 수 없습니다.")
+    if included is True and (not table_code or source is None or conversion_unit is None):
+        raise ValueError("출결 반영 규칙에는 표 코드·출처·환산 단위가 필요합니다.")
 
 
 def _validate_z_score_settings(

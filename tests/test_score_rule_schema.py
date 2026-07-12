@@ -264,6 +264,44 @@ def test_reference_evidence_cannot_claim_university_official_z_source() -> None:
     assert parsed.rows == ()
 
 
+def test_achievement_distribution_and_attendance_tables_are_explicit_rule_links() -> None:
+    row = _valid_row()
+    row.update(
+        {
+            "achievement_handling": "DISTRIBUTION",
+            "achievement_table_code": "SYNTHETIC_ACHIEVEMENT_V1",
+            "achievement_source": "UNIVERSITY_OFFICIAL",
+            "achievement_distribution_scale": "RATIO",
+            "career_subject_included": "TRUE",
+            "attendance_included": "TRUE",
+            "attendance_table_code": "SYNTHETIC_ATTENDANCE_V1",
+            "attendance_source": "UNIVERSITY_OFFICIAL",
+            "attendance_minor_event_conversion_unit": "3",
+        }
+    )
+
+    parsed = parse_score_rule_csv(_csv_bytes([row]))
+
+    assert parsed.issues == ()
+    definition = parsed.rows[0].definition
+    assert definition.achievement_distribution_scale == "RATIO"
+    assert definition.attendance_minor_event_conversion_unit == 3
+    assert parse_score_rule_csv(write_score_rule_csv(parsed.rows)).issues == ()
+
+
+def test_included_components_cannot_omit_versioned_table_contract() -> None:
+    row = _valid_row()
+    row["achievement_handling"] = "DISTRIBUTION"
+    row["attendance_included"] = "TRUE"
+
+    parsed = parse_score_rule_csv(_csv_bytes([row]))
+
+    assert {issue.code for issue in parsed.issues} >= {
+        "ACHIEVEMENT_SETTINGS",
+        "ATTENDANCE_SETTINGS",
+    }
+
+
 def test_manual_review_source_allows_incomplete_draft_without_guessing() -> None:
     row = _valid_row()
     row["source_status"] = "MANUAL_REVIEW"

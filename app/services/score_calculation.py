@@ -10,6 +10,7 @@ from decimal import (
     Decimal,
 )
 
+from app.services.score_components import AttendanceScoreResult
 from app.services.score_inputs import ScoreInputStatus
 from app.services.score_rule_schema import ScoreRuleDefinition
 from app.services.score_selection import ScoreSelectionResult, SelectedSemesterTrace
@@ -41,6 +42,11 @@ class ScoreCalculationTrace:
     rounding_stage: str
     rounding_scale: int | None
     display_scale: int | None
+    academic_score: Decimal
+    attendance_score: Decimal | None
+    attendance_maximum_score: Decimal | None
+    attendance_table_code: str | None
+    attendance_table_version: str | None
     non_predictive_components: tuple[tuple[str, Decimal], ...]
 
 
@@ -59,6 +65,7 @@ def calculate_selected_score(
     *,
     rule_id: str,
     rule_version: str,
+    attendance: AttendanceScoreResult | None = None,
 ) -> ScoreCalculationResult:
     if not rule_id or not rule_version:
         raise ScoreCalculationError("계산 trace에 규칙 ID와 버전이 필요합니다.")
@@ -109,7 +116,19 @@ def calculate_selected_score(
         raise ScoreCalculationError(f"허용되지 않은 weighting_mode입니다: {mode}")
 
     aggregate_value = sum((component.contribution for component in components), Decimal(0))
-    pre_round = _transform_score(aggregate_value, definition)
+    academic_score = _transform_score(aggregate_value, definition)
+    if definition.attendance_included is True and attendance is None:
+        raise ScoreCalculationError("출결 반영 규칙에는 검증된 출결 계산 결과가 필요합니다.")
+    if definition.attendance_included is not True and attendance is not None:
+        raise ScoreCalculationError("출결 미반영 규칙에 출결 점수를 합산할 수 없습니다.")
+    if attendance is not None and (
+        definition.attendance_table_code != attendance.trace.table_code
+        or definition.attendance_source != attendance.trace.source
+        or definition.attendance_minor_event_conversion_unit
+        != attendance.trace.minor_event_conversion_unit
+    ):
+        raise ScoreCalculationError("출결 계산 결과가 현재 규칙의 표·출처·환산 단위와 다릅니다.")
+    pre_round = academic_score + (attendance.score if attendance is not None else Decimal(0))
     if not Decimal(0) <= pre_round <= maximum_score:
         raise ScoreCalculationError("계산 결과가 0과 maximum_score 범위를 벗어났습니다.")
     final_score, display_score = _apply_rounding(pre_round, definition)
@@ -139,6 +158,13 @@ def calculate_selected_score(
             rounding_stage=definition.rounding_stage,
             rounding_scale=definition.rounding_scale,
             display_scale=definition.display_scale,
+            academic_score=academic_score,
+            attendance_score=None if attendance is None else attendance.score,
+            attendance_maximum_score=(None if attendance is None else attendance.maximum_score),
+            attendance_table_code=(None if attendance is None else attendance.trace.table_code),
+            attendance_table_version=(
+                None if attendance is None else attendance.trace.table_version
+            ),
             non_predictive_components=non_predictive,
         ),
     )

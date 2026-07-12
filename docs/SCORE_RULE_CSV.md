@@ -61,6 +61,9 @@ semester_weight_2_2
 semester_weight_3_1
 semester_weight_3_2
 achievement_handling
+achievement_table_code
+achievement_source
+achievement_distribution_scale
 career_subject_included
 z_score_policy
 z_score_source
@@ -71,6 +74,9 @@ z_score_rounding_scale
 z_score_clip_min
 z_score_clip_max
 attendance_included
+attendance_table_code
+attendance_source
+attendance_minor_event_conversion_unit
 interview_ratio
 practical_ratio
 rounding_mode
@@ -99,6 +105,8 @@ administrator_note
 - `subject_selection_method`: `ALL`, `BEST_N`, `SCOPE`, `MANUAL_REVIEW`
 - `subject_scope`: `ALL`, `GENERAL_SUBJECTS`, `CAREER_SUBJECTS`, `SPECIFIED`, `MANUAL_REVIEW`
 - `achievement_handling`: `EXCLUDE`, `GRADE_TABLE`, `DISTRIBUTION`, `MANUAL_REVIEW`
+- `achievement_source`: `UNIVERSITY_OFFICIAL`, `VERIFIED_REFERENCE`, `INTERNAL_CALCULATION`, `MANUAL_REVIEW`
+- `achievement_distribution_scale`: `RATIO`, `PERCENT`
 - `z_score_policy`: `NOT_USED`, `INTERNAL_CALCULATION`, `TABLE_LOOKUP`, `MANUAL_REVIEW`
 - `z_score_source`: `UNIVERSITY_OFFICIAL`, `VERIFIED_REFERENCE`, `INTERNAL_CALCULATION`, `MANUAL_REVIEW`
 - `z_score_formula_version`: `STANDARD_Z_V1`, `MANUAL_REVIEW`
@@ -126,11 +134,14 @@ administrator_note
 - `LINEAR` 점수 환산은 `base + multiplier × 집계값`만 허용한다. 자유 수식은 허용하지 않는다.
 - Z점수 자동 계산은 `(원점수-과목평균)/표준편차`의 `STANDARD_Z_V1`만 허용하고 반올림·절단 범위·표 버전을 trace에 남긴다.
 - `UNIVERSITY_OFFICIAL` Z점수 출처는 해당 대학의 공식 모집요강·시행계획 근거 상태에서만 사용할 수 있다.
+- `GRADE_TABLE`과 `DISTRIBUTION`은 버전 고정 성취도 표 코드와 출처를 요구한다. 분포 방식은 `RATIO` 또는 `PERCENT`를 명시하고 합계가 각각 1 또는 100이어야 한다.
+- 출결 반영 규칙은 버전 고정 표 코드·출처·미인정 지각/조퇴/결과의 결석 환산 단위를 모두 요구한다. 하나라도 비면 계산하지 않는다.
 - 비율은 0 이상 1 이하이고 면접·실기 합계는 1을 넘을 수 없다.
 - `FIRST_N`, `RECENT_N`, `BEST_N` 학기 선택과 `BEST_N` 과목 선택에는 양의 count가 필요하다.
 - 빈 값은 `None`, 문자열 `0`은 `Decimal("0")`으로 보존한다.
 - 자유 수식 열, 추가 payload 필드, 수식형 셀은 허용하지 않는다.
 - 면접·실기는 `non_predictive_components`에 안내 메타데이터로만 보존하고 예상점수에 합산하지 않는다.
+- 출결은 면접·실기와 달리 공식 표와 검증된 횟수가 모두 있을 때만 교과점수와 분리된 component로 계산한다. 누락 횟수는 0 또는 만점으로 해석하지 않는다.
 - 검정고시 변환표는 기본 CSV와 Phase 4 계산 범위에서 제외한다.
 
 일부 행이 잘못되어도 오류 행과 유효 행을 분리해 반환한다. 자동 저장이나 부분 게시는 하지 않으며 Phase 7에서 관리자가 선택한 유효 행만 DRAFT로 저장한다.
