@@ -144,6 +144,38 @@ def test_decimal_ratios_validate_range_and_grade_weight_sum() -> None:
     }
 
 
+def test_semester_weights_round_trip_without_grade_weights() -> None:
+    row = _valid_row()
+    for column in ("grade_weight_1", "grade_weight_2", "grade_weight_3"):
+        row[column] = ""
+    row.update(
+        {
+            "semester_weight_1_1": "0.10",
+            "semester_weight_1_2": "0.10",
+            "semester_weight_2_1": "0.20",
+            "semester_weight_2_2": "0.30",
+            "semester_weight_3_1": "0.30",
+            "semester_weight_3_2": "0",
+        }
+    )
+
+    parsed = parse_score_rule_csv(_csv_bytes([row]))
+
+    assert parsed.issues == ()
+    assert parsed.rows[0].definition.semester_weight_3_2 == 0
+    assert parse_score_rule_csv(write_score_rule_csv(parsed.rows)).issues == ()
+
+
+def test_grade_and_semester_weight_modes_cannot_be_mixed() -> None:
+    row = _valid_row()
+    row["semester_weight_1_1"] = "1"
+
+    parsed = parse_score_rule_csv(_csv_bytes([row]))
+
+    assert any(issue.code == "WEIGHT_MODE_CONFLICT" for issue in parsed.issues)
+    assert parsed.rows == ()
+
+
 def test_best_selection_requires_positive_count_and_formula_like_text_is_rejected() -> None:
     row = _valid_row()
     row["best_semester_count"] = "0"

@@ -90,6 +90,7 @@
 - [x] UTF-8/BOM 고정 CSV import/export와 엄격 헤더 검증
 - [x] boolean·Decimal·빈값/0·중복키·수식형 셀 검증
 - [x] 별도 `z_score_tables.csv`와 `z_score_table_code` 연결 계약
-- [ ] 전체·최근·우수 N개 학기와 과목 선택
-- [ ] 변환표·가중치·Decimal 계산과 반올림·절사
+- [x] 전체·최초·최근·우수 N개 학기와 과목 선택
+- [x] 학년·학기 가중치와 Decimal 계산·반올림·절사
+- [ ] 공식 변환표 계산과 Z점수 정책
 - [ ] 골든·속성 테스트와 계산 trace

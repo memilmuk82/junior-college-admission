@@ -32,6 +32,12 @@ SCORE_RULE_CSV_HEADERS = (
     "grade_weight_1",
     "grade_weight_2",
     "grade_weight_3",
+    "semester_weight_1_1",
+    "semester_weight_1_2",
+    "semester_weight_2_1",
+    "semester_weight_2_2",
+    "semester_weight_3_1",
+    "semester_weight_3_2",
     "achievement_handling",
     "career_subject_included",
     "z_score_policy",
@@ -169,6 +175,12 @@ class ScoreRuleDefinition:
     grade_weight_1: Decimal | None
     grade_weight_2: Decimal | None
     grade_weight_3: Decimal | None
+    semester_weight_1_1: Decimal | None
+    semester_weight_1_2: Decimal | None
+    semester_weight_2_1: Decimal | None
+    semester_weight_2_2: Decimal | None
+    semester_weight_3_1: Decimal | None
+    semester_weight_3_2: Decimal | None
     achievement_handling: str
     career_subject_included: bool | None
     z_score_policy: str
@@ -292,6 +304,14 @@ def score_rule_to_payload(row: ManagedScoreRule) -> dict[str, object]:
             "grade_2": _decimal_text(definition.grade_weight_2),
             "grade_3": _decimal_text(definition.grade_weight_3),
         },
+        "semester_weights": {
+            "grade_1_semester_1": _decimal_text(definition.semester_weight_1_1),
+            "grade_1_semester_2": _decimal_text(definition.semester_weight_1_2),
+            "grade_2_semester_1": _decimal_text(definition.semester_weight_2_1),
+            "grade_2_semester_2": _decimal_text(definition.semester_weight_2_2),
+            "grade_3_semester_1": _decimal_text(definition.semester_weight_3_1),
+            "grade_3_semester_2": _decimal_text(definition.semester_weight_3_2),
+        },
         "achievement": {
             "handling": definition.achievement_handling,
             "career_subject_included": definition.career_subject_included,
@@ -323,6 +343,7 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
             "semester_selection",
             "subject_selection",
             "grade_weights",
+            "semester_weights",
             "achievement",
             "z_score",
             "non_predictive_components",
@@ -383,6 +404,26 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
             raise ValueError("학년 가중치 합계는 1이어야 합니다.")
         if any(value is not None and not Decimal(0) <= value <= Decimal(1) for value in weights):
             raise ValueError("학년 가중치는 0 이상 1 이하여야 합니다.")
+
+    semester_weights_payload = _payload_mapping(payload, "semester_weights")
+    _payload_exact_keys(
+        semester_weights_payload,
+        {
+            "grade_1_semester_1",
+            "grade_1_semester_2",
+            "grade_2_semester_1",
+            "grade_2_semester_2",
+            "grade_3_semester_1",
+            "grade_3_semester_2",
+        },
+        "semester_weights",
+    )
+    semester_weights = tuple(_payload_decimal(value) for value in semester_weights_payload.values())
+    _validate_weight_set(semester_weights, "학기")
+    if any(value is not None for value in weights) and any(
+        value is not None for value in semester_weights
+    ):
+        raise ValueError("학년 가중치와 학기 가중치는 동시에 사용할 수 없습니다.")
 
     achievement = _payload_mapping(payload, "achievement")
     _payload_exact_keys(achievement, {"handling", "career_subject_included"}, "achievement")
@@ -656,11 +697,13 @@ def _parse_score_rule_row(
         raw["best_semester_count"], "best_semester_count", issue
     )
     best_subject_count = _optional_integer(raw["best_subject_count"], "best_subject_count", issue)
-    if semester_method == "BEST_N" and (best_semester_count is None or best_semester_count <= 0):
+    if semester_method in {"FIRST_N", "RECENT_N", "BEST_N"} and (
+        best_semester_count is None or best_semester_count <= 0
+    ):
         issue(
             "best_semester_count",
             "POSITIVE_INTEGER_REQUIRED",
-            "BEST_N 학기 선택에는 양의 개수가 필요합니다.",
+            "FIRST_N, RECENT_N, BEST_N 학기 선택에는 양의 개수가 필요합니다.",
         )
     if subject_method == "BEST_N" and (best_subject_count is None or best_subject_count <= 0):
         issue(
@@ -688,6 +731,36 @@ def _parse_score_rule_row(
         strict=True,
     ):
         _decimal_range(weight_value, column, issue)
+
+    semester_weight_columns = (
+        "semester_weight_1_1",
+        "semester_weight_1_2",
+        "semester_weight_2_1",
+        "semester_weight_2_2",
+        "semester_weight_3_1",
+        "semester_weight_3_2",
+    )
+    semester_weights = tuple(
+        _optional_decimal(raw[column], column, issue) for column in semester_weight_columns
+    )
+    for column, weight_value in zip(semester_weight_columns, semester_weights, strict=True):
+        _decimal_range(weight_value, column, issue)
+    if any(value is not None for value in semester_weights) and sum(
+        value for value in semester_weights if value is not None
+    ) != Decimal(1):
+        issue(
+            "semester_weight_1_1",
+            "SEMESTER_WEIGHT_SUM",
+            "입력한 학기 가중치 합계는 1이어야 합니다.",
+        )
+    if any(value is not None for value in grade_weights) and any(
+        value is not None for value in semester_weights
+    ):
+        issue(
+            "semester_weight_1_1",
+            "WEIGHT_MODE_CONFLICT",
+            "학년 가중치와 학기 가중치는 동시에 사용할 수 없습니다.",
+        )
 
     interview_ratio = _optional_decimal(raw["interview_ratio"], "interview_ratio", issue)
     practical_ratio = _optional_decimal(raw["practical_ratio"], "practical_ratio", issue)
@@ -734,6 +807,12 @@ def _parse_score_rule_row(
         grade_weight_1=grade_weights[0],
         grade_weight_2=grade_weights[1],
         grade_weight_3=grade_weights[2],
+        semester_weight_1_1=semester_weights[0],
+        semester_weight_1_2=semester_weights[1],
+        semester_weight_2_1=semester_weights[2],
+        semester_weight_2_2=semester_weights[3],
+        semester_weight_3_1=semester_weights[4],
+        semester_weight_3_2=semester_weights[5],
         achievement_handling=achievement,
         career_subject_included=booleans["career_subject_included"],
         z_score_policy=z_policy,
@@ -943,6 +1022,12 @@ def _score_rule_to_csv_values(row: ManagedScoreRule) -> dict[str, str]:
         "grade_weight_1": _decimal_text(definition.grade_weight_1) or "",
         "grade_weight_2": _decimal_text(definition.grade_weight_2) or "",
         "grade_weight_3": _decimal_text(definition.grade_weight_3) or "",
+        "semester_weight_1_1": _decimal_text(definition.semester_weight_1_1) or "",
+        "semester_weight_1_2": _decimal_text(definition.semester_weight_1_2) or "",
+        "semester_weight_2_1": _decimal_text(definition.semester_weight_2_1) or "",
+        "semester_weight_2_2": _decimal_text(definition.semester_weight_2_2) or "",
+        "semester_weight_3_1": _decimal_text(definition.semester_weight_3_1) or "",
+        "semester_weight_3_2": _decimal_text(definition.semester_weight_3_2) or "",
         "achievement_handling": definition.achievement_handling,
         "z_score_policy": definition.z_score_policy,
         "z_score_source": definition.z_score_source or "",
@@ -1024,8 +1109,21 @@ def _payload_decimal(value: object) -> Decimal | None:
 def _payload_count(value: object, method: object, label: str) -> None:
     if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value <= 0):
         raise ValueError(f"{label} 선택 개수는 양의 정수 또는 null이어야 합니다.")
-    if method == "BEST_N" and value is None:
-        raise ValueError(f"BEST_N {label} 선택에는 개수가 필요합니다.")
+    count_methods = {"BEST_N"}
+    if label == "학기":
+        count_methods.update({"FIRST_N", "RECENT_N"})
+    if method in count_methods and value is None:
+        raise ValueError(f"{method} {label} 선택에는 개수가 필요합니다.")
+
+
+def _validate_weight_set(values: tuple[Decimal | None, ...], label: str) -> None:
+    provided = tuple(value for value in values if value is not None)
+    if not provided:
+        return
+    if any(not Decimal(0) <= value <= Decimal(1) for value in provided):
+        raise ValueError(f"{label} 가중치는 0 이상 1 이하여야 합니다.")
+    if sum(provided) != Decimal(1):
+        raise ValueError(f"{label} 가중치 합계는 1이어야 합니다.")
 
 
 __all__ = [

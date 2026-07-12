@@ -49,6 +49,12 @@ credit_weighted
 grade_weight_1
 grade_weight_2
 grade_weight_3
+semester_weight_1_1
+semester_weight_1_2
+semester_weight_2_1
+semester_weight_2_2
+semester_weight_3_1
+semester_weight_3_2
 achievement_handling
 career_subject_included
 z_score_policy
@@ -88,9 +94,11 @@ administrator_note
 - 파일은 5 MiB, 데이터는 10,000행, 셀은 10,000자를 넘을 수 없다.
 - 지정 헤더 외 열, 헤더 순서 변경, 행별 열 개수 오류를 명시적으로 거부한다.
 - 비율과 점수는 `Decimal`로 읽고 NaN·Infinity를 거부한다.
-- 학년 가중치는 전부 입력하거나 전부 비워야 하며 입력 시 합계가 정확히 1이어야 한다.
+- 학년 가중치와 학기 가중치는 동시에 사용할 수 없다. 선택한 방식의 가중치는 빠짐없이 입력하고 합계가 정확히 1이어야 한다.
+- 학기 가중치는 선택된 정확한 학년·학기에 적용한다. 선택되지 않은 학기의 양수 가중치와 선택된 학기의 빈 가중치는 오류다.
+- 공식 가중치가 일부만 있으면 동일 비율로 추정하지 않는다. 빈 값은 미확정, `0`은 명시적 미반영으로 구분한다.
 - 비율은 0 이상 1 이하이고 면접·실기 합계는 1을 넘을 수 없다.
-- `BEST_N`에는 양의 count가 필요하다.
+- `FIRST_N`, `RECENT_N`, `BEST_N` 학기 선택과 `BEST_N` 과목 선택에는 양의 count가 필요하다.
 - 빈 값은 `None`, 문자열 `0`은 `Decimal("0")`으로 보존한다.
 - 자유 수식 열, 추가 payload 필드, 수식형 셀은 허용하지 않는다.
 - 면접·실기는 `non_predictive_components`에 안내 메타데이터로만 보존하고 예상점수에 합산하지 않는다.
