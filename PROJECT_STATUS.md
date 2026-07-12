@@ -1,9 +1,9 @@
 # 프로젝트 상태
 
 - 기준일: 2026-07-12
-- 현재 단계: Phase 5 파일럿 대학 수직 슬라이스 완료
-- 단계 판정: PASS
-- 현재 작업: Phase 6 입시결과·크롤링 시작 대기
+- 현재 단계: Phase 6 입시결과·크롤링 진행 중
+- 단계 판정: IN_PROGRESS
+- 현재 작업: 수집 source adapter와 raw/staging/published 계약
 - 다음 게이트: Phase 6 입시결과·크롤링
 
 ## 저장소 인벤토리
