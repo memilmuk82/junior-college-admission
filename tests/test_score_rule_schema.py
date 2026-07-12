@@ -292,7 +292,8 @@ def test_achievement_distribution_and_attendance_tables_are_explicit_rule_links(
             "achievement_handling": "DISTRIBUTION",
             "achievement_table_code": "SYNTHETIC_ACHIEVEMENT_V1",
             "achievement_source": "UNIVERSITY_OFFICIAL",
-            "achievement_distribution_scale": "RATIO",
+            "achievement_formula_version": "CUMULATIVE_DISTRIBUTION_GRADE_V1",
+            "achievement_distribution_scale": "PERCENT",
             "career_subject_included": "TRUE",
             "attendance_included": "TRUE",
             "attendance_table_code": "SYNTHETIC_ATTENDANCE_V1",
@@ -305,7 +306,7 @@ def test_achievement_distribution_and_attendance_tables_are_explicit_rule_links(
 
     assert parsed.issues == ()
     definition = parsed.rows[0].definition
-    assert definition.achievement_distribution_scale == "RATIO"
+    assert definition.achievement_distribution_scale == "PERCENT"
     assert definition.attendance_minor_event_conversion_unit == 3
     assert parse_score_rule_csv(write_score_rule_csv(parsed.rows)).issues == ()
 

@@ -99,6 +99,7 @@ def _definition() -> ScoreRuleDefinition:
         achievement_handling="EXCLUDE",
         achievement_table_code=None,
         achievement_source=None,
+        achievement_formula_version=None,
         achievement_distribution_scale=None,
         career_subject_included=False,
         z_score_policy="NOT_USED",

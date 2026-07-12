@@ -382,7 +382,7 @@ def test_dongyang_vocational_student_has_track_specific_golden_ranges() -> None:
     assert vocational_result.final_score == Decimal("965.00")
 
 
-def test_yeonsung_general_candidate_excludes_vocational_and_low_credit_terms() -> None:
+def test_yeonsung_special_general_candidate_excludes_vocational_and_low_credit_terms() -> None:
     facts = StudentFacts(
         home_school_type="GENERAL",
         final_school_type="GENERAL",
@@ -393,7 +393,7 @@ def test_yeonsung_general_candidate_excludes_vocational_and_low_credit_terms() -
         ged=False,
     )
     rule = EligibilityRule(
-        rule_id="yeonsung-2027-general-candidate",
+        rule_id="yeonsung-2027-special-general-candidate",
         version="extracted-v1",
         lifecycle_status="EXTRACTED",
         payload={
@@ -408,7 +408,7 @@ def test_yeonsung_general_candidate_excludes_vocational_and_low_credit_terms() -
             ],
             "default": {"status": "NEEDS_REVIEW", "reason_code": "REVIEW_REQUIRED"},
         },
-        source_citation_id="yeonsung-2027-guide-page-29",
+        source_citation_id="yeonsung-2027-guide-page-26",
         independent_verified=False,
         golden_test_ref=None,
         human_approved_at=None,
@@ -451,7 +451,7 @@ def test_yeonsung_general_candidate_excludes_vocational_and_low_credit_terms() -
         records=tuple(records),
         payload={"schema_version": 1, "policy": "EXCLUDE_VOCATIONAL_SEMESTER"},
         eligibility=decision,
-        rule_id="yeonsung-2027-general-scope",
+        rule_id="yeonsung-2027-special-general-scope",
         rule_version="extracted-v1",
     )
     definition = replace(
@@ -495,7 +495,7 @@ def test_yeonsung_general_candidate_excludes_vocational_and_low_credit_terms() -
     result = calculate_selected_score(
         selected,
         definition,
-        rule_id="yeonsung-2027-general-score",
+        rule_id="yeonsung-2027-special-general-score",
         rule_version="extracted-v1",
         attendance=attendance,
     )

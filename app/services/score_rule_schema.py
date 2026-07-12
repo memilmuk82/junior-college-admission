@@ -48,6 +48,7 @@ SCORE_RULE_CSV_HEADERS = (
     "achievement_handling",
     "achievement_table_code",
     "achievement_source",
+    "achievement_formula_version",
     "achievement_distribution_scale",
     "career_subject_included",
     "z_score_policy",
@@ -128,6 +129,10 @@ SUBJECT_SCOPES = {
 }
 ACHIEVEMENT_HANDLING_CODES = {"EXCLUDE", "GRADE_TABLE", "DISTRIBUTION", "MANUAL_REVIEW"}
 ACHIEVEMENT_DISTRIBUTION_SCALES = {"RATIO", "PERCENT"}
+ACHIEVEMENT_FORMULA_VERSIONS = {
+    "TABLE_LOOKUP_V1",
+    "CUMULATIVE_DISTRIBUTION_GRADE_V1",
+}
 Z_SCORE_POLICIES = {"NOT_USED", "INTERNAL_CALCULATION", "TABLE_LOOKUP", "MANUAL_REVIEW"}
 Z_SCORE_FORMULA_VERSIONS = {"STANDARD_Z_V1", "MANUAL_REVIEW"}
 Z_SCORE_SOURCES = {
@@ -235,6 +240,7 @@ class ScoreRuleDefinition:
     achievement_handling: str
     achievement_table_code: str | None
     achievement_source: str | None
+    achievement_formula_version: str | None
     achievement_distribution_scale: str | None
     career_subject_included: bool | None
     z_score_policy: str
@@ -407,6 +413,7 @@ def score_rule_to_payload(row: ManagedScoreRule) -> dict[str, object]:
             "handling": definition.achievement_handling,
             "table_code": definition.achievement_table_code,
             "source": definition.achievement_source,
+            "formula_version": definition.achievement_formula_version,
             "distribution_scale": definition.achievement_distribution_scale,
             "career_subject_included": definition.career_subject_included,
         },
@@ -562,7 +569,14 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
     achievement = _payload_mapping(payload, "achievement")
     _payload_exact_keys(
         achievement,
-        {"handling", "table_code", "source", "distribution_scale", "career_subject_included"},
+        {
+            "handling",
+            "table_code",
+            "source",
+            "formula_version",
+            "distribution_scale",
+            "career_subject_included",
+        },
         "achievement",
     )
     if achievement.get("handling") not in ACHIEVEMENT_HANDLING_CODES:
@@ -575,6 +589,7 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
         achievement.get("handling"),
         achievement.get("table_code"),
         achievement.get("source"),
+        achievement.get("formula_version"),
         achievement.get("distribution_scale"),
     )
 
@@ -722,6 +737,7 @@ def score_rule_definition_from_payload(
         achievement_handling=cast(str, achievement["handling"]),
         achievement_table_code=cast(str | None, achievement["table_code"]),
         achievement_source=cast(str | None, achievement["source"]),
+        achievement_formula_version=cast(str | None, achievement["formula_version"]),
         achievement_distribution_scale=cast(str | None, achievement["distribution_scale"]),
         career_subject_included=cast(bool | None, achievement["career_subject_included"]),
         z_score_policy=cast(str, z_score["policy"]),
@@ -1006,6 +1022,16 @@ def _parse_score_rule_row(
         if raw["achievement_source"]
         else None
     )
+    achievement_formula_version = (
+        _choice(
+            raw["achievement_formula_version"],
+            ACHIEVEMENT_FORMULA_VERSIONS,
+            "achievement_formula_version",
+            issue,
+        )
+        if raw["achievement_formula_version"]
+        else None
+    )
     achievement_distribution_scale = (
         _choice(
             raw["achievement_distribution_scale"],
@@ -1123,6 +1149,7 @@ def _parse_score_rule_row(
             achievement,
             raw["achievement_table_code"] or None,
             achievement_source,
+            achievement_formula_version,
             achievement_distribution_scale,
         )
     except ValueError as error:
@@ -1311,6 +1338,7 @@ def _parse_score_rule_row(
         achievement_handling=achievement,
         achievement_table_code=raw["achievement_table_code"] or None,
         achievement_source=achievement_source,
+        achievement_formula_version=achievement_formula_version,
         achievement_distribution_scale=achievement_distribution_scale,
         career_subject_included=booleans["career_subject_included"],
         z_score_policy=z_policy,
@@ -1567,6 +1595,7 @@ def _score_rule_to_csv_values(row: ManagedScoreRule) -> dict[str, str]:
         "achievement_handling": definition.achievement_handling,
         "achievement_table_code": definition.achievement_table_code or "",
         "achievement_source": definition.achievement_source or "",
+        "achievement_formula_version": definition.achievement_formula_version or "",
         "achievement_distribution_scale": definition.achievement_distribution_scale or "",
         "z_score_policy": definition.z_score_policy,
         "z_score_source": definition.z_score_source or "",
@@ -1675,24 +1704,32 @@ def _validate_achievement_settings(
     handling: object,
     table_code: object,
     source: object,
+    formula_version: object,
     distribution_scale: object,
 ) -> None:
     if source is not None and source not in Z_SCORE_SOURCES:
         raise ValueError("허용되지 않은 achievement.source입니다.")
     if distribution_scale is not None and distribution_scale not in ACHIEVEMENT_DISTRIBUTION_SCALES:
         raise ValueError("허용되지 않은 achievement.distribution_scale입니다.")
+    if formula_version is not None and formula_version not in ACHIEVEMENT_FORMULA_VERSIONS:
+        raise ValueError("허용되지 않은 achievement.formula_version입니다.")
     if handling == "EXCLUDE" and any(
-        value is not None for value in (table_code, source, distribution_scale)
+        value is not None for value in (table_code, source, formula_version, distribution_scale)
     ):
         raise ValueError("EXCLUDE 성취도 규칙에는 표·출처·분포 척도를 지정할 수 없습니다.")
     if handling == "GRADE_TABLE" and (
-        not table_code or source is None or distribution_scale is not None
+        not table_code
+        or source is None
+        or formula_version != "TABLE_LOOKUP_V1"
+        or distribution_scale is not None
     ):
         raise ValueError("GRADE_TABLE에는 표 코드와 출처가 필요하며 분포 척도는 비워야 합니다.")
     if handling == "DISTRIBUTION" and (
-        not table_code or source is None or distribution_scale is None
+        not table_code or source is None or formula_version is None or distribution_scale is None
     ):
         raise ValueError("DISTRIBUTION에는 표 코드·출처·분포 척도가 필요합니다.")
+    if formula_version == "CUMULATIVE_DISTRIBUTION_GRADE_V1" and distribution_scale != "PERCENT":
+        raise ValueError("누적분포 등급 공식은 PERCENT 척도를 사용해야 합니다.")
 
 
 def _validate_attendance_settings(

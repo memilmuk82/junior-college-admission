@@ -46,6 +46,7 @@ def test_grade_table_conversion_is_versioned_and_deterministic() -> None:
         achievement_distribution=None,
         raw_score_label=None,
         handling="GRADE_TABLE",
+        formula_version="TABLE_LOOKUP_V1",
         distribution_scale=None,
         table_rows=(_achievement_row("1"), _achievement_row("3", level="B")),
         table_code="SYNTHETIC_ACHIEVEMENT_V1",
@@ -68,6 +69,7 @@ def test_distribution_conversion_keeps_missing_and_zero_distinct() -> None:
         achievement_distribution={"A": Decimal("0.60"), "B": Decimal("0.40")},
         raw_score_label=None,
         handling="DISTRIBUTION",
+        formula_version="TABLE_LOOKUP_V1",
         distribution_scale="RATIO",
         table_rows=rows,
         table_code="SYNTHETIC_ACHIEVEMENT_V1",
@@ -84,12 +86,46 @@ def test_distribution_conversion_keeps_missing_and_zero_distinct() -> None:
             achievement_distribution={"B": Decimal("1")},
             raw_score_label=None,
             handling="DISTRIBUTION",
+            formula_version="TABLE_LOOKUP_V1",
             distribution_scale="RATIO",
             table_rows=rows,
             table_code="SYNTHETIC_ACHIEVEMENT_V1",
             table_version="synthetic-v1",
             source="VERIFIED_REFERENCE",
         )
+
+
+@pytest.mark.parametrize(
+    ("level", "expected"),
+    (("A", "1.20"), ("B", "3.50"), ("C", "6.00")),
+)
+def test_cumulative_distribution_formula_matches_verified_yeonsung_contract(
+    level: str, expected: str
+) -> None:
+    rows = (
+        _achievement_row("3", level="B", key="CUMULATIVE", lower="11", upper="23"),
+        _achievement_row("5", level="C", key="CUMULATIVE", lower="40", upper="60"),
+    )
+
+    result = convert_achievement(
+        achievement_level=level,
+        achievement_distribution={
+            "A": Decimal("20"),
+            "B": Decimal("30"),
+            "C": Decimal("50"),
+        },
+        raw_score_label=None,
+        handling="DISTRIBUTION",
+        formula_version="CUMULATIVE_DISTRIBUTION_GRADE_V1",
+        distribution_scale="PERCENT",
+        table_rows=rows,
+        table_code="SYNTHETIC_ACHIEVEMENT_V1",
+        table_version="yeonsung-candidate-v1",
+        source="UNIVERSITY_OFFICIAL",
+    )
+
+    assert result.converted_value == Decimal(expected)
+    assert result.trace.distribution_key == "CUMULATIVE"
 
 
 def test_pass_label_and_reference_source_cannot_be_converted_as_official() -> None:
@@ -99,6 +135,7 @@ def test_pass_label_and_reference_source_cannot_be_converted_as_official() -> No
             achievement_distribution=None,
             raw_score_label="P",
             handling="GRADE_TABLE",
+            formula_version="TABLE_LOOKUP_V1",
             distribution_scale=None,
             table_rows=(_achievement_row("1"),),
             table_code="SYNTHETIC_ACHIEVEMENT_V1",
@@ -112,6 +149,7 @@ def test_pass_label_and_reference_source_cannot_be_converted_as_official() -> No
             achievement_distribution=None,
             raw_score_label=None,
             handling="GRADE_TABLE",
+            formula_version="TABLE_LOOKUP_V1",
             distribution_scale=None,
             table_rows=(_achievement_row("1", status="VERIFIED_REFERENCE"),),
             table_code="SYNTHETIC_ACHIEVEMENT_V1",

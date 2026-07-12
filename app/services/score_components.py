@@ -105,6 +105,7 @@ def convert_achievement(
     achievement_distribution: Mapping[str, Decimal] | None,
     raw_score_label: str | None,
     handling: str,
+    formula_version: str,
     distribution_scale: str | None,
     table_rows: tuple[AchievementTableRow, ...],
     table_code: str,
@@ -125,6 +126,8 @@ def convert_achievement(
     distribution_key: str | None = None
     distribution_value: Decimal | None = None
     if handling == "GRADE_TABLE":
+        if formula_version != "TABLE_LOOKUP_V1":
+            raise AchievementConversionError("GRADE_TABLE 공식 버전이 유효하지 않습니다.")
         if distribution_scale is not None:
             raise AchievementConversionError("GRADE_TABLE에는 분포 척도를 지정할 수 없습니다.")
         candidates = tuple(
@@ -136,7 +139,7 @@ def convert_achievement(
             and row.distribution_min is None
             and row.distribution_max is None
         )
-    else:
+    elif formula_version == "TABLE_LOOKUP_V1":
         distribution = _validate_distribution(achievement_distribution, distribution_scale)
         candidates_list: list[AchievementTableRow] = []
         for row in table_rows:
@@ -152,6 +155,18 @@ def convert_achievement(
                 distribution_key = row.distribution_key
                 distribution_value = value
         candidates = tuple(candidates_list)
+    elif formula_version == "CUMULATIVE_DISTRIBUTION_GRADE_V1":
+        distribution = _validate_distribution(achievement_distribution, distribution_scale)
+        return _convert_cumulative_distribution(
+            achievement_level=achievement_level,
+            distribution=distribution,
+            table_rows=table_rows,
+            table_code=table_code,
+            table_version=table_version,
+            source=source,
+        )
+    else:
+        raise AchievementConversionError("지원하지 않는 성취도 공식 버전입니다.")
 
     if len(candidates) != 1:
         raise AchievementConversionError("성취도가 변환표의 정확히 한 행과 일치해야 합니다.")
@@ -168,6 +183,68 @@ def convert_achievement(
             distribution_scale=distribution_scale,
             distribution_key=distribution_key,
             distribution_value=distribution_value,
+            source=source,
+            official=source == "UNIVERSITY_OFFICIAL",
+            table_code=table_code,
+            table_version=table_version,
+            evidence_document_id=row.evidence_document_id,
+            evidence_page=row.evidence_page,
+            evidence_location=row.evidence_location,
+            source_status=row.source_status,
+        ),
+    )
+
+
+def _convert_cumulative_distribution(
+    *,
+    achievement_level: str,
+    distribution: dict[str, Decimal],
+    table_rows: tuple[AchievementTableRow, ...],
+    table_code: str,
+    table_version: str,
+    source: str,
+) -> AchievementConversionResult:
+    if achievement_level not in {"A", "B", "C"}:
+        raise AchievementConversionError("누적분포 공식은 A·B·C 성취도만 지원합니다.")
+    required: tuple[str, ...] = ("A",) if achievement_level == "A" else ("A", "B")
+    if achievement_level == "C":
+        required = ("A", "B", "C")
+    if any(key not in distribution for key in required):
+        raise AchievementConversionError("누적분포 계산에 필요한 성취도 비율이 누락되었습니다.")
+    cumulative_current = sum((distribution[key] for key in required), Decimal(0))
+    if achievement_level == "A":
+        base_grade = Decimal(1)
+        row = next(
+            (row for row in table_rows if row.table_code == table_code),
+            None,
+        )
+    else:
+        prior_keys = ("A",) if achievement_level == "B" else ("A", "B")
+        prior_cumulative = sum((distribution[key] for key in prior_keys), Decimal(0))
+        candidates = tuple(
+            row
+            for row in table_rows
+            if row.table_code == table_code
+            and row.distribution_key == "CUMULATIVE"
+            and _decimal_range_contains(row, prior_cumulative)
+        )
+        if len(candidates) != 1:
+            raise AchievementConversionError(
+                "누적분포가 등급표의 정확히 한 구간과 일치해야 합니다."
+            )
+        row = candidates[0]
+        base_grade = row.converted_value
+    if row is None:
+        raise AchievementConversionError("누적분포 공식의 근거 표가 필요합니다.")
+    _validate_evidence_source(source, row.source_status)
+    return AchievementConversionResult(
+        converted_value=base_grade + cumulative_current / Decimal(100),
+        trace=AchievementConversionTrace(
+            handling="DISTRIBUTION",
+            achievement_level=achievement_level,
+            distribution_scale="PERCENT",
+            distribution_key="CUMULATIVE",
+            distribution_value=cumulative_current,
             source=source,
             official=source == "UNIVERSITY_OFFICIAL",
             table_code=table_code,
