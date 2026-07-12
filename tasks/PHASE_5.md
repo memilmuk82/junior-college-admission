@@ -67,3 +67,10 @@ make check
 - AI 추출 후보는 최대 `EXTRACTED` 또는 `VERIFIED` 후보이며 `HUMAN_APPROVED`가 아니다.
 - 사람 승인 전 실제 대학 규칙은 `PUBLISHED`로 전환하지 않는다.
 - 공식 근거를 확정할 수 없는 파일럿이 있으면 해당 항목만 `MANUAL_REVIEW`로 남기고 다른 파일럿의 검증을 막지 않는다.
+
+## 게이트 판정
+
+- 판정: `PASS`
+- 동양미래대·인하공전·연성대는 합성 골든 후보와 공식 근거 위치를 연결하고 `VERIFICATION_PENDING`으로 종료했다.
+- 명지전문대는 위탁학기 성적 범위 불명확, 폴리텍 서울정수는 혼합연도로 `MANUAL_REVIEW` 처리했다.
+- 모든 파일럿을 명시 분류했으며 실제 대학 seed·`HUMAN_APPROVED`·`PUBLISHED` 규칙은 만들지 않았다.

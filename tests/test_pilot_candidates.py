@@ -84,6 +84,19 @@ def test_mixed_year_candidate_remains_manual_review_without_rule_promotion() -> 
     assert result.publish_allowed is False
 
 
+def test_unresolved_grade_scope_keeps_official_candidate_in_manual_review() -> None:
+    candidate = replace(
+        _candidate(),
+        grade_source_payload={"schema_version": 1, "policy": "MANUAL_REVIEW"},
+    )
+
+    result = evaluate_pilot_candidate(candidate)
+
+    assert result.status is CandidateGateStatus.MANUAL_REVIEW
+    assert result.blockers == ("GRADE_SOURCE_SCOPE_UNRESOLVED",)
+    assert result.publish_allowed is False
+
+
 def test_candidate_lifecycle_cannot_overclaim_missing_review_or_golden() -> None:
     with pytest.raises(CandidateContractError):
         evaluate_pilot_candidate(replace(_candidate(), lifecycle_status="VERIFIED"))

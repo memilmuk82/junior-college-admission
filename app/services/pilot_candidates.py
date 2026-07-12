@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import StrEnum
 
 from app.services.eligibility import validate_eligibility_rule_payload
-from app.services.score_inputs import validate_grade_source_scope_payload
+from app.services.score_inputs import GradeSourcePolicy, validate_grade_source_scope_payload
 from app.services.score_rule_schema import validate_score_rule_payload
 
 
@@ -77,10 +77,20 @@ def evaluate_pilot_candidate(candidate: PilotRuleCandidate) -> CandidateGateResu
     _validate_evidence(candidate)
     try:
         validate_eligibility_rule_payload(candidate.eligibility_payload)
-        validate_grade_source_scope_payload(candidate.grade_source_payload)
+        grade_source_policy = validate_grade_source_scope_payload(candidate.grade_source_payload)
         validate_score_rule_payload(candidate.score_rule_payload)
     except ValueError as error:
         raise CandidateContractError(f"파일럿 규칙 payload가 유효하지 않습니다: {error}") from error
+
+    if grade_source_policy in {
+        GradeSourcePolicy.TRACK_DEPENDENT,
+        GradeSourcePolicy.MANUAL_REVIEW,
+    }:
+        return CandidateGateResult(
+            CandidateGateStatus.MANUAL_REVIEW,
+            ("GRADE_SOURCE_SCOPE_UNRESOLVED",),
+            False,
+        )
 
     if candidate.lifecycle_status in {"VERIFIED", "TESTED", "HUMAN_APPROVED"} and not (
         candidate.independent_verified
