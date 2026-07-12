@@ -13,6 +13,12 @@ def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> No
     tables = set(inspect(postgres_engine).get_table_names())
     required = {
         "admission_eligibility_rules",
+        "admission_result_published_batches",
+        "admission_result_raw_batches",
+        "admission_result_raw_pages",
+        "admission_result_staging_batches",
+        "admission_result_staging_rows",
+        "admission_results_published",
         "admission_rounds",
         "admission_tracks",
         "alembic_version",
@@ -57,6 +63,11 @@ def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> No
     ):
         index_names = {index["name"] for index in inspect(postgres_engine).get_indexes(table_name)}
         assert f"uq_{table_name}_one_published_per_track" in index_names
+    result_indexes = {
+        index["name"]
+        for index in inspect(postgres_engine).get_indexes("admission_results_published")
+    }
+    assert "uq_admission_results_one_published_per_business_key" in result_indexes
 
 
 def test_flask_db_upgrade_and_migrate_commands(postgres_engine: Engine, tmp_path: Path) -> None:

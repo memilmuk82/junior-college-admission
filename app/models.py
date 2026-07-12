@@ -298,6 +298,243 @@ class TieBreakRule(RuleRecordMixin, Base):
     __table_args__ = rule_constraints()
 
 
+class AdmissionResultRawBatch(TimestampMixin, Base):
+    __tablename__ = "admission_result_raw_batches"
+    __table_args__ = (
+        CheckConstraint("expected_academic_year >= 2000", name="academic_year_valid"),
+        CheckConstraint("char_length(collection_digest) = 64", name="digest_length"),
+        CheckConstraint("page_count > 0", name="page_count_positive"),
+        CheckConstraint("row_count > 0", name="row_count_positive"),
+        CheckConstraint("status = 'COLLECTED'", name="status_valid"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    source_code: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    expected_academic_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    collection_digest: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    page_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    policy_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="COLLECTED")
+    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AdmissionResultRawPage(TimestampMixin, Base):
+    __tablename__ = "admission_result_raw_pages"
+    __table_args__ = (
+        UniqueConstraint("raw_batch_id", "page_number"),
+        CheckConstraint("page_number > 0", name="page_number_positive"),
+        CheckConstraint("row_count >= 0", name="row_count_nonnegative"),
+        CheckConstraint("char_length(request_fingerprint) = 64", name="request_hash_length"),
+        CheckConstraint("char_length(response_digest) = 64", name="response_hash_length"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    raw_batch_id: Mapped[str] = mapped_column(
+        ForeignKey("admission_result_raw_batches.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    page_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    response_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    raw_rows: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+
+
+class AdmissionResultStagingBatch(TimestampMixin, Base):
+    __tablename__ = "admission_result_staging_batches"
+    __table_args__ = (
+        CheckConstraint("expected_academic_year >= 2000", name="academic_year_valid"),
+        CheckConstraint("total_row_count > 0", name="total_row_count_positive"),
+        CheckConstraint("valid_row_count >= 0", name="valid_row_count_nonnegative"),
+        CheckConstraint("error_row_count >= 0", name="error_row_count_nonnegative"),
+        CheckConstraint(
+            "total_row_count = valid_row_count + error_row_count",
+            name="row_counts_consistent",
+        ),
+        CheckConstraint("status IN ('READY', 'BLOCKED')", name="status_valid"),
+        CheckConstraint(
+            "status != 'READY' OR (error_row_count = 0 AND valid_row_count = total_row_count)",
+            name="ready_batch_has_no_errors",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    raw_batch_id: Mapped[str] = mapped_column(
+        ForeignKey("admission_result_raw_batches.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    )
+    expected_academic_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    total_row_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    valid_row_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    error_row_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    validation_issues: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+
+
+class AdmissionResultStagingRow(TimestampMixin, Base):
+    __tablename__ = "admission_result_staging_rows"
+    __table_args__ = (
+        UniqueConstraint(
+            "staging_batch_id",
+            "source_row_number",
+            name="uq_admission_result_staging_rows_source_row",
+        ),
+        UniqueConstraint(
+            "staging_batch_id",
+            "academic_year",
+            "university_code",
+            "campus_code",
+            "admission_round",
+            "admission_track_code",
+            "program_code",
+            name="uq_admission_result_staging_rows_business_key",
+        ),
+        CheckConstraint("source_row_number > 0", name="source_row_number_positive"),
+        CheckConstraint("academic_year IS NULL OR academic_year >= 2000", name="year_valid"),
+        CheckConstraint("validation_status IN ('VALID', 'ERROR')", name="status_valid"),
+        CheckConstraint(
+            "validation_status != 'VALID' OR (academic_year IS NOT NULL "
+            "AND university_code IS NOT NULL AND campus_code IS NOT NULL "
+            "AND admission_round IS NOT NULL AND admission_track_code IS NOT NULL "
+            "AND program_code IS NOT NULL)",
+            name="valid_row_has_business_key",
+        ),
+        CheckConstraint("applicant_count IS NULL OR applicant_count >= 0", name="applicants_valid"),
+        CheckConstraint("admitted_count IS NULL OR admitted_count >= 0", name="admitted_valid"),
+        CheckConstraint(
+            "competition_rate IS NULL OR competition_rate >= 0", name="competition_rate_valid"
+        ),
+        CheckConstraint("highest_score IS NULL OR highest_score >= 0", name="highest_score_valid"),
+        CheckConstraint("average_score IS NULL OR average_score >= 0", name="average_score_valid"),
+        CheckConstraint("lowest_score IS NULL OR lowest_score >= 0", name="lowest_score_valid"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    staging_batch_id: Mapped[str] = mapped_column(
+        ForeignKey("admission_result_staging_batches.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    source_row_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    academic_year: Mapped[int | None] = mapped_column(Integer)
+    university_code: Mapped[str | None] = mapped_column(String(80))
+    campus_code: Mapped[str | None] = mapped_column(String(80))
+    admission_round: Mapped[str | None] = mapped_column(String(80))
+    admission_track_code: Mapped[str | None] = mapped_column(String(80))
+    program_code: Mapped[str | None] = mapped_column(String(120))
+    applicant_count: Mapped[int | None] = mapped_column(Integer)
+    admitted_count: Mapped[int | None] = mapped_column(Integer)
+    competition_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    highest_score: Mapped[Decimal | None] = mapped_column(Numeric(14, 4))
+    average_score: Mapped[Decimal | None] = mapped_column(Numeric(14, 4))
+    lowest_score: Mapped[Decimal | None] = mapped_column(Numeric(14, 4))
+    score_basis: Mapped[str | None] = mapped_column(String(80))
+    validation_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    validation_issues: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+
+
+class AdmissionResultPublishedBatch(TimestampMixin, Base):
+    __tablename__ = "admission_result_published_batches"
+    __table_args__ = (
+        CheckConstraint("confirmed_row_count > 0", name="confirmed_row_count_positive"),
+        CheckConstraint("char_length(approved_by) > 0", name="approved_by_present"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    staging_batch_id: Mapped[str] = mapped_column(
+        ForeignKey("admission_result_staging_batches.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    )
+    approved_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    confirmed_row_count: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class AdmissionResultPublished(TimestampMixin, Base):
+    __tablename__ = "admission_results_published"
+    __table_args__ = (
+        UniqueConstraint("staging_row_id"),
+        UniqueConstraint(
+            "academic_year",
+            "university_code",
+            "campus_code",
+            "admission_round",
+            "admission_track_code",
+            "program_code",
+            "publication_version",
+        ),
+        CheckConstraint("academic_year >= 2000", name="academic_year_valid"),
+        CheckConstraint("lifecycle_status IN ('PUBLISHED', 'SUPERSEDED')", name="status_valid"),
+        CheckConstraint("applicant_count IS NULL OR applicant_count >= 0", name="applicants_valid"),
+        CheckConstraint("admitted_count IS NULL OR admitted_count >= 0", name="admitted_valid"),
+        CheckConstraint(
+            "competition_rate IS NULL OR competition_rate >= 0", name="competition_rate_valid"
+        ),
+        CheckConstraint("highest_score IS NULL OR highest_score >= 0", name="highest_score_valid"),
+        CheckConstraint("average_score IS NULL OR average_score >= 0", name="average_score_valid"),
+        CheckConstraint("lowest_score IS NULL OR lowest_score >= 0", name="lowest_score_valid"),
+        CheckConstraint(
+            "(score_rule_id IS NULL AND score_rule_version IS NULL "
+            "AND score_rule_academic_year IS NULL) OR "
+            "(score_rule_id IS NOT NULL AND score_rule_version IS NOT NULL "
+            "AND score_rule_academic_year = academic_year)",
+            name="historical_rule_version_consistent",
+        ),
+        Index(
+            "uq_admission_results_one_published_per_business_key",
+            "academic_year",
+            "university_code",
+            "campus_code",
+            "admission_round",
+            "admission_track_code",
+            "program_code",
+            unique=True,
+            postgresql_where=text("lifecycle_status = 'PUBLISHED'"),
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    published_batch_id: Mapped[str] = mapped_column(
+        ForeignKey("admission_result_published_batches.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    staging_row_id: Mapped[str] = mapped_column(
+        ForeignKey("admission_result_staging_rows.id", ondelete="RESTRICT"), nullable=False
+    )
+    academic_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    university_code: Mapped[str] = mapped_column(String(80), nullable=False)
+    campus_code: Mapped[str] = mapped_column(String(80), nullable=False)
+    admission_round: Mapped[str] = mapped_column(String(80), nullable=False)
+    admission_track_code: Mapped[str] = mapped_column(String(80), nullable=False)
+    program_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    publication_version: Mapped[str] = mapped_column(String(120), nullable=False)
+    lifecycle_status: Mapped[str] = mapped_column(String(30), nullable=False, default="PUBLISHED")
+    supersedes_id: Mapped[str | None] = mapped_column(
+        ForeignKey("admission_results_published.id", ondelete="RESTRICT")
+    )
+    applicant_count: Mapped[int | None] = mapped_column(Integer)
+    admitted_count: Mapped[int | None] = mapped_column(Integer)
+    competition_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    highest_score: Mapped[Decimal | None] = mapped_column(Numeric(14, 4))
+    average_score: Mapped[Decimal | None] = mapped_column(Numeric(14, 4))
+    lowest_score: Mapped[Decimal | None] = mapped_column(Numeric(14, 4))
+    score_basis: Mapped[str | None] = mapped_column(String(80))
+    score_rule_id: Mapped[str | None] = mapped_column(
+        ForeignKey("score_rules.id", ondelete="RESTRICT"), index=True
+    )
+    score_rule_version: Mapped[str | None] = mapped_column(String(120))
+    score_rule_academic_year: Mapped[int | None] = mapped_column(Integer)
+
+
 class ImportBatch(TimestampMixin, Base):
     __tablename__ = "import_batches"
     __table_args__ = (

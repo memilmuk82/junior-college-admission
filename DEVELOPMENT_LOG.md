@@ -119,6 +119,12 @@
 - Phase 6 작업 카드와 참고 CSV·노트북의 비식별 용도 분류를 작성했다.
 - CSV는 과거 입시결과 자료이며 성적 규칙 입력이 아니고, 100행 파일 두 개는 동일 해시 중복 후보임을 확인했다.
 - 네트워크 POST와 파일쓰기가 포함된 기존 노트북은 실행하지 않고 source adapter 계약으로 대체하기로 했다.
+- source adapter의 요청 생성·응답 추출·canonical 정규화를 분리하고 timeout·재시도·rate limit·크기·페이지·행 제한을 고정했다.
+- raw 요청 fingerprint·응답·collection digest와 staging 행을 분리하고 중복·빈 업무키·혼합연도·행/페이지 급감을 batch 전체 차단한다.
+- raw·staging·published 여섯 PostgreSQL 테이블과 migration을 추가하고 오류 없는 staging 전체 행을 관리자가 확인해야만 게시하도록 계약을 고정했다.
+- 과거 입시결과에는 해당 모집학년도의 규칙 ID·버전만 선택적으로 연결하며 현재 규칙으로 자동 재해석하지 않는다.
+- 결과 분석 서비스는 대학·캠퍼스·학년도·모집시기·전형·학과가 모두 일치하는 활성 `PUBLISHED` 결과만 반환한다.
+- Phase 6 최종 회귀에서 단위 174건, PostgreSQL 통합 32건, Ruff·포맷·mypy·migration drift·규칙·민감자료 검사를 모두 통과해 게이트를 `PASS`로 판정했다.
 
 
 ## 확정 기술 결정

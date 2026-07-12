@@ -46,3 +46,28 @@ make validate-rules
 make check-sensitive-data
 make check
 ```
+
+## 구현 현황
+
+- [x] 요청·응답·정규화를 분리한 source adapter 계약
+- [x] timeout·재시도·rate limit·응답 크기·페이지·행 상한
+- [x] raw SHA-256 수집 단위와 staging 분리
+- [x] 대학·캠퍼스·학년도·모집시기·전형·학과 업무키
+- [x] 행·페이지 급감, 중복, 빈 키, 혼합연도 전체 batch 차단
+- [x] 관리자 전체 행 확인 전 부분 게시 차단
+- [x] raw·staging·published PostgreSQL 테이블과 migration
+- [x] 과거 규칙 ID·버전·학년도 고정 및 현재 규칙 자동 재해석 차단
+- [x] 활성 `PUBLISHED` 결과만 반환하는 분석 조회 서비스
+- [x] 합성 transport·응답·결과만 사용하는 단위·통합 테스트
+
+## 게이트 판정
+
+`PASS`
+
+- 단위 테스트 174건 통과
+- PostgreSQL 통합 테스트 32건 통과
+- Ruff·format·mypy 통과
+- Alembic upgrade와 schema drift 검사 통과
+- 규칙·민감자료 검사 통과
+- 실제 외부 사이트 호출 0건
+- 참고 원본·변환본 Git 포함 0건
