@@ -18,6 +18,7 @@ from app.models import (
     Institution,
     MultipleApplicationRule,
     Program,
+    ScoreRule,
     SourceCitation,
     SourceDocument,
     StudentAcademicRecord,
@@ -43,6 +44,7 @@ from app.services.published_rules import (
     PublishedRuleNotFound,
     evaluate_published_eligibility,
     load_published_multiple_application_rule,
+    load_published_score_rule,
 )
 from app.services.score_inputs import ScoreInputStatus, evaluate_published_score_inputs
 
@@ -198,6 +200,7 @@ def test_invalid_published_eligibility_payload_is_explicit(session: Session) -> 
         MultipleApplicationRule,
         DisqualificationRule,
         GradeSourceScopeRule,
+        ScoreRule,
     ],
 )
 def test_database_rejects_two_published_versions_per_track(
@@ -207,6 +210,7 @@ def test_database_rejects_two_published_versions_per_track(
         | MultipleApplicationRule
         | DisqualificationRule
         | GradeSourceScopeRule
+        | ScoreRule
     ],
 ) -> None:
     track, citation = _track_and_citation(session)
@@ -219,6 +223,23 @@ def test_database_rejects_two_published_versions_per_track(
 
     with pytest.raises(IntegrityError):
         session.flush()
+
+
+def test_score_rule_has_separate_versioned_loader(session: Session) -> None:
+    track, citation = _track_and_citation(session)
+    session.add(
+        ScoreRule(
+            version="synthetic-score-v1",
+            rule_payload={"schema_version": 1, "synthetic": True},
+            **_metadata(track, citation),
+        )
+    )
+    session.flush()
+
+    rule = load_published_score_rule(session, track.id)
+
+    assert rule.version == "synthetic-score-v1"
+    assert rule.rule_id
 
 
 def test_multiple_application_rule_has_separate_loader(session: Session) -> None:

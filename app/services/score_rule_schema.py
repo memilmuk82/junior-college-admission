@@ -23,12 +23,17 @@ SCORE_RULE_CSV_HEADERS = (
     "vocational_grade_included",
     "vocational_semester_1_included",
     "vocational_semester_2_included",
+    "value_direction",
     "semester_selection_method",
+    "semester_selection_scope",
     "best_semester_count",
     "subject_selection_method",
     "best_subject_count",
     "subject_scope",
     "credit_weighted",
+    "semester_rounding_mode",
+    "semester_rounding_scale",
+    "weighting_mode",
     "grade_weight_1",
     "grade_weight_2",
     "grade_weight_3",
@@ -43,15 +48,26 @@ SCORE_RULE_CSV_HEADERS = (
     "z_score_policy",
     "z_score_source",
     "z_score_table_code",
+    "z_score_formula_version",
+    "z_score_rounding_mode",
+    "z_score_rounding_scale",
+    "z_score_clip_min",
+    "z_score_clip_max",
     "attendance_included",
     "interview_ratio",
     "practical_ratio",
     "rounding_mode",
+    "rounding_stage",
     "rounding_scale",
+    "display_scale",
+    "score_transform_mode",
+    "score_base",
+    "score_multiplier",
     "maximum_score",
     "evidence_document_id",
     "evidence_page",
     "evidence_location",
+    "evidence_level",
     "source_status",
     "change_reason",
     "administrator_note",
@@ -60,7 +76,9 @@ SCORE_RULE_CSV_HEADERS = (
 Z_SCORE_TABLE_CSV_HEADERS = (
     "schema_version",
     "table_code",
-    "z_min_exclusive",
+    "z_min",
+    "z_min_inclusive",
+    "z_max",
     "z_max_inclusive",
     "converted_value",
     "evidence_document_id",
@@ -90,6 +108,8 @@ BOOLEAN_FIELDS = (
     "attendance_included",
 )
 SEMESTER_SELECTION_METHODS = {"ALL", "FIRST_N", "RECENT_N", "BEST_N", "MANUAL_REVIEW"}
+VALUE_DIRECTIONS = {"HIGHER_IS_BETTER", "LOWER_IS_BETTER"}
+SEMESTER_SELECTION_SCOPES = {"GLOBAL", "PER_GRADE"}
 SUBJECT_SELECTION_METHODS = {"ALL", "BEST_N", "SCOPE", "MANUAL_REVIEW"}
 SUBJECT_SCOPES = {
     "ALL",
@@ -100,6 +120,7 @@ SUBJECT_SCOPES = {
 }
 ACHIEVEMENT_HANDLING_CODES = {"EXCLUDE", "GRADE_TABLE", "DISTRIBUTION", "MANUAL_REVIEW"}
 Z_SCORE_POLICIES = {"NOT_USED", "INTERNAL_CALCULATION", "TABLE_LOOKUP", "MANUAL_REVIEW"}
+Z_SCORE_FORMULA_VERSIONS = {"STANDARD_Z_V1", "MANUAL_REVIEW"}
 Z_SCORE_SOURCES = {
     "UNIVERSITY_OFFICIAL",
     "VERIFIED_REFERENCE",
@@ -114,6 +135,14 @@ ROUNDING_MODES = {
     "TRUNCATE",
     "MANUAL_REVIEW",
 }
+WEIGHTING_MODES = {
+    "EQUAL",
+    "GRADE_ONLY",
+    "GLOBAL_SEMESTER",
+    "GRADE_WITHIN_SEMESTER",
+}
+ROUNDING_STAGES = {"FINAL", "DISPLAY_ONLY", "MANUAL_REVIEW"}
+SCORE_TRANSFORM_MODES = {"IDENTITY", "LINEAR", "MANUAL_REVIEW"}
 SOURCE_STATUSES = {
     "AMENDED_FINAL_GUIDE",
     "FINAL_GUIDE",
@@ -123,6 +152,13 @@ SOURCE_STATUSES = {
     "VERIFIED_REFERENCE",
     "REFERENCE_ONLY",
     "AI_EXTRACTED_DRAFT",
+    "MANUAL_REVIEW",
+}
+EVIDENCE_LEVELS = {
+    "UNIVERSITY_OFFICIAL",
+    "COMMON_OFFICIAL",
+    "VERIFIED_REFERENCE",
+    "INTERNAL_CALCULATION",
     "MANUAL_REVIEW",
 }
 MAX_CSV_BYTES = 5 * 1024 * 1024
@@ -166,12 +202,16 @@ class ScoreRuleDefinition:
     vocational_grade_included: bool | None
     vocational_semester_1_included: bool | None
     vocational_semester_2_included: bool | None
+    value_direction: str
     semester_selection_method: str
+    semester_selection_scope: str
     best_semester_count: int | None
     subject_selection_method: str
     best_subject_count: int | None
     subject_scope: str
     credit_weighted: bool | None
+    semester_rounding_mode: str | None
+    semester_rounding_scale: int | None
     grade_weight_1: Decimal | None
     grade_weight_2: Decimal | None
     grade_weight_3: Decimal | None
@@ -181,16 +221,27 @@ class ScoreRuleDefinition:
     semester_weight_2_2: Decimal | None
     semester_weight_3_1: Decimal | None
     semester_weight_3_2: Decimal | None
+    weighting_mode: str
     achievement_handling: str
     career_subject_included: bool | None
     z_score_policy: str
     z_score_source: str | None
     z_score_table_code: str | None
+    z_score_formula_version: str | None
+    z_score_rounding_mode: str | None
+    z_score_rounding_scale: int | None
+    z_score_clip_min: Decimal | None
+    z_score_clip_max: Decimal | None
     attendance_included: bool | None
     interview_ratio: Decimal | None
     practical_ratio: Decimal | None
     rounding_mode: str
+    rounding_stage: str
     rounding_scale: int | None
+    display_scale: int | None
+    score_transform_mode: str
+    score_base: Decimal | None
+    score_multiplier: Decimal | None
     maximum_score: Decimal | None
 
 
@@ -204,6 +255,7 @@ class ManagedScoreRule:
     evidence_document_id: str | None
     evidence_page: int | None
     evidence_location: str | None
+    evidence_level: str
     source_status: str
     change_reason: str
     administrator_note: str | None
@@ -218,8 +270,10 @@ class ScoreRuleCsvResult:
 @dataclass(frozen=True)
 class ZScoreTableRow:
     table_code: str
-    z_min_exclusive: Decimal | None
-    z_max_inclusive: Decimal | None
+    z_min: Decimal | None
+    z_min_inclusive: bool
+    z_max: Decimal | None
+    z_max_inclusive: bool
     converted_value: Decimal
     evidence_document_id: str
     evidence_page: int
@@ -271,7 +325,19 @@ def write_score_rule_csv(rows: Sequence[ManagedScoreRule], *, include_bom: bool 
     writer.writeheader()
     for row in rows:
         values = _score_rule_to_csv_values(row)
-        _reject_formula_like_export(values)
+        _reject_formula_like_export(
+            {
+                key: value
+                for key, value in values.items()
+                if key
+                not in {
+                    "z_score_clip_min",
+                    "z_score_clip_max",
+                    "score_base",
+                    "score_multiplier",
+                }
+            }
+        )
         writer.writerow(values)
     return output.getvalue().encode("utf-8-sig" if include_bom else "utf-8")
 
@@ -280,6 +346,7 @@ def score_rule_to_payload(row: ManagedScoreRule) -> dict[str, object]:
     definition = row.definition
     return {
         "schema_version": 1,
+        "evidence_level": row.evidence_level,
         "source_inclusion": {
             "home_grade_1": definition.home_grade_1_included,
             "home_grade_2": definition.home_grade_2_included,
@@ -289,8 +356,10 @@ def score_rule_to_payload(row: ManagedScoreRule) -> dict[str, object]:
             "vocational_semester_1": definition.vocational_semester_1_included,
             "vocational_semester_2": definition.vocational_semester_2_included,
         },
+        "value_direction": definition.value_direction,
         "semester_selection": {
             "method": definition.semester_selection_method,
+            "scope": definition.semester_selection_scope,
             "best_count": definition.best_semester_count,
         },
         "subject_selection": {
@@ -298,6 +367,10 @@ def score_rule_to_payload(row: ManagedScoreRule) -> dict[str, object]:
             "best_count": definition.best_subject_count,
             "scope": definition.subject_scope,
             "credit_weighted": definition.credit_weighted,
+        },
+        "semester_rounding": {
+            "mode": definition.semester_rounding_mode,
+            "scale": definition.semester_rounding_scale,
         },
         "grade_weights": {
             "grade_1": _decimal_text(definition.grade_weight_1),
@@ -312,6 +385,7 @@ def score_rule_to_payload(row: ManagedScoreRule) -> dict[str, object]:
             "grade_3_semester_1": _decimal_text(definition.semester_weight_3_1),
             "grade_3_semester_2": _decimal_text(definition.semester_weight_3_2),
         },
+        "weighting_mode": definition.weighting_mode,
         "achievement": {
             "handling": definition.achievement_handling,
             "career_subject_included": definition.career_subject_included,
@@ -320,6 +394,11 @@ def score_rule_to_payload(row: ManagedScoreRule) -> dict[str, object]:
             "policy": definition.z_score_policy,
             "source": definition.z_score_source,
             "table_code": definition.z_score_table_code,
+            "formula_version": definition.z_score_formula_version,
+            "rounding_mode": definition.z_score_rounding_mode,
+            "rounding_scale": definition.z_score_rounding_scale,
+            "clip_min": _decimal_text(definition.z_score_clip_min),
+            "clip_max": _decimal_text(definition.z_score_clip_max),
         },
         "non_predictive_components": {
             "attendance_included": definition.attendance_included,
@@ -328,7 +407,14 @@ def score_rule_to_payload(row: ManagedScoreRule) -> dict[str, object]:
         },
         "rounding": {
             "mode": definition.rounding_mode,
+            "stage": definition.rounding_stage,
             "scale": definition.rounding_scale,
+            "display_scale": definition.display_scale,
+        },
+        "score_transform": {
+            "mode": definition.score_transform_mode,
+            "base": _decimal_text(definition.score_base),
+            "multiplier": _decimal_text(definition.score_multiplier),
         },
         "maximum_score": _decimal_text(definition.maximum_score),
     }
@@ -339,21 +425,28 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
         payload,
         {
             "schema_version",
+            "evidence_level",
             "source_inclusion",
+            "value_direction",
             "semester_selection",
             "subject_selection",
+            "semester_rounding",
             "grade_weights",
             "semester_weights",
+            "weighting_mode",
             "achievement",
             "z_score",
             "non_predictive_components",
             "rounding",
+            "score_transform",
             "maximum_score",
         },
         "payload",
     )
     if payload.get("schema_version") != 1:
         raise ValueError("SCORE_RULE schema_version은 1이어야 합니다.")
+    if payload.get("evidence_level") not in EVIDENCE_LEVELS:
+        raise ValueError("허용되지 않은 evidence_level입니다.")
 
     inclusion = _payload_mapping(payload, "source_inclusion")
     _payload_exact_keys(
@@ -371,11 +464,17 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
     )
     if not all(value is None or isinstance(value, bool) for value in inclusion.values()):
         raise ValueError("source_inclusion 값은 bool 또는 null이어야 합니다.")
+    if payload.get("value_direction") not in VALUE_DIRECTIONS:
+        raise ValueError("허용되지 않은 value_direction입니다.")
 
     semester = _payload_mapping(payload, "semester_selection")
-    _payload_exact_keys(semester, {"method", "best_count"}, "semester_selection")
+    _payload_exact_keys(semester, {"method", "scope", "best_count"}, "semester_selection")
     if semester.get("method") not in SEMESTER_SELECTION_METHODS:
         raise ValueError("허용되지 않은 semester_selection.method입니다.")
+    if semester.get("scope") not in SEMESTER_SELECTION_SCOPES:
+        raise ValueError("허용되지 않은 semester_selection.scope입니다.")
+    if semester.get("scope") == "PER_GRADE" and semester.get("method") != "BEST_N":
+        raise ValueError("PER_GRADE 학기 선택 범위는 BEST_N에만 사용할 수 있습니다.")
     _payload_count(semester.get("best_count"), semester.get("method"), "학기")
 
     subject = _payload_mapping(payload, "subject_selection")
@@ -393,6 +492,13 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
     ):
         raise ValueError("credit_weighted는 bool 또는 null이어야 합니다.")
     _payload_count(subject.get("best_count"), subject.get("method"), "과목")
+    semester_rounding = _payload_mapping(payload, "semester_rounding")
+    _payload_exact_keys(semester_rounding, {"mode", "scale"}, "semester_rounding")
+    _validate_optional_rounding(
+        semester_rounding.get("mode"),
+        semester_rounding.get("scale"),
+        "학기 평균",
+    )
 
     weights_payload = _payload_mapping(payload, "grade_weights")
     _payload_exact_keys(weights_payload, {"grade_1", "grade_2", "grade_3"}, "grade_weights")
@@ -419,11 +525,10 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
         "semester_weights",
     )
     semester_weights = tuple(_payload_decimal(value) for value in semester_weights_payload.values())
-    _validate_weight_set(semester_weights, "학기")
-    if any(value is not None for value in weights) and any(
-        value is not None for value in semester_weights
-    ):
-        raise ValueError("학년 가중치와 학기 가중치는 동시에 사용할 수 없습니다.")
+    weighting_mode = payload.get("weighting_mode")
+    if weighting_mode not in WEIGHTING_MODES:
+        raise ValueError("허용되지 않은 weighting_mode입니다.")
+    _validate_weighting_mode(weighting_mode, weights, semester_weights)
 
     achievement = _payload_mapping(payload, "achievement")
     _payload_exact_keys(achievement, {"handling", "career_subject_included"}, "achievement")
@@ -435,13 +540,34 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
         raise ValueError("career_subject_included는 bool 또는 null이어야 합니다.")
 
     z_score = _payload_mapping(payload, "z_score")
-    _payload_exact_keys(z_score, {"policy", "source", "table_code"}, "z_score")
+    _payload_exact_keys(
+        z_score,
+        {
+            "policy",
+            "source",
+            "table_code",
+            "formula_version",
+            "rounding_mode",
+            "rounding_scale",
+            "clip_min",
+            "clip_max",
+        },
+        "z_score",
+    )
     if z_score.get("policy") not in Z_SCORE_POLICIES:
         raise ValueError("허용되지 않은 z_score.policy입니다.")
     if z_score.get("source") is not None and z_score.get("source") not in Z_SCORE_SOURCES:
         raise ValueError("허용되지 않은 z_score.source입니다.")
     if z_score.get("policy") == "TABLE_LOOKUP" and not z_score.get("table_code"):
         raise ValueError("TABLE_LOOKUP에는 z_score.table_code가 필요합니다.")
+    _validate_z_score_settings(
+        z_score.get("policy"),
+        z_score.get("formula_version"),
+        z_score.get("rounding_mode"),
+        z_score.get("rounding_scale"),
+        _payload_decimal(z_score.get("clip_min")),
+        _payload_decimal(z_score.get("clip_max")),
+    )
 
     components = _payload_mapping(payload, "non_predictive_components")
     _payload_exact_keys(
@@ -463,14 +589,34 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
         raise ValueError("면접·실기 비율 합계는 1을 넘을 수 없습니다.")
 
     rounding = _payload_mapping(payload, "rounding")
-    _payload_exact_keys(rounding, {"mode", "scale"}, "rounding")
+    _payload_exact_keys(rounding, {"mode", "stage", "scale", "display_scale"}, "rounding")
     if rounding.get("mode") not in ROUNDING_MODES:
         raise ValueError("허용되지 않은 rounding.mode입니다.")
+    if rounding.get("stage") not in ROUNDING_STAGES:
+        raise ValueError("허용되지 않은 rounding.stage입니다.")
     scale = rounding.get("scale")
     if scale is not None and (
         not isinstance(scale, int) or isinstance(scale, bool) or not 0 <= scale <= 12
     ):
         raise ValueError("rounding.scale은 0~12 정수 또는 null이어야 합니다.")
+    display_scale = rounding.get("display_scale")
+    if display_scale is not None and (
+        not isinstance(display_scale, int)
+        or isinstance(display_scale, bool)
+        or not 0 <= display_scale <= 12
+    ):
+        raise ValueError("rounding.display_scale은 0~12 정수 또는 null이어야 합니다.")
+    if rounding.get("stage") == "FINAL" and scale is None:
+        raise ValueError("FINAL 반올림에는 rounding.scale이 필요합니다.")
+    if rounding.get("stage") == "DISPLAY_ONLY" and display_scale is None:
+        raise ValueError("DISPLAY_ONLY에는 rounding.display_scale이 필요합니다.")
+    transform = _payload_mapping(payload, "score_transform")
+    _payload_exact_keys(transform, {"mode", "base", "multiplier"}, "score_transform")
+    _validate_score_transform(
+        transform.get("mode"),
+        _payload_decimal(transform.get("base")),
+        _payload_decimal(transform.get("multiplier")),
+    )
     maximum_score = _payload_decimal(payload.get("maximum_score"))
     if maximum_score is not None and maximum_score <= 0:
         raise ValueError("maximum_score는 양수여야 합니다.")
@@ -496,29 +642,37 @@ def parse_z_score_table_csv(data: bytes) -> ZScoreTableCsvResult:
         ordered = sorted(
             table_rows,
             key=lambda item: (
-                item[1].z_min_exclusive is not None,
-                item[1].z_min_exclusive or Decimal(0),
+                item[1].z_min is not None,
+                item[1].z_min or Decimal(0),
             ),
         )
         previous_max: Decimal | None = None
+        previous_max_inclusive = False
         previous_open_ended = False
         for index, (row_number, row) in enumerate(ordered):
             if index > 0 and (
                 previous_open_ended
-                or row.z_min_exclusive is None
-                or (previous_max is not None and row.z_min_exclusive < previous_max)
+                or row.z_min is None
+                or (previous_max is not None and row.z_min < previous_max)
+                or (
+                    previous_max is not None
+                    and row.z_min == previous_max
+                    and previous_max_inclusive
+                    and row.z_min_inclusive
+                )
             ):
                 overlap_found = True
                 issues.append(
                     CsvValidationIssue(
                         row_number,
-                        "z_min_exclusive",
+                        "z_min",
                         "OVERLAPPING_Z_RANGE",
                         "같은 table_code의 Z점수 구간이 겹칩니다.",
                     )
                 )
-            previous_max = row.z_max_inclusive
-            previous_open_ended = row.z_max_inclusive is None
+            previous_max = row.z_max
+            previous_max_inclusive = row.z_max_inclusive
+            previous_open_ended = row.z_max is None
     if overlap_found:
         return ZScoreTableCsvResult((), tuple(issues))
     return ZScoreTableCsvResult(tuple(row for _, row in parsed), tuple(issues))
@@ -532,8 +686,10 @@ def write_z_score_table_csv(rows: Sequence[ZScoreTableRow], *, include_bom: bool
         values = {
             "schema_version": "1",
             "table_code": row.table_code,
-            "z_min_exclusive": _decimal_text(row.z_min_exclusive) or "",
-            "z_max_inclusive": _decimal_text(row.z_max_inclusive) or "",
+            "z_min": _decimal_text(row.z_min) or "",
+            "z_min_inclusive": _boolean_text(row.z_min_inclusive),
+            "z_max": _decimal_text(row.z_max) or "",
+            "z_max_inclusive": _boolean_text(row.z_max_inclusive),
             "converted_value": str(row.converted_value),
             "evidence_document_id": row.evidence_document_id,
             "evidence_page": str(row.evidence_page),
@@ -545,7 +701,14 @@ def write_z_score_table_csv(rows: Sequence[ZScoreTableRow], *, include_bom: bool
             {
                 key: value
                 for key, value in values.items()
-                if key not in {"z_min_exclusive", "z_max_inclusive", "converted_value"}
+                if key
+                not in {
+                    "z_min",
+                    "z_min_inclusive",
+                    "z_max",
+                    "z_max_inclusive",
+                    "converted_value",
+                }
             }
         )
         writer.writerow(values)
@@ -638,7 +801,17 @@ def _parse_score_rule_row(
     def issue(column: str, code: str, message: str) -> None:
         issues.append(CsvValidationIssue(row_number, column, code, message))
 
-    _check_formula_like_values(raw, row_number, issues, excluded_columns=set())
+    _check_formula_like_values(
+        raw,
+        row_number,
+        issues,
+        excluded_columns={
+            "z_score_clip_min",
+            "z_score_clip_max",
+            "score_base",
+            "score_multiplier",
+        },
+    )
     schema_version = _integer(raw["schema_version"], "schema_version", issue)
     if schema_version != 1:
         issue("schema_version", "SCHEMA_VERSION", "schema_version은 1이어야 합니다.")
@@ -660,8 +833,9 @@ def _parse_score_rule_row(
             issue(column, "REQUIRED_VALUE_MISSING", "필수 값이 비어 있습니다.")
 
     source_status = _choice(raw["source_status"], SOURCE_STATUSES, "source_status", issue)
+    evidence_level = _choice(raw["evidence_level"], EVIDENCE_LEVELS, "evidence_level", issue)
     booleans = {column: _boolean(raw[column], column, issue) for column in BOOLEAN_FIELDS}
-    if source_status != "MANUAL_REVIEW":
+    if evidence_level != "MANUAL_REVIEW":
         for column, boolean_value in booleans.items():
             if boolean_value is None:
                 issue(column, "REQUIRED_VALUE_MISSING", "확정 출처 규칙의 boolean은 필수입니다.")
@@ -672,6 +846,19 @@ def _parse_score_rule_row(
         "semester_selection_method",
         issue,
     )
+    value_direction = _choice(raw["value_direction"], VALUE_DIRECTIONS, "value_direction", issue)
+    semester_scope = _choice(
+        raw["semester_selection_scope"],
+        SEMESTER_SELECTION_SCOPES,
+        "semester_selection_scope",
+        issue,
+    )
+    if semester_scope == "PER_GRADE" and semester_method != "BEST_N":
+        issue(
+            "semester_selection_scope",
+            "SELECTION_SCOPE_METHOD",
+            "PER_GRADE 학기 선택 범위는 BEST_N에만 사용할 수 있습니다.",
+        )
     subject_method = _choice(
         raw["subject_selection_method"],
         SUBJECT_SELECTION_METHODS,
@@ -691,12 +878,83 @@ def _parse_score_rule_row(
         if raw["z_score_source"]
         else None
     )
+    z_formula_version = (
+        _choice(
+            raw["z_score_formula_version"],
+            Z_SCORE_FORMULA_VERSIONS,
+            "z_score_formula_version",
+            issue,
+        )
+        if raw["z_score_formula_version"]
+        else None
+    )
+    z_rounding_mode = (
+        _choice(
+            raw["z_score_rounding_mode"],
+            ROUNDING_MODES,
+            "z_score_rounding_mode",
+            issue,
+        )
+        if raw["z_score_rounding_mode"]
+        else None
+    )
     rounding_mode = _choice(raw["rounding_mode"], ROUNDING_MODES, "rounding_mode", issue)
+    semester_rounding_mode = (
+        _choice(
+            raw["semester_rounding_mode"],
+            ROUNDING_MODES,
+            "semester_rounding_mode",
+            issue,
+        )
+        if raw["semester_rounding_mode"]
+        else None
+    )
+    weighting_mode = _choice(raw["weighting_mode"], WEIGHTING_MODES, "weighting_mode", issue)
+    rounding_stage = _choice(raw["rounding_stage"], ROUNDING_STAGES, "rounding_stage", issue)
+    score_transform_mode = _choice(
+        raw["score_transform_mode"],
+        SCORE_TRANSFORM_MODES,
+        "score_transform_mode",
+        issue,
+    )
 
     best_semester_count = _optional_integer(
         raw["best_semester_count"], "best_semester_count", issue
     )
     best_subject_count = _optional_integer(raw["best_subject_count"], "best_subject_count", issue)
+    semester_rounding_scale = _optional_integer(
+        raw["semester_rounding_scale"], "semester_rounding_scale", issue
+    )
+    try:
+        _validate_optional_rounding(
+            semester_rounding_mode,
+            semester_rounding_scale,
+            "학기 평균",
+        )
+    except ValueError as error:
+        issue("semester_rounding_mode", "SEMESTER_ROUNDING", str(error))
+    z_rounding_scale = _optional_integer(
+        raw["z_score_rounding_scale"], "z_score_rounding_scale", issue
+    )
+    z_clip_min = _optional_decimal(raw["z_score_clip_min"], "z_score_clip_min", issue)
+    z_clip_max = _optional_decimal(raw["z_score_clip_max"], "z_score_clip_max", issue)
+    score_base = _optional_decimal(raw["score_base"], "score_base", issue)
+    score_multiplier = _optional_decimal(raw["score_multiplier"], "score_multiplier", issue)
+    try:
+        _validate_score_transform(score_transform_mode, score_base, score_multiplier)
+    except ValueError as error:
+        issue("score_transform_mode", "SCORE_TRANSFORM", str(error))
+    try:
+        _validate_z_score_settings(
+            z_policy,
+            z_formula_version,
+            z_rounding_mode,
+            z_rounding_scale,
+            z_clip_min,
+            z_clip_max,
+        )
+    except ValueError as error:
+        issue("z_score_policy", "Z_SCORE_SETTINGS", str(error))
     if semester_method in {"FIRST_N", "RECENT_N", "BEST_N"} and (
         best_semester_count is None or best_semester_count <= 0
     ):
@@ -745,22 +1003,10 @@ def _parse_score_rule_row(
     )
     for column, weight_value in zip(semester_weight_columns, semester_weights, strict=True):
         _decimal_range(weight_value, column, issue)
-    if any(value is not None for value in semester_weights) and sum(
-        value for value in semester_weights if value is not None
-    ) != Decimal(1):
-        issue(
-            "semester_weight_1_1",
-            "SEMESTER_WEIGHT_SUM",
-            "입력한 학기 가중치 합계는 1이어야 합니다.",
-        )
-    if any(value is not None for value in grade_weights) and any(
-        value is not None for value in semester_weights
-    ):
-        issue(
-            "semester_weight_1_1",
-            "WEIGHT_MODE_CONFLICT",
-            "학년 가중치와 학기 가중치는 동시에 사용할 수 없습니다.",
-        )
+    try:
+        _validate_weighting_mode(weighting_mode, grade_weights, semester_weights)
+    except ValueError as error:
+        issue("weighting_mode", "WEIGHT_MODE_CONFLICT", str(error))
 
     interview_ratio = _optional_decimal(raw["interview_ratio"], "interview_ratio", issue)
     practical_ratio = _optional_decimal(raw["practical_ratio"], "practical_ratio", issue)
@@ -772,6 +1018,17 @@ def _parse_score_rule_row(
     rounding_scale = _optional_integer(raw["rounding_scale"], "rounding_scale", issue)
     if rounding_scale is not None and not 0 <= rounding_scale <= 12:
         issue("rounding_scale", "ROUNDING_SCALE_RANGE", "rounding_scale은 0~12여야 합니다.")
+    display_scale = _optional_integer(raw["display_scale"], "display_scale", issue)
+    if display_scale is not None and not 0 <= display_scale <= 12:
+        issue("display_scale", "DISPLAY_SCALE_RANGE", "display_scale은 0~12여야 합니다.")
+    if rounding_stage == "FINAL" and rounding_scale is None:
+        issue("rounding_scale", "ROUNDING_SCALE_REQUIRED", "FINAL에는 rounding_scale이 필요합니다.")
+    if rounding_stage == "DISPLAY_ONLY" and display_scale is None:
+        issue(
+            "display_scale",
+            "DISPLAY_SCALE_REQUIRED",
+            "DISPLAY_ONLY에는 display_scale이 필요합니다.",
+        )
     maximum_score = _optional_decimal(raw["maximum_score"], "maximum_score", issue)
     if maximum_score is not None and maximum_score <= 0:
         issue("maximum_score", "POSITIVE_DECIMAL_REQUIRED", "maximum_score는 양수여야 합니다.")
@@ -779,7 +1036,7 @@ def _parse_score_rule_row(
     evidence_page = _optional_integer(raw["evidence_page"], "evidence_page", issue)
     if evidence_page is not None and evidence_page <= 0:
         issue("evidence_page", "POSITIVE_INTEGER_REQUIRED", "근거 페이지는 양수여야 합니다.")
-    if source_status != "MANUAL_REVIEW":
+    if evidence_level != "MANUAL_REVIEW":
         for column in ("evidence_document_id", "evidence_page", "evidence_location"):
             if not raw[column]:
                 issue(column, "EVIDENCE_REQUIRED", "확정 출처 규칙에는 근거가 필요합니다.")
@@ -787,6 +1044,38 @@ def _parse_score_rule_row(
         issue("z_score_source", "Z_SOURCE_REQUIRED", "Z점수 정책에는 출처 코드가 필요합니다.")
     if z_policy == "TABLE_LOOKUP" and not raw["z_score_table_code"]:
         issue("z_score_table_code", "Z_TABLE_REQUIRED", "표 조회 정책에는 table_code가 필요합니다.")
+    if z_source == "UNIVERSITY_OFFICIAL" and (
+        source_status
+        not in {
+            "AMENDED_FINAL_GUIDE",
+            "FINAL_GUIDE",
+            "AMENDED_IMPLEMENTATION_PLAN",
+            "IMPLEMENTATION_PLAN",
+        }
+        or evidence_level != "UNIVERSITY_OFFICIAL"
+    ):
+        issue(
+            "z_score_source",
+            "OFFICIAL_SOURCE_REQUIRED",
+            "UNIVERSITY_OFFICIAL은 해당 대학의 공식 문서 근거가 필요합니다.",
+        )
+    if evidence_level == "UNIVERSITY_OFFICIAL" and source_status not in {
+        "AMENDED_FINAL_GUIDE",
+        "FINAL_GUIDE",
+        "AMENDED_IMPLEMENTATION_PLAN",
+        "IMPLEMENTATION_PLAN",
+    }:
+        issue(
+            "evidence_level",
+            "OFFICIAL_SOURCE_REQUIRED",
+            "UNIVERSITY_OFFICIAL 근거 수준은 해당 대학의 공식 문서가 필요합니다.",
+        )
+    if evidence_level == "COMMON_OFFICIAL" and source_status != "COMMON_STANDARD":
+        issue(
+            "evidence_level",
+            "COMMON_SOURCE_REQUIRED",
+            "COMMON_OFFICIAL 근거 수준은 공통 공식 자료가 필요합니다.",
+        )
 
     if issues or admission_year is None:
         return None, tuple(issues)
@@ -798,12 +1087,16 @@ def _parse_score_rule_row(
         vocational_grade_included=booleans["vocational_grade_included"],
         vocational_semester_1_included=booleans["vocational_semester_1_included"],
         vocational_semester_2_included=booleans["vocational_semester_2_included"],
+        value_direction=value_direction,
         semester_selection_method=semester_method,
+        semester_selection_scope=semester_scope,
         best_semester_count=best_semester_count,
         subject_selection_method=subject_method,
         best_subject_count=best_subject_count,
         subject_scope=subject_scope,
         credit_weighted=booleans["credit_weighted"],
+        semester_rounding_mode=semester_rounding_mode,
+        semester_rounding_scale=semester_rounding_scale,
         grade_weight_1=grade_weights[0],
         grade_weight_2=grade_weights[1],
         grade_weight_3=grade_weights[2],
@@ -813,16 +1106,27 @@ def _parse_score_rule_row(
         semester_weight_2_2=semester_weights[3],
         semester_weight_3_1=semester_weights[4],
         semester_weight_3_2=semester_weights[5],
+        weighting_mode=weighting_mode,
         achievement_handling=achievement,
         career_subject_included=booleans["career_subject_included"],
         z_score_policy=z_policy,
         z_score_source=z_source,
         z_score_table_code=raw["z_score_table_code"] or None,
+        z_score_formula_version=z_formula_version,
+        z_score_rounding_mode=z_rounding_mode,
+        z_score_rounding_scale=z_rounding_scale,
+        z_score_clip_min=z_clip_min,
+        z_score_clip_max=z_clip_max,
         attendance_included=booleans["attendance_included"],
         interview_ratio=interview_ratio,
         practical_ratio=practical_ratio,
         rounding_mode=rounding_mode,
+        rounding_stage=rounding_stage,
         rounding_scale=rounding_scale,
+        display_scale=display_scale,
+        score_transform_mode=score_transform_mode,
+        score_base=score_base,
+        score_multiplier=score_multiplier,
         maximum_score=maximum_score,
     )
     return (
@@ -841,6 +1145,7 @@ def _parse_score_rule_row(
             evidence_document_id=raw["evidence_document_id"] or None,
             evidence_page=evidence_page,
             evidence_location=raw["evidence_location"] or None,
+            evidence_level=evidence_level,
             source_status=source_status,
             change_reason=raw["change_reason"],
             administrator_note=raw["administrator_note"] or None,
@@ -861,7 +1166,13 @@ def _parse_z_score_row(
         raw,
         row_number,
         issues,
-        excluded_columns={"z_min_exclusive", "z_max_inclusive", "converted_value"},
+        excluded_columns={
+            "z_min",
+            "z_min_inclusive",
+            "z_max",
+            "z_max_inclusive",
+            "converted_value",
+        },
     )
     if _integer(raw["schema_version"], "schema_version", issue) != 1:
         issue("schema_version", "SCHEMA_VERSION", "schema_version은 1이어야 합니다.")
@@ -875,22 +1186,34 @@ def _parse_z_score_row(
     ):
         if not raw[column]:
             issue(column, "REQUIRED_VALUE_MISSING", "필수 값이 비어 있습니다.")
-    z_min = _optional_decimal(raw["z_min_exclusive"], "z_min_exclusive", issue)
-    z_max = _optional_decimal(raw["z_max_inclusive"], "z_max_inclusive", issue)
+    z_min = _optional_decimal(raw["z_min"], "z_min", issue)
+    z_min_inclusive = _boolean(raw["z_min_inclusive"], "z_min_inclusive", issue)
+    z_max = _optional_decimal(raw["z_max"], "z_max", issue)
+    z_max_inclusive = _boolean(raw["z_max_inclusive"], "z_max_inclusive", issue)
     converted = _decimal(raw["converted_value"], "converted_value", issue)
     evidence_page = _integer(raw["evidence_page"], "evidence_page", issue)
     source_status = _choice(raw["source_status"], SOURCE_STATUSES, "source_status", issue)
     if z_min is not None and z_max is not None and z_min >= z_max:
-        issue("z_min_exclusive", "Z_RANGE_ORDER", "Z점수 하한은 상한보다 작아야 합니다.")
+        issue("z_min", "Z_RANGE_ORDER", "Z점수 하한은 상한보다 작아야 합니다.")
+    if z_min_inclusive is None or z_max_inclusive is None:
+        issue("z_min_inclusive", "BOOLEAN_REQUIRED", "Z점수 경계 포함 여부가 필요합니다.")
     if evidence_page is not None and evidence_page <= 0:
         issue("evidence_page", "POSITIVE_INTEGER_REQUIRED", "근거 페이지는 양수여야 합니다.")
-    if issues or converted is None or evidence_page is None:
+    if (
+        issues
+        or converted is None
+        or evidence_page is None
+        or z_min_inclusive is None
+        or z_max_inclusive is None
+    ):
         return None, tuple(issues)
     return (
         ZScoreTableRow(
             table_code=raw["table_code"],
-            z_min_exclusive=z_min,
-            z_max_inclusive=z_max,
+            z_min=z_min,
+            z_min_inclusive=z_min_inclusive,
+            z_max=z_max,
+            z_max_inclusive=z_max_inclusive,
             converted_value=converted,
             evidence_document_id=raw["evidence_document_id"],
             evidence_page=evidence_page,
@@ -1014,11 +1337,16 @@ def _score_rule_to_csv_values(row: ManagedScoreRule) -> dict[str, str]:
         "admission_track_code": row.identity.admission_track_code,
         "admission_track_name": row.admission_track_name,
         "rule_version": row.rule_version,
+        "value_direction": definition.value_direction,
         "semester_selection_method": definition.semester_selection_method,
+        "semester_selection_scope": definition.semester_selection_scope,
         "best_semester_count": _optional_text(definition.best_semester_count),
         "subject_selection_method": definition.subject_selection_method,
         "best_subject_count": _optional_text(definition.best_subject_count),
         "subject_scope": definition.subject_scope,
+        "semester_rounding_mode": definition.semester_rounding_mode or "",
+        "semester_rounding_scale": _optional_text(definition.semester_rounding_scale),
+        "weighting_mode": definition.weighting_mode,
         "grade_weight_1": _decimal_text(definition.grade_weight_1) or "",
         "grade_weight_2": _decimal_text(definition.grade_weight_2) or "",
         "grade_weight_3": _decimal_text(definition.grade_weight_3) or "",
@@ -1032,14 +1360,25 @@ def _score_rule_to_csv_values(row: ManagedScoreRule) -> dict[str, str]:
         "z_score_policy": definition.z_score_policy,
         "z_score_source": definition.z_score_source or "",
         "z_score_table_code": definition.z_score_table_code or "",
+        "z_score_formula_version": definition.z_score_formula_version or "",
+        "z_score_rounding_mode": definition.z_score_rounding_mode or "",
+        "z_score_rounding_scale": _optional_text(definition.z_score_rounding_scale),
+        "z_score_clip_min": _decimal_text(definition.z_score_clip_min) or "",
+        "z_score_clip_max": _decimal_text(definition.z_score_clip_max) or "",
         "interview_ratio": _decimal_text(definition.interview_ratio) or "",
         "practical_ratio": _decimal_text(definition.practical_ratio) or "",
         "rounding_mode": definition.rounding_mode,
+        "rounding_stage": definition.rounding_stage,
         "rounding_scale": _optional_text(definition.rounding_scale),
+        "display_scale": _optional_text(definition.display_scale),
+        "score_transform_mode": definition.score_transform_mode,
+        "score_base": _decimal_text(definition.score_base) or "",
+        "score_multiplier": _decimal_text(definition.score_multiplier) or "",
         "maximum_score": _decimal_text(definition.maximum_score) or "",
         "evidence_document_id": row.evidence_document_id or "",
         "evidence_page": _optional_text(row.evidence_page),
         "evidence_location": row.evidence_location or "",
+        "evidence_level": row.evidence_level,
         "source_status": row.source_status,
         "change_reason": row.change_reason,
         "administrator_note": row.administrator_note or "",
@@ -1116,13 +1455,111 @@ def _payload_count(value: object, method: object, label: str) -> None:
         raise ValueError(f"{method} {label} 선택에는 개수가 필요합니다.")
 
 
-def _validate_weight_set(values: tuple[Decimal | None, ...], label: str) -> None:
-    provided = tuple(value for value in values if value is not None)
-    if not provided:
+def _validate_z_score_settings(
+    policy: object,
+    formula_version: object,
+    rounding_mode: object,
+    rounding_scale: object,
+    clip_min: Decimal | None,
+    clip_max: Decimal | None,
+) -> None:
+    if policy == "NOT_USED":
+        if any(
+            value is not None
+            for value in (formula_version, rounding_mode, rounding_scale, clip_min, clip_max)
+        ):
+            raise ValueError("NOT_USED에는 Z점수 계산 설정을 입력할 수 없습니다.")
         return
-    if any(not Decimal(0) <= value <= Decimal(1) for value in provided):
+    if policy == "MANUAL_REVIEW":
+        return
+    if formula_version != "STANDARD_Z_V1":
+        raise ValueError("자동 Z점수 계산에는 STANDARD_Z_V1 공식 버전이 필요합니다.")
+    if rounding_mode not in ROUNDING_MODES or rounding_mode == "MANUAL_REVIEW":
+        raise ValueError("자동 Z점수 계산에는 확정 반올림 방식이 필요합니다.")
+    if (
+        not isinstance(rounding_scale, int)
+        or isinstance(rounding_scale, bool)
+        or not 0 <= rounding_scale <= 12
+    ):
+        raise ValueError("Z점수 반올림 자릿수는 0~12 정수여야 합니다.")
+    if (clip_min is None) != (clip_max is None):
+        raise ValueError("Z점수 절단 하한과 상한은 함께 입력해야 합니다.")
+    if clip_min is not None and clip_max is not None and clip_min >= clip_max:
+        raise ValueError("Z점수 절단 하한은 상한보다 작아야 합니다.")
+
+
+def _validate_optional_rounding(mode: object, scale: object, label: str) -> None:
+    if mode is None and scale is None:
+        return
+    if mode not in ROUNDING_MODES or mode == "MANUAL_REVIEW":
+        raise ValueError(f"{label}에는 확정 반올림 방식이 필요합니다.")
+    if not isinstance(scale, int) or isinstance(scale, bool) or not 0 <= scale <= 12:
+        raise ValueError(f"{label} 반올림 자릿수는 0~12 정수여야 합니다.")
+
+
+def _validate_score_transform(
+    mode: object, base: Decimal | None, multiplier: Decimal | None
+) -> None:
+    if mode == "IDENTITY":
+        if base is not None or multiplier is not None:
+            raise ValueError("IDENTITY에는 base와 multiplier를 입력할 수 없습니다.")
+        return
+    if mode == "LINEAR":
+        if base is None or multiplier is None:
+            raise ValueError("LINEAR에는 base와 multiplier가 모두 필요합니다.")
+        return
+    if mode == "MANUAL_REVIEW":
+        return
+    raise ValueError("허용되지 않은 score_transform.mode입니다.")
+
+
+def _validate_weighting_mode(
+    mode: object,
+    grade_weights: tuple[Decimal | None, ...],
+    semester_weights: tuple[Decimal | None, ...],
+) -> None:
+    _validate_weight_range(grade_weights, "학년")
+    _validate_weight_range(semester_weights, "학기")
+    has_grade = any(value is not None for value in grade_weights)
+    has_semester = any(value is not None for value in semester_weights)
+    if mode == "EQUAL":
+        if has_grade or has_semester:
+            raise ValueError("EQUAL은 학년·학기 가중치를 입력할 수 없습니다.")
+        return
+    if mode == "GRADE_ONLY":
+        _require_complete_sum(grade_weights, "학년")
+        if has_semester:
+            raise ValueError("GRADE_ONLY는 학기 가중치를 입력할 수 없습니다.")
+        return
+    if mode == "GLOBAL_SEMESTER":
+        if has_grade:
+            raise ValueError("GLOBAL_SEMESTER는 학년 가중치를 입력할 수 없습니다.")
+        if not has_semester or sum(
+            (value for value in semester_weights if value is not None), Decimal(0)
+        ) != Decimal(1):
+            raise ValueError("GLOBAL_SEMESTER 학기 가중치 합계는 1이어야 합니다.")
+        return
+    if mode == "GRADE_WITHIN_SEMESTER":
+        _require_complete_sum(grade_weights, "학년")
+        if not has_semester:
+            raise ValueError("GRADE_WITHIN_SEMESTER에는 학년 내부 학기 가중치가 필요합니다.")
+        for index in range(0, len(semester_weights), 2):
+            pair = semester_weights[index : index + 2]
+            if any(value is not None for value in pair):
+                _require_complete_sum(pair, f"{index // 2 + 1}학년 내부 학기")
+        return
+    raise ValueError("허용되지 않은 weighting_mode입니다.")
+
+
+def _validate_weight_range(values: tuple[Decimal | None, ...], label: str) -> None:
+    if any(value is not None and not Decimal(0) <= value <= Decimal(1) for value in values):
         raise ValueError(f"{label} 가중치는 0 이상 1 이하여야 합니다.")
-    if sum(provided) != Decimal(1):
+
+
+def _require_complete_sum(values: tuple[Decimal | None, ...], label: str) -> None:
+    if not all(value is not None for value in values):
+        raise ValueError(f"{label} 가중치는 모두 입력해야 합니다.")
+    if sum((value for value in values if value is not None), Decimal(0)) != Decimal(1):
         raise ValueError(f"{label} 가중치 합계는 1이어야 합니다.")
 
 

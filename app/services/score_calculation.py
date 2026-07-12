@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import (
     ROUND_DOWN,
@@ -11,7 +12,7 @@ from decimal import (
 
 from app.services.score_inputs import ScoreInputStatus
 from app.services.score_rule_schema import ScoreRuleDefinition
-from app.services.score_selection import ScoreSelectionResult
+from app.services.score_selection import ScoreSelectionResult, SelectedSemesterTrace
 
 
 class ScoreCalculationError(ValueError):
@@ -28,10 +29,18 @@ class WeightedComponentTrace:
 
 @dataclass(frozen=True)
 class ScoreCalculationTrace:
+    rule_id: str
+    rule_version: str
     weighting_mode: str
     components: tuple[WeightedComponentTrace, ...]
+    aggregate_value: Decimal
+    score_transform_mode: str
+    score_base: Decimal | None
+    score_multiplier: Decimal | None
     rounding_mode: str
-    rounding_scale: int
+    rounding_stage: str
+    rounding_scale: int | None
+    display_scale: int | None
     non_predictive_components: tuple[tuple[str, Decimal], ...]
 
 
@@ -39,6 +48,7 @@ class ScoreCalculationTrace:
 class ScoreCalculationResult:
     pre_round_score: Decimal
     final_score: Decimal
+    display_score: Decimal
     maximum_score: Decimal
     trace: ScoreCalculationTrace
 
@@ -46,7 +56,12 @@ class ScoreCalculationResult:
 def calculate_selected_score(
     selection: ScoreSelectionResult,
     definition: ScoreRuleDefinition,
+    *,
+    rule_id: str,
+    rule_version: str,
 ) -> ScoreCalculationResult:
+    if not rule_id or not rule_version:
+        raise ScoreCalculationError("계산 trace에 규칙 ID와 버전이 필요합니다.")
     if selection.status is not ScoreInputStatus.READY:
         raise ScoreCalculationError("READY 상태의 선택 결과만 계산할 수 있습니다.")
     if not selection.trace.selected_semesters:
@@ -54,9 +69,6 @@ def calculate_selected_score(
     maximum_score = definition.maximum_score
     if maximum_score is None or maximum_score <= 0:
         raise ScoreCalculationError("양의 maximum_score가 필요합니다.")
-    if definition.rounding_scale is None:
-        raise ScoreCalculationError("rounding_scale이 필요합니다.")
-
     grade_weights = {
         1: definition.grade_weight_1,
         2: definition.grade_weight_2,
@@ -70,19 +82,18 @@ def calculate_selected_score(
         (3, 1): definition.semester_weight_3_1,
         (3, 2): definition.semester_weight_3_2,
     }
-    has_grade_weights = any(value is not None for value in grade_weights.values())
-    has_semester_weights = any(value is not None for value in semester_weights.values())
-    if has_grade_weights and has_semester_weights:
-        raise ScoreCalculationError("학년 가중치와 학기 가중치를 동시에 적용할 수 없습니다.")
-
-    if has_grade_weights:
-        mode = "GRADE"
+    mode = definition.weighting_mode
+    if mode == "GRADE_ONLY":
+        _reject_present_weights(semester_weights.values(), "GRADE_ONLY 학기")
         components = _grade_components(selection, grade_weights)
-    elif has_semester_weights:
-        mode = "SEMESTER"
+    elif mode == "GLOBAL_SEMESTER":
+        _reject_present_weights(grade_weights.values(), "GLOBAL_SEMESTER 학년")
         components = _semester_components(selection, semester_weights)
-    else:
-        mode = "EQUAL"
+    elif mode == "GRADE_WITHIN_SEMESTER":
+        components = _grade_within_semester_components(selection, grade_weights, semester_weights)
+    elif mode == "EQUAL":
+        _reject_present_weights(grade_weights.values(), "EQUAL 학년")
+        _reject_present_weights(semester_weights.values(), "EQUAL 학기")
         count = Decimal(len(selection.trace.selected_semesters))
         weight = Decimal(1) / count
         components = tuple(
@@ -94,11 +105,14 @@ def calculate_selected_score(
             )
             for term in selection.trace.selected_semesters
         )
+    else:
+        raise ScoreCalculationError(f"허용되지 않은 weighting_mode입니다: {mode}")
 
-    pre_round = sum((component.contribution for component in components), Decimal(0))
+    aggregate_value = sum((component.contribution for component in components), Decimal(0))
+    pre_round = _transform_score(aggregate_value, definition)
     if not Decimal(0) <= pre_round <= maximum_score:
         raise ScoreCalculationError("계산 결과가 0과 maximum_score 범위를 벗어났습니다.")
-    final_score = _round_score(pre_round, definition.rounding_mode, definition.rounding_scale)
+    final_score, display_score = _apply_rounding(pre_round, definition)
     non_predictive = tuple(
         (name, value)
         for name, value in (
@@ -110,12 +124,21 @@ def calculate_selected_score(
     return ScoreCalculationResult(
         pre_round_score=pre_round,
         final_score=final_score,
+        display_score=display_score,
         maximum_score=maximum_score,
         trace=ScoreCalculationTrace(
+            rule_id=rule_id,
+            rule_version=rule_version,
             weighting_mode=mode,
             components=components,
+            aggregate_value=aggregate_value,
+            score_transform_mode=definition.score_transform_mode,
+            score_base=definition.score_base,
+            score_multiplier=definition.score_multiplier,
             rounding_mode=definition.rounding_mode,
+            rounding_stage=definition.rounding_stage,
             rounding_scale=definition.rounding_scale,
+            display_scale=definition.display_scale,
             non_predictive_components=non_predictive,
         ),
     )
@@ -183,6 +206,62 @@ def _semester_components(
     )
 
 
+def _grade_within_semester_components(
+    selection: ScoreSelectionResult,
+    grade_weights: dict[int, Decimal | None],
+    semester_weights: dict[tuple[int, int], Decimal | None],
+) -> tuple[WeightedComponentTrace, ...]:
+    by_grade: dict[int, list[SelectedSemesterTrace]] = {}
+    for term in selection.trace.selected_semesters:
+        by_grade.setdefault(term.grade, []).append(term)
+    selected_grade_weights = {grade: grade_weights[grade] for grade in by_grade}
+    if any(value is None for value in selected_grade_weights.values()):
+        raise ScoreCalculationError("선택된 학년의 가중치가 누락되었습니다.")
+    if any(
+        weight not in {None, Decimal(0)} and grade not in by_grade
+        for grade, weight in grade_weights.items()
+    ):
+        raise ScoreCalculationError("성적이 없는 학년에 양의 가중치가 지정되었습니다.")
+    if sum(
+        (weight for weight in selected_grade_weights.values() if weight is not None),
+        Decimal(0),
+    ) != Decimal(1):
+        raise ScoreCalculationError("선택된 학년 가중치 합계는 1이어야 합니다.")
+
+    components: list[WeightedComponentTrace] = []
+    selected_keys: set[tuple[int, int]] = set()
+    for grade in sorted(by_grade):
+        grade_weight = selected_grade_weights[grade]
+        if grade_weight is None:
+            raise ScoreCalculationError("선택된 학년의 가중치가 누락되었습니다.")
+        terms = by_grade[grade]
+        local_weights: list[Decimal] = []
+        for term in terms:
+            key = (term.grade, term.semester)
+            selected_keys.add(key)
+            local_weight = semester_weights[key]
+            if local_weight is None:
+                raise ScoreCalculationError("선택된 학년 내부 학기 가중치가 누락되었습니다.")
+            local_weights.append(local_weight)
+            effective_weight = grade_weight * local_weight
+            components.append(
+                WeightedComponentTrace(
+                    key=f"grade_{term.grade}_semester_{term.semester}",
+                    value=term.comparison_value,
+                    weight=effective_weight,
+                    contribution=term.comparison_value * effective_weight,
+                )
+            )
+        if sum(local_weights, Decimal(0)) != Decimal(1):
+            raise ScoreCalculationError(f"{grade}학년 내부 학기 가중치 합계는 1이어야 합니다.")
+    if any(
+        weight not in {None, Decimal(0)} and key not in selected_keys
+        for key, weight in semester_weights.items()
+    ):
+        raise ScoreCalculationError("선택되지 않은 학기에 양의 내부 가중치가 지정되었습니다.")
+    return tuple(components)
+
+
 def _component(key: str, value: Decimal, weight: Decimal | None) -> WeightedComponentTrace:
     if weight is None:
         raise ScoreCalculationError("가중치가 누락되었습니다.")
@@ -191,6 +270,48 @@ def _component(key: str, value: Decimal, weight: Decimal | None) -> WeightedComp
         value=value,
         weight=weight,
         contribution=value * weight,
+    )
+
+
+def _reject_present_weights(values: Iterable[Decimal | None], label: str) -> None:
+    if any(value is not None for value in values):
+        raise ScoreCalculationError(f"{label} 가중치는 입력할 수 없습니다.")
+
+
+def _apply_rounding(value: Decimal, definition: ScoreRuleDefinition) -> tuple[Decimal, Decimal]:
+    if definition.rounding_stage == "FINAL":
+        if definition.rounding_scale is None:
+            raise ScoreCalculationError("FINAL 반올림에는 rounding_scale이 필요합니다.")
+        final = _round_score(value, definition.rounding_mode, definition.rounding_scale)
+        display_scale = definition.display_scale
+        displayed = (
+            final
+            if display_scale is None
+            else _round_score(final, definition.rounding_mode, display_scale)
+        )
+        return final, displayed
+    if definition.rounding_stage == "DISPLAY_ONLY":
+        if definition.display_scale is None:
+            raise ScoreCalculationError("DISPLAY_ONLY에는 display_scale이 필요합니다.")
+        return value, _round_score(value, definition.rounding_mode, definition.display_scale)
+    if definition.rounding_stage == "MANUAL_REVIEW":
+        raise ScoreCalculationError("MANUAL_REVIEW 반올림 단계는 자동 계산할 수 없습니다.")
+    raise ScoreCalculationError(f"허용되지 않은 rounding_stage입니다: {definition.rounding_stage}")
+
+
+def _transform_score(value: Decimal, definition: ScoreRuleDefinition) -> Decimal:
+    if definition.score_transform_mode == "IDENTITY":
+        if definition.score_base is not None or definition.score_multiplier is not None:
+            raise ScoreCalculationError("IDENTITY에는 변환 상수와 배수를 입력할 수 없습니다.")
+        return value
+    if definition.score_transform_mode == "LINEAR":
+        if definition.score_base is None or definition.score_multiplier is None:
+            raise ScoreCalculationError("LINEAR에는 변환 상수와 배수가 필요합니다.")
+        return definition.score_base + definition.score_multiplier * value
+    if definition.score_transform_mode == "MANUAL_REVIEW":
+        raise ScoreCalculationError("MANUAL_REVIEW 점수 변환은 자동 계산할 수 없습니다.")
+    raise ScoreCalculationError(
+        f"허용되지 않은 score_transform_mode입니다: {definition.score_transform_mode}"
     )
 
 

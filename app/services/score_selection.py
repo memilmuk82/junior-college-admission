@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_DOWN, ROUND_HALF_EVEN, ROUND_HALF_UP, ROUND_UP, Decimal
 
 from app.services.score_inputs import (
     AcademicRecordInput,
@@ -39,9 +39,13 @@ class SelectedSemesterTrace:
 
 @dataclass(frozen=True)
 class ScoreSelectionTrace:
+    value_direction: str
     semester_selection_method: str
+    semester_selection_scope: str
     subject_selection_method: str
     value_scale: str | None
+    semester_rounding_mode: str | None
+    semester_rounding_scale: int | None
     selected_semesters: tuple[SelectedSemesterTrace, ...]
     exclusion_reasons: tuple[str, ...]
 
@@ -134,7 +138,7 @@ def select_terms_and_subjects(
             ranked = sorted(
                 zip(selected_courses, selected_values, strict=True),
                 key=lambda item: (
-                    -item[1].normalized_value,
+                    _rank_value(item[1].normalized_value, definition.value_direction),
                     item[0].subject_name,
                     item[0].course_record_id,
                 ),
@@ -158,6 +162,7 @@ def select_terms_and_subjects(
                 value_scale=None,
                 exclusion_reasons=("CREDIT_VALUE_MISSING",),
             )
+        comparison = _round_semester_value(comparison, definition)
         scored_records.append(
             _ScoredRecord(
                 record=AcademicRecordInput(
@@ -198,9 +203,13 @@ def select_terms_and_subjects(
         status=ScoreInputStatus.READY,
         records=records,
         trace=ScoreSelectionTrace(
+            value_direction=definition.value_direction,
             semester_selection_method=definition.semester_selection_method,
+            semester_selection_scope=definition.semester_selection_scope,
             subject_selection_method=definition.subject_selection_method,
             value_scale=next(iter(value_scales), None),
+            semester_rounding_mode=definition.semester_rounding_mode,
+            semester_rounding_scale=definition.semester_rounding_scale,
             selected_semesters=tuple(
                 SelectedSemesterTrace(
                     academic_year=item.record.academic_year,
@@ -267,6 +276,8 @@ def _select_semesters(
     records: list[_ScoredRecord], definition: ScoreRuleDefinition
 ) -> list[_ScoredRecord]:
     method = definition.semester_selection_method
+    if definition.semester_selection_scope == "PER_GRADE" and method != "BEST_N":
+        raise ValueError("PER_GRADE 학기 선택 범위는 BEST_N에만 사용할 수 있습니다.")
     if method == "ALL":
         return list(records)
     count = definition.best_semester_count
@@ -278,11 +289,40 @@ def _select_semesters(
     if method == "RECENT_N":
         return ordered[-count:]
     if method == "BEST_N":
-        return sorted(
-            records,
-            key=lambda item: (-item.comparison_value, _record_key(item.record)),
-        )[:count]
+        if definition.semester_selection_scope == "GLOBAL":
+            return _rank_semesters(records, definition)[:count]
+        if definition.semester_selection_scope == "PER_GRADE":
+            by_grade: dict[int, list[_ScoredRecord]] = {}
+            for item in records:
+                by_grade.setdefault(item.record.grade, []).append(item)
+            return [
+                item
+                for grade in sorted(by_grade)
+                for item in _rank_semesters(by_grade[grade], definition)[:count]
+            ]
+        raise ValueError("허용되지 않은 학기 선택 범위입니다.")
     raise ValueError("허용되지 않은 학기 선택 방법입니다.")
+
+
+def _round_semester_value(value: Decimal, definition: ScoreRuleDefinition) -> Decimal:
+    mode = definition.semester_rounding_mode
+    scale = definition.semester_rounding_scale
+    if mode is None and scale is None:
+        return value
+    if mode is None or scale is None or not 0 <= scale <= 12:
+        raise ValueError("학기 평균 반올림 방식과 자릿수가 모두 필요합니다.")
+    modes = {
+        "ROUND_HALF_UP": ROUND_HALF_UP,
+        "ROUND_HALF_EVEN": ROUND_HALF_EVEN,
+        "ROUND_DOWN": ROUND_DOWN,
+        "ROUND_UP": ROUND_UP,
+        "TRUNCATE": ROUND_DOWN,
+    }
+    try:
+        decimal_mode = modes[mode]
+    except KeyError as error:
+        raise ValueError(f"허용되지 않은 학기 평균 반올림 방식입니다: {mode}") from error
+    return value.quantize(Decimal(1).scaleb(-scale), rounding=decimal_mode)
 
 
 def _record_key(record: AcademicRecordInput) -> tuple[int, int, int, str, str]:
@@ -293,6 +333,26 @@ def _record_key(record: AcademicRecordInput) -> tuple[int, int, int, str, str]:
         record.record_source,
         record.academic_record_id,
     )
+
+
+def _rank_semesters(
+    records: list[_ScoredRecord], definition: ScoreRuleDefinition
+) -> list[_ScoredRecord]:
+    return sorted(
+        records,
+        key=lambda item: (
+            _rank_value(item.comparison_value, definition.value_direction),
+            _record_key(item.record),
+        ),
+    )
+
+
+def _rank_value(value: Decimal, direction: str) -> Decimal:
+    if direction == "HIGHER_IS_BETTER":
+        return -value
+    if direction == "LOWER_IS_BETTER":
+        return value
+    raise ValueError("허용되지 않은 값 우선 방향입니다.")
 
 
 def _result(
@@ -307,9 +367,13 @@ def _result(
         status=status,
         records=records,
         trace=ScoreSelectionTrace(
+            value_direction=definition.value_direction,
             semester_selection_method=definition.semester_selection_method,
+            semester_selection_scope=definition.semester_selection_scope,
             subject_selection_method=definition.subject_selection_method,
             value_scale=value_scale,
+            semester_rounding_mode=definition.semester_rounding_mode,
+            semester_rounding_scale=definition.semester_rounding_scale,
             selected_semesters=(),
             exclusion_reasons=exclusion_reasons,
         ),

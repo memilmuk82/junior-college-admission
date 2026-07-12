@@ -31,3 +31,14 @@
 - `INSUFFICIENT_DATA`: 규칙은 확정됐지만 선택 가능한 검증 성적이 없음
 
 성적 입력 상태는 점수가 아니며 자격 상태를 변경하지 않는다. trace의 출처·학기·과목은 이후 계산 엔진이 사용할 후보의 근거다.
+
+## 성적 계산 모드
+
+- `GLOBAL`·`PER_GRADE`: 우수 학기를 전체 후보에서 고르는지 학년마다 고르는지 구분한다.
+- `EQUAL`: 선택 학기를 동일 가중한다.
+- `GRADE_ONLY`: 학기 집계 후 학년 가중치만 적용한다.
+- `GLOBAL_SEMESTER`: 선택된 전체 학기의 가중치 합을 1로 적용한다.
+- `GRADE_WITHIN_SEMESTER`: 학년 가중치와 해당 학년 내부 학기 가중치를 곱한다.
+- `LOWER_IS_BETTER`·`HIGHER_IS_BETTER`: 등급과 점수처럼 우수 방향이 다른 값을 명시한다.
+
+Z점수의 `UNIVERSITY_OFFICIAL`, `VERIFIED_REFERENCE`, `INTERNAL_CALCULATION`, `MANUAL_REVIEW`는 계산식 자체가 아니라 근거 수준을 나타낸다. 계산 trace는 공식 버전, 반올림 전후 값, 절단값, 변환표 코드·버전과 근거 위치를 보존한다.

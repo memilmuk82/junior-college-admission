@@ -53,6 +53,7 @@ def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> No
         "multiple_application_rules",
         "disqualification_rules",
         "grade_source_scope_rules",
+        "score_rules",
     ):
         index_names = {index["name"] for index in inspect(postgres_engine).get_indexes(table_name)}
         assert f"uq_{table_name}_one_published_per_track" in index_names

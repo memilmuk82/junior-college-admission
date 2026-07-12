@@ -13,6 +13,7 @@ from app.models import (
     DisqualificationRule,
     GradeSourceScopeRule,
     MultipleApplicationRule,
+    ScoreRule,
 )
 from app.services.eligibility import (
     EligibilityDecision,
@@ -93,6 +94,16 @@ def load_published_grade_source_scope_rule(
     return _exactly_one(rows, admission_track_id, "성적 출처 범위")
 
 
+def load_published_score_rule(session: Session, admission_track_id: str) -> PublishedRule:
+    rows = session.scalars(
+        select(ScoreRule).where(
+            ScoreRule.admission_track_id == admission_track_id,
+            ScoreRule.lifecycle_status == "PUBLISHED",
+        )
+    ).all()
+    return _exactly_one(rows, admission_track_id, "성적 계산")
+
+
 def evaluate_published_eligibility(
     session: Session,
     admission_track_id: str,
@@ -135,6 +146,7 @@ def _exactly_one(
         | MultipleApplicationRule
         | DisqualificationRule
         | GradeSourceScopeRule
+        | ScoreRule
     ],
     admission_track_id: str,
     rule_label: str,
@@ -175,6 +187,7 @@ __all__ = [
     "load_published_eligibility_rule",
     "load_published_grade_source_scope_rule",
     "load_published_multiple_application_rule",
+    "load_published_score_rule",
     "require_published_rule_usable",
     "to_eligibility_rule",
 ]

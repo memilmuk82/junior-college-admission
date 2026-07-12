@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from decimal import Decimal
 from io import StringIO
 
 from app.services.score_rule_schema import (
@@ -36,12 +37,17 @@ def _valid_row() -> dict[str, str]:
             "vocational_grade_included": "TRUE",
             "vocational_semester_1_included": "TRUE",
             "vocational_semester_2_included": "FALSE",
+            "value_direction": "HIGHER_IS_BETTER",
             "semester_selection_method": "BEST_N",
+            "semester_selection_scope": "GLOBAL",
             "best_semester_count": "2",
             "subject_selection_method": "BEST_N",
             "best_subject_count": "5",
             "subject_scope": "ALL",
             "credit_weighted": "TRUE",
+            "semester_rounding_mode": "ROUND_HALF_UP",
+            "semester_rounding_scale": "5",
+            "weighting_mode": "GRADE_ONLY",
             "grade_weight_1": "0.30",
             "grade_weight_2": "0.30",
             "grade_weight_3": "0.40",
@@ -50,15 +56,24 @@ def _valid_row() -> dict[str, str]:
             "z_score_policy": "TABLE_LOOKUP",
             "z_score_source": "UNIVERSITY_OFFICIAL",
             "z_score_table_code": "SYNTHETIC_Z_01",
+            "z_score_formula_version": "STANDARD_Z_V1",
+            "z_score_rounding_mode": "ROUND_HALF_UP",
+            "z_score_rounding_scale": "2",
+            "z_score_clip_min": "-3",
+            "z_score_clip_max": "3",
             "attendance_included": "FALSE",
             "interview_ratio": "0.20",
             "practical_ratio": "0",
             "rounding_mode": "ROUND_HALF_UP",
+            "rounding_stage": "FINAL",
             "rounding_scale": "2",
+            "display_scale": "2",
+            "score_transform_mode": "IDENTITY",
             "maximum_score": "1000",
             "evidence_document_id": "synthetic-document",
             "evidence_page": "12",
             "evidence_location": "합성 표 1",
+            "evidence_level": "UNIVERSITY_OFFICIAL",
             "source_status": "FINAL_GUIDE",
             "change_reason": "합성 규칙 최초 등록",
             "administrator_note": "합성 테스트 전용",
@@ -146,6 +161,7 @@ def test_decimal_ratios_validate_range_and_grade_weight_sum() -> None:
 
 def test_semester_weights_round_trip_without_grade_weights() -> None:
     row = _valid_row()
+    row["weighting_mode"] = "GLOBAL_SEMESTER"
     for column in ("grade_weight_1", "grade_weight_2", "grade_weight_3"):
         row[column] = ""
     row.update(
@@ -176,6 +192,43 @@ def test_grade_and_semester_weight_modes_cannot_be_mixed() -> None:
     assert parsed.rows == ()
 
 
+def test_hierarchical_grade_and_within_grade_weights_are_valid() -> None:
+    row = _valid_row()
+    row["weighting_mode"] = "GRADE_WITHIN_SEMESTER"
+    row.update(
+        {
+            "semester_weight_1_1": "0.4",
+            "semester_weight_1_2": "0.6",
+            "semester_weight_2_1": "0.5",
+            "semester_weight_2_2": "0.5",
+            "semester_weight_3_1": "1",
+            "semester_weight_3_2": "0",
+        }
+    )
+
+    parsed = parse_score_rule_csv(_csv_bytes([row]))
+
+    assert parsed.issues == ()
+    validate_score_rule_payload(score_rule_to_payload(parsed.rows[0]))
+
+
+def test_limited_linear_score_transform_allows_negative_decimal_multiplier() -> None:
+    row = _valid_row()
+    row.update(
+        {
+            "score_transform_mode": "LINEAR",
+            "score_base": "950",
+            "score_multiplier": "-50",
+        }
+    )
+
+    parsed = parse_score_rule_csv(_csv_bytes([row]))
+
+    assert parsed.issues == ()
+    assert parsed.rows[0].definition.score_multiplier == Decimal("-50")
+    assert parse_score_rule_csv(write_score_rule_csv(parsed.rows)).issues == ()
+
+
 def test_best_selection_requires_positive_count_and_formula_like_text_is_rejected() -> None:
     row = _valid_row()
     row["best_semester_count"] = "0"
@@ -200,13 +253,28 @@ def test_z_score_source_and_separate_table_code_are_strict() -> None:
     assert any(issue.column == "z_score_table_code" for issue in parsed.issues)
 
 
+def test_reference_evidence_cannot_claim_university_official_z_source() -> None:
+    row = _valid_row()
+    row["source_status"] = "VERIFIED_REFERENCE"
+    row["evidence_level"] = "VERIFIED_REFERENCE"
+
+    parsed = parse_score_rule_csv(_csv_bytes([row]))
+
+    assert any(issue.code == "OFFICIAL_SOURCE_REQUIRED" for issue in parsed.issues)
+    assert parsed.rows == ()
+
+
 def test_manual_review_source_allows_incomplete_draft_without_guessing() -> None:
     row = _valid_row()
     row["source_status"] = "MANUAL_REVIEW"
+    row["evidence_level"] = "MANUAL_REVIEW"
     row["home_grade_1_included"] = ""
     row["evidence_document_id"] = ""
     row["evidence_page"] = ""
     row["evidence_location"] = ""
+    row["z_score_policy"] = "MANUAL_REVIEW"
+    row["z_score_source"] = "MANUAL_REVIEW"
+    row["z_score_table_code"] = ""
 
     parsed = parse_score_rule_csv(_csv_bytes([row]))
 
@@ -227,8 +295,10 @@ def test_z_score_tables_use_separate_fixed_csv_without_json_cells() -> None:
     base = {
         "schema_version": "1",
         "table_code": "SYNTHETIC_Z_01",
-        "z_min_exclusive": "",
-        "z_max_inclusive": "1.76",
+        "z_min": "1.76",
+        "z_min_inclusive": "TRUE",
+        "z_max": "",
+        "z_max_inclusive": "FALSE",
         "converted_value": "1",
         "evidence_document_id": "synthetic-document",
         "evidence_page": "13",
@@ -239,9 +309,11 @@ def test_z_score_tables_use_separate_fixed_csv_without_json_cells() -> None:
     second = dict(base)
     second.update(
         {
-            "z_min_exclusive": "1.76",
-            "z_max_inclusive": "3",
-            "converted_value": "1.5",
+            "z_min": "1.23",
+            "z_min_inclusive": "TRUE",
+            "z_max": "1.76",
+            "z_max_inclusive": "FALSE",
+            "converted_value": "2",
         }
     )
 
@@ -249,7 +321,7 @@ def test_z_score_tables_use_separate_fixed_csv_without_json_cells() -> None:
 
     assert parsed.issues == ()
     assert len(parsed.rows) == 2
-    assert parsed.rows[0].z_min_exclusive is None
+    assert parsed.rows[0].z_min == Decimal("1.76")
     reparsed = parse_z_score_table_csv(write_z_score_table_csv(parsed.rows))
     assert reparsed.issues == ()
     assert reparsed.rows == parsed.rows
@@ -259,8 +331,10 @@ def test_z_score_table_rejects_overlapping_ranges() -> None:
     first = {
         "schema_version": "1",
         "table_code": "SYNTHETIC_Z_01",
-        "z_min_exclusive": "0",
-        "z_max_inclusive": "2",
+        "z_min": "0",
+        "z_min_inclusive": "TRUE",
+        "z_max": "2",
+        "z_max_inclusive": "TRUE",
         "converted_value": "1",
         "evidence_document_id": "synthetic-document",
         "evidence_page": "13",
@@ -271,8 +345,8 @@ def test_z_score_table_rejects_overlapping_ranges() -> None:
     second = dict(first)
     second.update(
         {
-            "z_min_exclusive": "1",
-            "z_max_inclusive": "3",
+            "z_min": "1",
+            "z_max": "3",
             "converted_value": "2",
         }
     )
@@ -294,6 +368,7 @@ def test_export_accepts_rules_created_by_future_admin_editor() -> None:
         evidence_document_id=parsed.rows[0].evidence_document_id,
         evidence_page=parsed.rows[0].evidence_page,
         evidence_location=parsed.rows[0].evidence_location,
+        evidence_level=parsed.rows[0].evidence_level,
         source_status=parsed.rows[0].source_status,
         change_reason="관리자 메뉴 수정",
         administrator_note="동일 canonical schema",

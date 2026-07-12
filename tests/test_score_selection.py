@@ -75,12 +75,16 @@ def _definition() -> ScoreRuleDefinition:
         vocational_grade_included=False,
         vocational_semester_1_included=False,
         vocational_semester_2_included=False,
+        value_direction="HIGHER_IS_BETTER",
         semester_selection_method="ALL",
+        semester_selection_scope="GLOBAL",
         best_semester_count=None,
         subject_selection_method="ALL",
         best_subject_count=None,
         subject_scope="ALL",
         credit_weighted=False,
+        semester_rounding_mode=None,
+        semester_rounding_scale=None,
         grade_weight_1=None,
         grade_weight_2=None,
         grade_weight_3=None,
@@ -90,16 +94,27 @@ def _definition() -> ScoreRuleDefinition:
         semester_weight_2_2=None,
         semester_weight_3_1=None,
         semester_weight_3_2=None,
+        weighting_mode="EQUAL",
         achievement_handling="EXCLUDE",
         career_subject_included=False,
         z_score_policy="NOT_USED",
         z_score_source=None,
         z_score_table_code=None,
+        z_score_formula_version=None,
+        z_score_rounding_mode=None,
+        z_score_rounding_scale=None,
+        z_score_clip_min=None,
+        z_score_clip_max=None,
         attendance_included=False,
         interview_ratio=None,
         practical_ratio=None,
         rounding_mode="ROUND_HALF_UP",
+        rounding_stage="FINAL",
         rounding_scale=2,
+        display_scale=2,
+        score_transform_mode="IDENTITY",
+        score_base=None,
+        score_multiplier=None,
         maximum_score=Decimal("100"),
     )
 
@@ -156,6 +171,45 @@ def test_best_one_and_two_semesters_use_decimal_values() -> None:
     assert [(row.grade, row.semester) for row in best_two.records] == [(1, 2), (2, 2)]
 
 
+def test_best_semester_can_be_selected_per_grade() -> None:
+    result = select_terms_and_subjects(
+        _selection(),
+        replace(
+            _definition(),
+            semester_selection_method="BEST_N",
+            semester_selection_scope="PER_GRADE",
+            best_semester_count=1,
+        ),
+        _values(),
+    )
+
+    assert [(row.grade, row.semester) for row in result.records] == [
+        (1, 2),
+        (2, 2),
+        (3, 1),
+    ]
+
+
+def test_lower_value_can_be_declared_as_better_without_negating_source_values() -> None:
+    result = select_terms_and_subjects(
+        _selection(),
+        replace(
+            _definition(),
+            value_direction="LOWER_IS_BETTER",
+            semester_selection_method="BEST_N",
+            semester_selection_scope="PER_GRADE",
+            best_semester_count=1,
+        ),
+        _values(),
+    )
+
+    assert [(row.grade, row.semester) for row in result.records] == [
+        (1, 1),
+        (2, 1),
+        (3, 1),
+    ]
+
+
 def test_best_subject_count_is_applied_per_selected_semester() -> None:
     result = select_terms_and_subjects(
         _selection(),
@@ -193,6 +247,22 @@ def test_credit_weighted_semester_value_changes_ranking() -> None:
 
     assert [(row.grade, row.semester) for row in unweighted.records] == [(2, 2)]
     assert [(row.grade, row.semester) for row in weighted.records] == [(1, 2)]
+
+
+def test_semester_rounding_is_applied_before_ranking_and_recorded_in_trace() -> None:
+    values = _values()
+    values["course-1-1-a"] = replace(values["course-1-1-a"], normalized_value=Decimal("60.19"))
+    result = select_terms_and_subjects(
+        _selection(),
+        replace(
+            _definition(),
+            semester_rounding_mode="ROUND_HALF_UP",
+            semester_rounding_scale=1,
+        ),
+        values,
+    )
+
+    assert result.trace.selected_semesters[0].comparison_value == Decimal("70.1")
 
 
 def test_scope_filter_uses_explicit_codes_not_subject_name_guessing() -> None:
