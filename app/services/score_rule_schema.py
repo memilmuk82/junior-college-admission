@@ -35,6 +35,8 @@ SCORE_RULE_CSV_HEADERS = (
     "minimum_semester_credits",
     "semester_rounding_mode",
     "semester_rounding_scale",
+    "grade_rounding_mode",
+    "grade_rounding_scale",
     "weighting_mode",
     "grade_weight_1",
     "grade_weight_2",
@@ -227,6 +229,8 @@ class ScoreRuleDefinition:
     minimum_semester_credits: Decimal | None
     semester_rounding_mode: str | None
     semester_rounding_scale: int | None
+    grade_rounding_mode: str | None
+    grade_rounding_scale: int | None
     grade_weight_1: Decimal | None
     grade_weight_2: Decimal | None
     grade_weight_3: Decimal | None
@@ -395,6 +399,10 @@ def score_rule_to_payload(row: ManagedScoreRule) -> dict[str, object]:
             "mode": definition.semester_rounding_mode,
             "scale": definition.semester_rounding_scale,
         },
+        "grade_rounding": {
+            "mode": definition.grade_rounding_mode,
+            "scale": definition.grade_rounding_scale,
+        },
         "grade_weights": {
             "grade_1": _decimal_text(definition.grade_weight_1),
             "grade_2": _decimal_text(definition.grade_weight_2),
@@ -463,6 +471,7 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
             "semester_selection",
             "subject_selection",
             "semester_rounding",
+            "grade_rounding",
             "grade_weights",
             "semester_weights",
             "weighting_mode",
@@ -535,6 +544,13 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
         semester_rounding.get("scale"),
         "학기 평균",
     )
+    grade_rounding = _payload_mapping(payload, "grade_rounding")
+    _payload_exact_keys(grade_rounding, {"mode", "scale"}, "grade_rounding")
+    _validate_optional_rounding(
+        grade_rounding.get("mode"),
+        grade_rounding.get("scale"),
+        "학년 평균",
+    )
 
     weights_payload = _payload_mapping(payload, "grade_weights")
     _payload_exact_keys(weights_payload, {"grade_1", "grade_2", "grade_3"}, "grade_weights")
@@ -565,6 +581,8 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
     if weighting_mode not in WEIGHTING_MODES:
         raise ValueError("허용되지 않은 weighting_mode입니다.")
     _validate_weighting_mode(weighting_mode, weights, semester_weights)
+    if grade_rounding.get("mode") is not None and weighting_mode != "GRADE_ONLY":
+        raise ValueError("학년 평균 반올림은 GRADE_ONLY 가중치에서만 사용할 수 있습니다.")
 
     achievement = _payload_mapping(payload, "achievement")
     _payload_exact_keys(
@@ -697,6 +715,7 @@ def score_rule_definition_from_payload(
     semester = _payload_mapping(payload, "semester_selection")
     subject = _payload_mapping(payload, "subject_selection")
     semester_rounding = _payload_mapping(payload, "semester_rounding")
+    grade_rounding = _payload_mapping(payload, "grade_rounding")
     grade_weights = _payload_mapping(payload, "grade_weights")
     semester_weights = _payload_mapping(payload, "semester_weights")
     achievement = _payload_mapping(payload, "achievement")
@@ -724,6 +743,8 @@ def score_rule_definition_from_payload(
         minimum_semester_credits=_payload_decimal(subject["minimum_semester_credits"]),
         semester_rounding_mode=cast(str | None, semester_rounding["mode"]),
         semester_rounding_scale=cast(int | None, semester_rounding["scale"]),
+        grade_rounding_mode=cast(str | None, grade_rounding["mode"]),
+        grade_rounding_scale=cast(int | None, grade_rounding["scale"]),
         grade_weight_1=_payload_decimal(grade_weights["grade_1"]),
         grade_weight_2=_payload_decimal(grade_weights["grade_2"]),
         grade_weight_3=_payload_decimal(grade_weights["grade_3"]),
@@ -1079,6 +1100,16 @@ def _parse_score_rule_row(
         if raw["semester_rounding_mode"]
         else None
     )
+    grade_rounding_mode = (
+        _choice(
+            raw["grade_rounding_mode"],
+            ROUNDING_MODES,
+            "grade_rounding_mode",
+            issue,
+        )
+        if raw["grade_rounding_mode"]
+        else None
+    )
     weighting_mode = _choice(raw["weighting_mode"], WEIGHTING_MODES, "weighting_mode", issue)
     rounding_stage = _choice(raw["rounding_stage"], ROUNDING_STAGES, "rounding_stage", issue)
     score_transform_mode = _choice(
@@ -1117,6 +1148,17 @@ def _parse_score_rule_row(
         )
     except ValueError as error:
         issue("semester_rounding_mode", "SEMESTER_ROUNDING", str(error))
+    grade_rounding_scale = _optional_integer(
+        raw["grade_rounding_scale"], "grade_rounding_scale", issue
+    )
+    try:
+        _validate_optional_rounding(
+            grade_rounding_mode,
+            grade_rounding_scale,
+            "학년 평균",
+        )
+    except ValueError as error:
+        issue("grade_rounding_mode", "GRADE_ROUNDING", str(error))
     z_rounding_scale = _optional_integer(
         raw["z_score_rounding_scale"], "z_score_rounding_scale", issue
     )
@@ -1215,6 +1257,12 @@ def _parse_score_rule_row(
         _validate_weighting_mode(weighting_mode, grade_weights, semester_weights)
     except ValueError as error:
         issue("weighting_mode", "WEIGHT_MODE_CONFLICT", str(error))
+    if grade_rounding_mode is not None and weighting_mode != "GRADE_ONLY":
+        issue(
+            "grade_rounding_mode",
+            "GRADE_ROUNDING_WEIGHT_MODE",
+            "학년 평균 반올림은 GRADE_ONLY 가중치에서만 사용할 수 있습니다.",
+        )
 
     interview_ratio = _optional_decimal(raw["interview_ratio"], "interview_ratio", issue)
     practical_ratio = _optional_decimal(raw["practical_ratio"], "practical_ratio", issue)
@@ -1325,6 +1373,8 @@ def _parse_score_rule_row(
         minimum_semester_credits=minimum_semester_credits,
         semester_rounding_mode=semester_rounding_mode,
         semester_rounding_scale=semester_rounding_scale,
+        grade_rounding_mode=grade_rounding_mode,
+        grade_rounding_scale=grade_rounding_scale,
         grade_weight_1=grade_weights[0],
         grade_weight_2=grade_weights[1],
         grade_weight_3=grade_weights[2],
@@ -1582,6 +1632,8 @@ def _score_rule_to_csv_values(row: ManagedScoreRule) -> dict[str, str]:
         "minimum_semester_credits": _decimal_text(definition.minimum_semester_credits) or "",
         "semester_rounding_mode": definition.semester_rounding_mode or "",
         "semester_rounding_scale": _optional_text(definition.semester_rounding_scale),
+        "grade_rounding_mode": definition.grade_rounding_mode or "",
+        "grade_rounding_scale": _optional_text(definition.grade_rounding_scale),
         "weighting_mode": definition.weighting_mode,
         "grade_weight_1": _decimal_text(definition.grade_weight_1) or "",
         "grade_weight_2": _decimal_text(definition.grade_weight_2) or "",

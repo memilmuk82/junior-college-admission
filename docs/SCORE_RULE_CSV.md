@@ -51,6 +51,8 @@ credit_weighted
 minimum_semester_credits
 semester_rounding_mode
 semester_rounding_scale
+grade_rounding_mode
+grade_rounding_scale
 weighting_mode
 grade_weight_1
 grade_weight_2
@@ -64,6 +66,7 @@ semester_weight_3_2
 achievement_handling
 achievement_table_code
 achievement_source
+achievement_formula_version
 achievement_distribution_scale
 career_subject_included
 z_score_policy

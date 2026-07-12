@@ -48,6 +48,8 @@ def _valid_row() -> dict[str, str]:
             "credit_weighted": "TRUE",
             "semester_rounding_mode": "ROUND_HALF_UP",
             "semester_rounding_scale": "5",
+            "grade_rounding_mode": "ROUND_HALF_UP",
+            "grade_rounding_scale": "2",
             "weighting_mode": "GRADE_ONLY",
             "grade_weight_1": "0.30",
             "grade_weight_2": "0.30",
@@ -183,6 +185,8 @@ def test_decimal_ratios_validate_range_and_grade_weight_sum() -> None:
 def test_semester_weights_round_trip_without_grade_weights() -> None:
     row = _valid_row()
     row["weighting_mode"] = "GLOBAL_SEMESTER"
+    row["grade_rounding_mode"] = ""
+    row["grade_rounding_scale"] = ""
     for column in ("grade_weight_1", "grade_weight_2", "grade_weight_3"):
         row[column] = ""
     row.update(
@@ -216,6 +220,8 @@ def test_grade_and_semester_weight_modes_cannot_be_mixed() -> None:
 def test_hierarchical_grade_and_within_grade_weights_are_valid() -> None:
     row = _valid_row()
     row["weighting_mode"] = "GRADE_WITHIN_SEMESTER"
+    row["grade_rounding_mode"] = ""
+    row["grade_rounding_scale"] = ""
     row.update(
         {
             "semester_weight_1_1": "0.4",

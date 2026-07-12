@@ -79,7 +79,7 @@ policy는 `HOME_ONLY`, `VOCATIONAL_INCLUDED`, `VOCATIONAL_ONLY`, `EXCLUDE_VOCATI
 
 ## Canonical 성적 규칙
 
-관리자 메뉴의 직접 편집과 표준 CSV는 모두 `ManagedScoreRule`을 만들고 `score_rule_to_payload()`로 같은 제한형 payload를 생성한다. payload는 출처 포함, 값 우선 방향, 전역·학년별 학기 선택, 과목 선택, 학년·학기 가중치, 성취도, Z점수 출처·공식·table code·경계, 단계별 반올림, 제한형 선형 점수 환산과 만점을 고정 객체로만 표현한다. 임의 필드와 자유 수식을 허용하지 않는다.
+관리자 메뉴의 직접 편집과 표준 CSV는 모두 `ManagedScoreRule`을 만들고 `score_rule_to_payload()`로 같은 제한형 payload를 생성한다. payload는 출처 포함, 값 우선 방향, 전역·학년별 학기 선택, 과목 선택, 학년·학기 가중치, 성취도, Z점수 출처·공식·table code·경계, 학기·학년 평균과 최종 표시의 단계별 반올림, 제한형 선형 점수 환산과 만점을 고정 객체로만 표현한다. 임의 필드와 자유 수식을 허용하지 않는다.
 
 가중치 모드는 `EQUAL`, `GRADE_ONLY`, `GLOBAL_SEMESTER`, `GRADE_WITHIN_SEMESTER`로 구분한다. 마지막 모드는 학년 가중치와 학년 내부 학기 가중치를 곱하므로 두 수준을 전역 학기 가중치와 혼동하지 않는다. `PER_GRADE + BEST_N`은 각 학년의 우수 학기를 먼저 선택한 뒤 학년 가중치를 적용한다.
 
@@ -87,7 +87,7 @@ policy는 `HOME_ONLY`, `VOCATIONAL_INCLUDED`, `VOCATIONAL_ONLY`, `EXCLUDE_VOCATI
 
 Z점수 변환표는 하한·상한과 각 경계의 포함 여부를 별도 값으로 저장한다. `STANDARD_Z_V1` 계산의 원값·반올림값·절단값, 표 코드·버전, 근거 상태를 trace에 남긴다. 참고표는 `UNIVERSITY_OFFICIAL`로 승격할 수 없으며 공식 PDF 근거가 없는 경우 자동 게시하지 않는다.
 
-성취도는 `EXCLUDE`, `GRADE_TABLE`, `DISTRIBUTION`, `MANUAL_REVIEW`로 분기한다. 자동 변환은 표 코드·버전·출처를 요구하며 분포값은 `RATIO` 또는 `PERCENT` 척도와 합계를 검증한다. `P`, 빈 분포, 잘못된 합계를 0으로 바꾸지 않는다.
+성취도는 `EXCLUDE`, `GRADE_TABLE`, `DISTRIBUTION`, `MANUAL_REVIEW`로 분기한다. 자동 변환은 표 코드·버전·출처와 공식 버전을 요구하며 분포값은 `RATIO` 또는 `PERCENT` 척도와 합계를 검증한다. `CUMULATIVE_DISTRIBUTION_GRADE_V1`은 A·B·C 누적분포 등급 공식을 제한형으로 표현하며, `P`, 빈 분포, 잘못된 합계를 0으로 바꾸지 않는다.
 
 출결 반영은 표 코드·버전·출처와 미인정 지각·조퇴·결과의 결석 환산 단위를 고정한다. 검증된 네 종류 횟수가 모두 있을 때만 별도 출결 점수를 만들고 교과 점수와 구분된 trace를 남긴다. 면접·실기는 계속 비예측 안내 값이며 출결과 같은 방식으로 합산하지 않는다.
 

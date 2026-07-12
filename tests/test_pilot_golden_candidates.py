@@ -509,3 +509,199 @@ def test_yeonsung_special_general_candidate_excludes_vocational_and_low_credit_t
     assert result.trace.academic_score == Decimal("875.00")
     assert result.trace.attendance_score == Decimal("90")
     assert result.final_score == Decimal("965.00")
+
+
+def test_polytech_jungsu_vocational_candidate_uses_grade_rounding_and_30_30_40() -> None:
+    facts = StudentFacts(
+        home_school_type="GENERAL",
+        final_school_type="GENERAL",
+        graduation_status="EXPECTED",
+        vocational_training_status="EXPECTED_COMPLETION",
+        vocational_training_semesters=2,
+        transferred=False,
+        ged=False,
+    )
+
+    def decision_for(track: str) -> EligibilityStatus:
+        conditions: list[dict[str, object]] = [
+            {"fact": "graduation_status", "op": "eq", "value": "EXPECTED"}
+        ]
+        if track == "special":
+            conditions.append(
+                {
+                    "fact": "vocational_training_status",
+                    "op": "in",
+                    "value": ["PARTICIPATING", "EXPECTED_COMPLETION", "COMPLETED"],
+                }
+            )
+        rule = EligibilityRule(
+            rule_id=f"polytech-jungsu-2027-{track}-candidate",
+            version="extracted-v1",
+            lifecycle_status="EXTRACTED",
+            payload={
+                "schema_version": 1,
+                "cases": [
+                    {
+                        "case_id": f"{track}_vocational_candidate",
+                        "when": {"all": conditions},
+                        "status": "ELIGIBLE",
+                        "reason_code": f"OFFICIAL_CANDIDATE_{track.upper()}_ALLOWED",
+                    }
+                ],
+                "default": {"status": "NEEDS_REVIEW", "reason_code": "REVIEW_REQUIRED"},
+            },
+            source_citation_id="polytech-jungsu-2027-guide-page-7",
+            independent_verified=False,
+            golden_test_ref=None,
+            human_approved_at=None,
+        )
+        return evaluate_eligibility_for_verification(facts, rule).status
+
+    assert decision_for("general") is EligibilityStatus.ELIGIBLE
+    assert decision_for("special") is EligibilityStatus.ELIGIBLE
+
+    term_values = {
+        (1, 1): ("2.11115", False),
+        (1, 2): ("3.22225", False),
+        (2, 1): ("4.11114", False),
+        (2, 2): ("5.22224", False),
+        (3, 1): ("1.55555", True),
+    }
+    records: list[AcademicRecordInput] = []
+    values: dict[str, ComparableCourseValue] = {}
+    for (grade, semester), (grade_value, vocational) in term_values.items():
+        course_id = f"polytech-jungsu-{grade}-{semester}"
+        course, comparable = _course(course_id, grade_value)
+        records.append(
+            AcademicRecordInput(
+                academic_record_id=f"polytech-jungsu-record-{grade}-{semester}",
+                academic_year=2024 + grade,
+                grade=grade,
+                semester=semester,
+                record_source=(
+                    "VOCATIONAL_TRAINING_RECORD" if vocational else "HOME_SCHOOL_RECORD"
+                ),
+                is_vocational_training_semester=vocational,
+                verification_status="USER_VERIFIED",
+                courses=(course,),
+            )
+        )
+        values[course_id] = comparable
+
+    eligibility_rule = EligibilityRule(
+        rule_id="polytech-jungsu-2027-special-execution-candidate",
+        version="extracted-v1",
+        lifecycle_status="EXTRACTED",
+        payload={
+            "schema_version": 1,
+            "cases": [
+                {
+                    "case_id": "vocational_candidate",
+                    "when": {
+                        "fact": "vocational_training_status",
+                        "op": "eq",
+                        "value": "EXPECTED_COMPLETION",
+                    },
+                    "status": "ELIGIBLE",
+                    "reason_code": "OFFICIAL_CANDIDATE_SPECIAL_ALLOWED",
+                }
+            ],
+            "default": {"status": "NEEDS_REVIEW", "reason_code": "REVIEW_REQUIRED"},
+        },
+        source_citation_id="polytech-jungsu-2027-guide-page-7",
+        independent_verified=False,
+        golden_test_ref=None,
+        human_approved_at=None,
+    )
+    eligibility = evaluate_eligibility_for_verification(facts, eligibility_rule)
+    scoped = select_score_inputs_for_verification(
+        records=tuple(records),
+        payload={"schema_version": 1, "policy": "VOCATIONAL_INCLUDED"},
+        eligibility=eligibility,
+        rule_id="polytech-jungsu-2027-grade-scope-candidate",
+        rule_version="extracted-v1",
+    )
+    definition = replace(
+        _definition(),
+        vocational_grade_included=True,
+        vocational_semester_1_included=True,
+        value_direction="LOWER_IS_BETTER",
+        credit_weighted=True,
+        semester_rounding_mode="ROUND_HALF_UP",
+        semester_rounding_scale=4,
+        grade_rounding_mode="ROUND_HALF_UP",
+        grade_rounding_scale=2,
+        weighting_mode="GRADE_ONLY",
+        grade_weight_1=Decimal("0.30"),
+        grade_weight_2=Decimal("0.30"),
+        grade_weight_3=Decimal("0.40"),
+        score_transform_mode="LINEAR",
+        score_base=Decimal("334"),
+        score_multiplier=Decimal("-14"),
+        attendance_included=True,
+        attendance_table_code="POLYTECH_JUNGSU_2027_ATTENDANCE_CANDIDATE",
+        attendance_source="UNIVERSITY_OFFICIAL",
+        attendance_minor_event_conversion_unit=3,
+        maximum_score=Decimal("400"),
+    )
+    selected = select_terms_and_subjects(scoped, definition, values)
+    attendance_rows = (
+        (0, 0, "80"),
+        (1, 2, "71.25"),
+        (3, 5, "62.5"),
+        (6, 9, "53.75"),
+        (10, 15, "45"),
+        (16, 20, "36.25"),
+        (21, 25, "27.5"),
+        (26, 30, "18.75"),
+        (31, None, "10"),
+    )
+    attendance = convert_attendance(
+        attendance=AttendanceInput(0, 0, 0, 0, True),
+        table_rows=tuple(
+            AttendanceTableRow(
+                "POLYTECH_JUNGSU_2027_ATTENDANCE_CANDIDATE",
+                minimum,
+                maximum,
+                Decimal(score),
+                Decimal("80"),
+                "polytech-jungsu-2027-guide",
+                9,
+                "학교생활기록부 교과성적 및 출석성적 등급표",
+                "FINAL_GUIDE",
+            )
+            for minimum, maximum, score in attendance_rows
+        ),
+        table_code="POLYTECH_JUNGSU_2027_ATTENDANCE_CANDIDATE",
+        table_version="extracted-v1",
+        source="UNIVERSITY_OFFICIAL",
+        minor_event_conversion_unit=3,
+    )
+    result = calculate_selected_score(
+        selected,
+        definition,
+        rule_id="polytech-jungsu-2027-score-candidate",
+        rule_version="extracted-v1",
+        attendance=attendance,
+    )
+
+    assert [component.value for component in result.trace.components] == [
+        Decimal("2.67"),
+        Decimal("4.67"),
+        Decimal("1.56"),
+    ]
+    assert result.trace.aggregate_value == Decimal("2.8260")
+    assert result.trace.academic_score == Decimal("294.4360")
+    assert result.trace.attendance_score == Decimal("80")
+    assert result.final_score == Decimal("374.44")
+
+    xlsx_reference_aggregate = (
+        ((Decimal("2.11115") + Decimal("3.22225")) / Decimal(2)) * Decimal("0.30")
+        + ((Decimal("4.11114") + Decimal("5.22224")) / Decimal(2)) * Decimal("0.30")
+        + Decimal("1.55555") * Decimal("0.40")
+    )
+    xlsx_reference_score = (
+        Decimal("334") - Decimal("14") * xlsx_reference_aggregate + Decimal("80")
+    ).quantize(Decimal("0.01"))
+    assert xlsx_reference_score == Decimal("374.49")
+    assert xlsx_reference_score != result.final_score

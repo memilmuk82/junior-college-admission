@@ -33,6 +33,8 @@ class ScoreCalculationTrace:
     rule_id: str
     rule_version: str
     weighting_mode: str
+    grade_rounding_mode: str | None
+    grade_rounding_scale: int | None
     components: tuple[WeightedComponentTrace, ...]
     aggregate_value: Decimal
     score_transform_mode: str
@@ -92,7 +94,12 @@ def calculate_selected_score(
     mode = definition.weighting_mode
     if mode == "GRADE_ONLY":
         _reject_present_weights(semester_weights.values(), "GRADE_ONLY 학기")
-        components = _grade_components(selection, grade_weights)
+        components = _grade_components(
+            selection,
+            grade_weights,
+            definition.grade_rounding_mode,
+            definition.grade_rounding_scale,
+        )
     elif mode == "GLOBAL_SEMESTER":
         _reject_present_weights(grade_weights.values(), "GLOBAL_SEMESTER 학년")
         components = _semester_components(selection, semester_weights)
@@ -149,6 +156,8 @@ def calculate_selected_score(
             rule_id=rule_id,
             rule_version=rule_version,
             weighting_mode=mode,
+            grade_rounding_mode=definition.grade_rounding_mode,
+            grade_rounding_scale=definition.grade_rounding_scale,
             components=components,
             aggregate_value=aggregate_value,
             score_transform_mode=definition.score_transform_mode,
@@ -173,6 +182,8 @@ def calculate_selected_score(
 def _grade_components(
     selection: ScoreSelectionResult,
     weights: dict[int, Decimal | None],
+    rounding_mode: str | None,
+    rounding_scale: int | None,
 ) -> tuple[WeightedComponentTrace, ...]:
     by_grade: dict[int, list[Decimal]] = {}
     for term in selection.trace.selected_semesters:
@@ -193,7 +204,12 @@ def _grade_components(
     return tuple(
         _component(
             f"grade_{grade}",
-            sum(values, Decimal(0)) / Decimal(len(values)),
+            _round_intermediate(
+                sum(values, Decimal(0)) / Decimal(len(values)),
+                rounding_mode,
+                rounding_scale,
+                "학년 평균",
+            ),
             selected_weights[grade],
         )
         for grade, values in sorted(by_grade.items())
@@ -357,6 +373,19 @@ def _round_score(value: Decimal, mode: str, scale: int) -> Decimal:
         raise ScoreCalculationError(f"허용되지 않은 반올림 방식입니다: {mode}") from error
     quantum = Decimal(1).scaleb(-scale)
     return value.quantize(quantum, rounding=decimal_mode)
+
+
+def _round_intermediate(
+    value: Decimal,
+    mode: str | None,
+    scale: int | None,
+    label: str,
+) -> Decimal:
+    if mode is None and scale is None:
+        return value
+    if mode is None or scale is None:
+        raise ScoreCalculationError(f"{label} 반올림에는 mode와 scale이 모두 필요합니다.")
+    return _round_score(value, mode, scale)
 
 
 __all__ = [

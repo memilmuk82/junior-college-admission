@@ -64,6 +64,32 @@ def test_grade_weights_apply_after_semester_selection() -> None:
     assert result.trace.weighting_mode == "GRADE_ONLY"
 
 
+def test_grade_average_rounding_is_applied_before_grade_weights() -> None:
+    definition = replace(
+        _definition(),
+        weighting_mode="GRADE_ONLY",
+        semester_rounding_mode="ROUND_HALF_UP",
+        semester_rounding_scale=4,
+        grade_rounding_mode="ROUND_HALF_UP",
+        grade_rounding_scale=2,
+        grade_weight_1=Decimal("0.30"),
+        grade_weight_2=Decimal("0.30"),
+        grade_weight_3=Decimal("0.40"),
+    )
+    values = _values()
+    values["course-1-1-a"] = replace(values["course-1-1-a"], normalized_value=Decimal("60.00999"))
+    selection = select_terms_and_subjects(_selection(), definition, values)
+
+    result = _calculate(selection, definition)
+
+    grade_one = next(
+        component for component in result.trace.components if component.key == "grade_1"
+    )
+    assert grade_one.value == Decimal("75.00")
+    assert result.trace.grade_rounding_mode == "ROUND_HALF_UP"
+    assert result.trace.grade_rounding_scale == 2
+
+
 def test_semester_weights_apply_to_exact_selected_terms() -> None:
     definition = replace(
         _definition(),

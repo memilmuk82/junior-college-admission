@@ -86,6 +86,8 @@ def _definition() -> ScoreRuleDefinition:
         minimum_semester_credits=None,
         semester_rounding_mode=None,
         semester_rounding_scale=None,
+        grade_rounding_mode=None,
+        grade_rounding_scale=None,
         grade_weight_1=None,
         grade_weight_2=None,
         grade_weight_3=None,
