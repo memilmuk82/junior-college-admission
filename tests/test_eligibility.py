@@ -12,6 +12,7 @@ from app.services.eligibility import (
     StudentFacts,
     UnusableEligibilityRule,
     evaluate_eligibility,
+    evaluate_eligibility_for_verification,
     require_score_calculation_allowed,
 )
 
@@ -258,6 +259,41 @@ def test_unbounded_conditions_are_rejected(condition: dict[str, object]) -> None
 def test_non_published_rules_cannot_run(lifecycle_status: str) -> None:
     with pytest.raises(UnusableEligibilityRule):
         evaluate_eligibility(StudentFacts(), _rule([], lifecycle_status=lifecycle_status))
+
+
+def test_extracted_rule_can_run_only_in_explicit_verification_mode() -> None:
+    rule = _rule(
+        [
+            {
+                "case_id": "general_school",
+                "when": {"fact": "final_school_type", "op": "eq", "value": "GENERAL"},
+                "status": "ELIGIBLE",
+                "reason_code": "SYNTHETIC_GENERAL_ALLOWED",
+            }
+        ],
+        lifecycle_status="EXTRACTED",
+    )
+    rule = EligibilityRule(
+        rule_id=rule.rule_id,
+        version=rule.version,
+        lifecycle_status=rule.lifecycle_status,
+        payload=rule.payload,
+        source_citation_id=rule.source_citation_id,
+        independent_verified=False,
+        golden_test_ref=None,
+        human_approved_at=None,
+    )
+
+    decision = evaluate_eligibility_for_verification(_general_vocational_student(), rule)
+
+    assert decision.status is EligibilityStatus.ELIGIBLE
+    with pytest.raises(UnusableEligibilityRule):
+        evaluate_eligibility(_general_vocational_student(), rule)
+
+
+def test_published_rule_cannot_use_candidate_verification_entrypoint() -> None:
+    with pytest.raises(UnusableEligibilityRule):
+        evaluate_eligibility_for_verification(StudentFacts(), _rule([]))
 
 
 def test_published_rule_without_complete_evidence_cannot_run() -> None:

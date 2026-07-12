@@ -226,6 +226,24 @@ class _ConditionEvaluation:
 
 def evaluate_eligibility(facts: StudentFacts, rule: EligibilityRule) -> EligibilityDecision:
     _require_runnable_rule(rule)
+    return _evaluate_eligibility_payload(facts, rule)
+
+
+def evaluate_eligibility_for_verification(
+    facts: StudentFacts, rule: EligibilityRule
+) -> EligibilityDecision:
+    if rule.lifecycle_status not in {"DRAFT", "EXTRACTED", "VERIFIED", "TESTED"}:
+        raise UnusableEligibilityRule(
+            "후보 검증은 DRAFT·EXTRACTED·VERIFIED·TESTED 규칙만 허용합니다."
+        )
+    if not rule.source_citation_id:
+        raise UnusableEligibilityRule("후보 검증에도 공식 근거 인용이 필요합니다.")
+    return _evaluate_eligibility_payload(facts, rule)
+
+
+def _evaluate_eligibility_payload(
+    facts: StudentFacts, rule: EligibilityRule
+) -> EligibilityDecision:
     parsed = _parse_rule_payload(rule.payload)
     traces: list[ConditionTrace] = []
     unresolved_facts: set[str] = set()
@@ -647,6 +665,7 @@ __all__ = [
     "StudentFacts",
     "UnusableEligibilityRule",
     "evaluate_eligibility",
+    "evaluate_eligibility_for_verification",
     "require_score_calculation_allowed",
     "validate_eligibility_rule_payload",
 ]

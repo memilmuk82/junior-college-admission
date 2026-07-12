@@ -19,6 +19,7 @@ from app.services.score_inputs import (
     ScoreInputStatus,
     evaluate_published_score_inputs,
     select_score_inputs,
+    select_score_inputs_for_verification,
 )
 
 
@@ -195,6 +196,31 @@ def test_empty_selected_scope_is_insufficient_data() -> None:
 
     assert result.status is ScoreInputStatus.INSUFFICIENT_DATA
     assert result.records == ()
+
+
+def test_candidate_scope_can_be_selected_only_after_candidate_eligibility() -> None:
+    result = select_score_inputs_for_verification(
+        records=_records(),
+        payload={"schema_version": 1, "policy": "EXCLUDE_VOCATIONAL_SEMESTER"},
+        eligibility=_decision(EligibilityStatus.ELIGIBLE),
+        rule_id="synthetic-candidate-scope",
+        rule_version="candidate-v1",
+    )
+
+    assert result.status is ScoreInputStatus.READY
+    assert result.trace.rule_version == "candidate-v1"
+    assert result.trace.selected_sources == ("HOME_SCHOOL_RECORD",)
+
+
+def test_candidate_scope_still_blocks_unconfirmed_eligibility() -> None:
+    with pytest.raises(ScoreCalculationBlocked):
+        select_score_inputs_for_verification(
+            records=_records(),
+            payload={"schema_version": 1, "policy": "HOME_ONLY"},
+            eligibility=_decision(EligibilityStatus.NEEDS_REVIEW),
+            rule_id="synthetic-candidate-scope",
+            rule_version="candidate-v1",
+        )
 
 
 def test_scope_rule_rejects_unknown_policy_and_extra_fields() -> None:

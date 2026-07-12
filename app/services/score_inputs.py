@@ -100,9 +100,45 @@ def select_score_inputs(
     require_score_calculation_allowed(eligibility)
     require_published_rule_usable(rule)
     policy = validate_grade_source_scope_payload(rule.payload)
+    return _select_score_inputs(
+        records=records,
+        policy=policy,
+        rule_id=rule.rule_id,
+        rule_version=rule.version,
+    )
+
+
+def select_score_inputs_for_verification(
+    *,
+    records: tuple[AcademicRecordInput, ...],
+    payload: dict[str, object],
+    eligibility: EligibilityDecision,
+    rule_id: str,
+    rule_version: str,
+) -> ScoreInputSelection:
+    require_score_calculation_allowed(eligibility)
+    if not rule_id or not rule_version:
+        raise ValueError("후보 성적 범위 규칙 ID와 버전이 필요합니다.")
+    policy = validate_grade_source_scope_payload(payload)
+    return _select_score_inputs(
+        records=records,
+        policy=policy,
+        rule_id=rule_id,
+        rule_version=rule_version,
+    )
+
+
+def _select_score_inputs(
+    *,
+    records: tuple[AcademicRecordInput, ...],
+    policy: GradeSourcePolicy,
+    rule_id: str,
+    rule_version: str,
+) -> ScoreInputSelection:
     if policy in {GradeSourcePolicy.TRACK_DEPENDENT, GradeSourcePolicy.MANUAL_REVIEW}:
         return _selection(
-            rule,
+            rule_id,
+            rule_version,
             policy,
             status=ScoreInputStatus.NEEDS_REVIEW,
             records=(),
@@ -152,7 +188,8 @@ def select_score_inputs(
 
     selected_records = tuple(selected)
     return _selection(
-        rule,
+        rule_id,
+        rule_version,
         policy,
         status=ScoreInputStatus.READY if selected_records else ScoreInputStatus.INSUFFICIENT_DATA,
         records=selected_records,
@@ -286,7 +323,8 @@ def _record_exclusion_reason(record: AcademicRecordInput, policy: GradeSourcePol
 
 
 def _selection(
-    rule: PublishedRule,
+    rule_id: str,
+    rule_version: str,
     policy: GradeSourcePolicy,
     *,
     status: ScoreInputStatus,
@@ -297,8 +335,8 @@ def _selection(
         status=status,
         records=records,
         trace=ScoreInputTrace(
-            rule_id=rule.rule_id,
-            rule_version=rule.version,
+            rule_id=rule_id,
+            rule_version=rule_version,
             policy=policy,
             selected_sources=tuple(dict.fromkeys(record.record_source for record in records)),
             selected_terms=tuple(
@@ -326,5 +364,6 @@ __all__ = [
     "evaluate_published_score_inputs",
     "load_academic_record_inputs",
     "select_score_inputs",
+    "select_score_inputs_for_verification",
     "validate_grade_source_scope_payload",
 ]
