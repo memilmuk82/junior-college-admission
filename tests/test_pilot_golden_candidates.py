@@ -9,7 +9,7 @@ from app.services.eligibility import (
     StudentFacts,
     evaluate_eligibility_for_verification,
 )
-from app.services.score_calculation import calculate_selected_score
+from app.services.score_calculation import ScoreCalculationResult, calculate_selected_score
 from app.services.score_components import (
     AttendanceInput,
     AttendanceTableRow,
@@ -20,7 +20,11 @@ from app.services.score_inputs import (
     CourseRecordInput,
     select_score_inputs_for_verification,
 )
-from app.services.score_selection import ComparableCourseValue, select_terms_and_subjects
+from app.services.score_selection import (
+    ComparableCourseValue,
+    ScoreSelectionResult,
+    select_terms_and_subjects,
+)
 from tests.test_score_selection import _definition
 
 
@@ -183,3 +187,196 @@ def test_inha_general_vocational_candidate_golden_from_official_pages_6_and_9() 
     assert result.trace.academic_score == Decimal("187.500000")
     assert result.trace.attendance_score == Decimal("16")
     assert result.final_score == Decimal("203.50")
+
+
+def test_dongyang_vocational_student_has_track_specific_golden_ranges() -> None:
+    facts = StudentFacts(
+        home_school_type="GENERAL",
+        final_school_type="GENERAL",
+        graduation_status="EXPECTED",
+        vocational_training_status="EXPECTED_COMPLETION",
+        vocational_training_semesters=2,
+        transferred=False,
+        ged=False,
+    )
+    base_conditions: list[dict[str, object]] = [
+        {"fact": "final_school_type", "op": "eq", "value": "GENERAL"},
+        {
+            "fact": "vocational_training_status",
+            "op": "in",
+            "value": ["PARTICIPATING", "EXPECTED_COMPLETION", "COMPLETED"],
+        },
+    ]
+
+    def eligibility(track: str, *, require_two_semesters: bool) -> EligibilityStatus:
+        conditions = list(base_conditions)
+        if require_two_semesters:
+            conditions.append({"fact": "vocational_training_semesters", "op": "gte", "value": 2})
+        rule = EligibilityRule(
+            rule_id=f"dongyang-2027-{track}-candidate",
+            version="extracted-v1",
+            lifecycle_status="EXTRACTED",
+            payload={
+                "schema_version": 1,
+                "cases": [
+                    {
+                        "case_id": f"{track}_vocational_training",
+                        "when": {"all": conditions},
+                        "status": "ELIGIBLE",
+                        "reason_code": f"OFFICIAL_CANDIDATE_{track.upper()}_ALLOWED",
+                    }
+                ],
+                "default": {
+                    "status": "NEEDS_REVIEW",
+                    "reason_code": "OFFICIAL_CANDIDATE_REVIEW_REQUIRED",
+                },
+            },
+            source_citation_id=(
+                "dongyang-2027-guide-page-9"
+                if require_two_semesters
+                else "dongyang-2027-guide-page-5"
+            ),
+            independent_verified=False,
+            golden_test_ref=None,
+            human_approved_at=None,
+        )
+        return evaluate_eligibility_for_verification(facts, rule).status
+
+    assert eligibility("general", require_two_semesters=False) is EligibilityStatus.ELIGIBLE
+    assert eligibility("vocational", require_two_semesters=True) is EligibilityStatus.ELIGIBLE
+
+    term_values = {
+        (1, 1): "3.00",
+        (1, 2): "2.00",
+        (2, 1): "4.00",
+        (2, 2): "5.00",
+        (3, 1): "1.00",
+    }
+    records: list[AcademicRecordInput] = []
+    comparable_values: dict[str, ComparableCourseValue] = {}
+    for (grade, semester), grade_value in term_values.items():
+        course_id = f"dongyang-synthetic-{grade}-{semester}"
+        course, comparable = _course(course_id, grade_value)
+        vocational = (grade, semester) == (3, 1)
+        records.append(
+            AcademicRecordInput(
+                academic_record_id=f"dongyang-record-{grade}-{semester}",
+                academic_year=2024 + grade,
+                grade=grade,
+                semester=semester,
+                record_source=(
+                    "VOCATIONAL_TRAINING_RECORD" if vocational else "HOME_SCHOOL_RECORD"
+                ),
+                is_vocational_training_semester=vocational,
+                verification_status="USER_VERIFIED",
+                courses=(course,),
+            )
+        )
+        comparable_values[course_id] = comparable
+
+    attendance = convert_attendance(
+        attendance=AttendanceInput(1, 2, 0, 0, True),
+        table_rows=(
+            AttendanceTableRow(
+                "DONGYANG_2027_ATTENDANCE_CANDIDATE",
+                0,
+                0,
+                Decimal("100"),
+                Decimal("100"),
+                "dongyang-2027-guide",
+                19,
+                "출석 성적 반영방법",
+                "FINAL_GUIDE",
+            ),
+            AttendanceTableRow(
+                "DONGYANG_2027_ATTENDANCE_CANDIDATE",
+                1,
+                2,
+                Decimal("90"),
+                Decimal("100"),
+                "dongyang-2027-guide",
+                19,
+                "출석 성적 반영방법",
+                "FINAL_GUIDE",
+            ),
+        ),
+        table_code="DONGYANG_2027_ATTENDANCE_CANDIDATE",
+        table_version="extracted-v1",
+        source="UNIVERSITY_OFFICIAL",
+        minor_event_conversion_unit=3,
+    )
+
+    def calculate(
+        track: str, policy: str, include_vocational: bool
+    ) -> tuple[ScoreSelectionResult, ScoreCalculationResult]:
+        decision_rule = EligibilityRule(
+            rule_id=f"dongyang-{track}-eligibility",
+            version="extracted-v1",
+            lifecycle_status="EXTRACTED",
+            payload={
+                "schema_version": 1,
+                "cases": [
+                    {
+                        "case_id": "eligible",
+                        "when": {"fact": "final_school_type", "op": "eq", "value": "GENERAL"},
+                        "status": "ELIGIBLE",
+                        "reason_code": "OFFICIAL_CANDIDATE_ALLOWED",
+                    }
+                ],
+                "default": {"status": "NEEDS_REVIEW", "reason_code": "REVIEW_REQUIRED"},
+            },
+            source_citation_id="dongyang-2027-guide",
+            independent_verified=False,
+            golden_test_ref=None,
+            human_approved_at=None,
+        )
+        decision = evaluate_eligibility_for_verification(facts, decision_rule)
+        scoped = select_score_inputs_for_verification(
+            records=tuple(records),
+            payload={"schema_version": 1, "policy": policy},
+            eligibility=decision,
+            rule_id=f"dongyang-{track}-scope",
+            rule_version="extracted-v1",
+        )
+        definition = replace(
+            _definition(),
+            vocational_grade_included=include_vocational,
+            vocational_semester_1_included=include_vocational,
+            value_direction="LOWER_IS_BETTER",
+            semester_selection_method="BEST_N",
+            best_semester_count=2,
+            credit_weighted=True,
+            semester_rounding_mode="ROUND_HALF_UP",
+            semester_rounding_scale=6,
+            score_transform_mode="LINEAR",
+            score_base=Decimal("950"),
+            score_multiplier=Decimal("-50"),
+            attendance_included=True,
+            attendance_table_code="DONGYANG_2027_ATTENDANCE_CANDIDATE",
+            attendance_source="UNIVERSITY_OFFICIAL",
+            attendance_minor_event_conversion_unit=3,
+            maximum_score=Decimal("1000"),
+        )
+        selected = select_terms_and_subjects(scoped, definition, comparable_values)
+        result = calculate_selected_score(
+            selected,
+            definition,
+            rule_id=f"dongyang-{track}-score",
+            rule_version="extracted-v1",
+            attendance=attendance,
+        )
+        return selected, result
+
+    general_selected, general = calculate("general", "EXCLUDE_VOCATIONAL_SEMESTER", False)
+    vocational_selected, vocational_result = calculate("vocational", "VOCATIONAL_INCLUDED", True)
+
+    assert [(row.grade, row.semester) for row in general_selected.trace.selected_semesters] == [
+        (1, 1),
+        (1, 2),
+    ]
+    assert [(row.grade, row.semester) for row in vocational_selected.trace.selected_semesters] == [
+        (1, 2),
+        (3, 1),
+    ]
+    assert general.final_score == Decimal("915.00")
+    assert vocational_result.final_score == Decimal("965.00")
