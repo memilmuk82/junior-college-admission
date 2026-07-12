@@ -32,6 +32,8 @@ def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> No
         "multiple_application_rules",
         "programs",
         "rule_reviews",
+        "rule_audit_events",
+        "rule_version_lineages",
         "score_adjustment_rules",
         "score_rules",
         "source_citations",

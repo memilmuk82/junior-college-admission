@@ -185,6 +185,49 @@ class RuleReview(TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text)
 
 
+class RuleVersionLineage(TimestampMixin, Base):
+    __tablename__ = "rule_version_lineages"
+    __table_args__ = (
+        UniqueConstraint("rule_type", "rule_id"),
+        CheckConstraint("rule_id != supersedes_rule_id", name="not_self_superseding"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    rule_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    rule_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    supersedes_rule_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    change_reason: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class RuleAuditEvent(TimestampMixin, Base):
+    __tablename__ = "rule_audit_events"
+    __table_args__ = (
+        CheckConstraint(
+            "action IN ('DRAFT_CLONED', 'HUMAN_APPROVED', 'PUBLISHED', 'SUPERSEDED', 'REJECTED')",
+            name="action_valid",
+        ),
+        CheckConstraint("char_length(actor_ref) > 0", name="actor_present"),
+        CheckConstraint(
+            "before_payload_digest IS NULL OR char_length(before_payload_digest) = 64",
+            name="before_digest_valid",
+        ),
+        CheckConstraint(
+            "after_payload_digest IS NULL OR char_length(after_payload_digest) = 64",
+            name="after_digest_valid",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    rule_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    rule_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    actor_ref: Mapped[str] = mapped_column(String(120), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    before_payload_digest: Mapped[str | None] = mapped_column(String(64))
+    after_payload_digest: Mapped[str | None] = mapped_column(String(64))
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+
 class RuleRecordMixin(TimestampMixin):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     admission_track_id: Mapped[str | None] = mapped_column(
@@ -693,6 +736,8 @@ __all__ = [
     "MultipleApplicationRule",
     "Program",
     "RuleReview",
+    "RuleAuditEvent",
+    "RuleVersionLineage",
     "ScoreAdjustmentRule",
     "ScoreRule",
     "SourceCitation",

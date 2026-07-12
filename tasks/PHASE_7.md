@@ -54,3 +54,15 @@ make validate-rules
 make check-sensitive-data
 make check
 ```
+
+## 구현 현황
+
+- [x] 게시 규칙의 새 DRAFT 복제와 이전 버전 보존
+- [x] 중첩 payload 변경 전후 비교
+- [x] 합성 표본 계산 영향도 비교 계약
+- [x] 규칙 버전 계보와 변경 사유 DB 기록
+- [x] DRAFT 복제·사람 승인·게시·대체 감사 로그
+- [x] 명시적 사람 승인 확인과 TESTED/근거/독립검증/골든 게이트
+- [ ] 관리자 SSR 목록·상세·버전 비교·승인·게시 화면
+- [ ] 표준 CSV 업로드 분류·미리보기·선택 DRAFT 생성
+- [ ] 관리자 권한 경계와 E2E 검증
