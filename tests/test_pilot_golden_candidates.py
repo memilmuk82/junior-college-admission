@@ -380,3 +380,132 @@ def test_dongyang_vocational_student_has_track_specific_golden_ranges() -> None:
     ]
     assert general.final_score == Decimal("915.00")
     assert vocational_result.final_score == Decimal("965.00")
+
+
+def test_yeonsung_general_candidate_excludes_vocational_and_low_credit_terms() -> None:
+    facts = StudentFacts(
+        home_school_type="GENERAL",
+        final_school_type="GENERAL",
+        graduation_status="EXPECTED",
+        vocational_training_status="EXPECTED_COMPLETION",
+        vocational_training_semesters=2,
+        transferred=False,
+        ged=False,
+    )
+    rule = EligibilityRule(
+        rule_id="yeonsung-2027-general-candidate",
+        version="extracted-v1",
+        lifecycle_status="EXTRACTED",
+        payload={
+            "schema_version": 1,
+            "cases": [
+                {
+                    "case_id": "expected_graduate",
+                    "when": {"fact": "graduation_status", "op": "eq", "value": "EXPECTED"},
+                    "status": "CONDITIONALLY_ELIGIBLE",
+                    "reason_code": "SCHOOL_VIOLENCE_FACT_REQUIRES_CONFIRMATION",
+                }
+            ],
+            "default": {"status": "NEEDS_REVIEW", "reason_code": "REVIEW_REQUIRED"},
+        },
+        source_citation_id="yeonsung-2027-guide-page-29",
+        independent_verified=False,
+        golden_test_ref=None,
+        human_approved_at=None,
+    )
+    decision = evaluate_eligibility_for_verification(facts, rule)
+    assert decision.status is EligibilityStatus.CONDITIONALLY_ELIGIBLE
+
+    term_settings = {
+        (1, 1): ("3.00", 5, False),
+        (1, 2): ("2.00", 4, False),
+        (2, 1): ("4.00", 5, False),
+        (2, 2): ("5.00", 5, False),
+        (3, 1): ("1.00", 5, True),
+    }
+    records: list[AcademicRecordInput] = []
+    values: dict[str, ComparableCourseValue] = {}
+    for (grade, semester), (grade_value, course_count, vocational) in term_settings.items():
+        courses: list[CourseRecordInput] = []
+        for index in range(course_count):
+            course_id = f"yeonsung-{grade}-{semester}-{index}"
+            course, comparable = _course(course_id, grade_value)
+            courses.append(course)
+            values[course_id] = comparable
+        records.append(
+            AcademicRecordInput(
+                academic_record_id=f"yeonsung-record-{grade}-{semester}",
+                academic_year=2024 + grade,
+                grade=grade,
+                semester=semester,
+                record_source=(
+                    "VOCATIONAL_TRAINING_RECORD" if vocational else "HOME_SCHOOL_RECORD"
+                ),
+                is_vocational_training_semester=vocational,
+                verification_status="USER_VERIFIED",
+                courses=tuple(courses),
+            )
+        )
+
+    scoped = select_score_inputs_for_verification(
+        records=tuple(records),
+        payload={"schema_version": 1, "policy": "EXCLUDE_VOCATIONAL_SEMESTER"},
+        eligibility=decision,
+        rule_id="yeonsung-2027-general-scope",
+        rule_version="extracted-v1",
+    )
+    definition = replace(
+        _definition(),
+        value_direction="LOWER_IS_BETTER",
+        semester_selection_method="BEST_N",
+        best_semester_count=2,
+        credit_weighted=True,
+        minimum_semester_credits=Decimal("15"),
+        score_transform_mode="LINEAR",
+        score_base=Decimal("1050"),
+        score_multiplier=Decimal("-50"),
+        attendance_included=True,
+        attendance_table_code="YEONSUNG_2027_ATTENDANCE_CANDIDATE",
+        attendance_source="UNIVERSITY_OFFICIAL",
+        attendance_minor_event_conversion_unit=3,
+        maximum_score=Decimal("1100"),
+    )
+    selected = select_terms_and_subjects(scoped, definition, values)
+    attendance = convert_attendance(
+        attendance=AttendanceInput(1, 2, 0, 0, True),
+        table_rows=tuple(
+            AttendanceTableRow(
+                "YEONSUNG_2027_ATTENDANCE_CANDIDATE",
+                days,
+                None if days == 10 else days,
+                Decimal(max(0, 100 - days * 10)),
+                Decimal("100"),
+                "yeonsung-2027-guide",
+                37,
+                "출결가산점 표",
+                "FINAL_GUIDE",
+            )
+            for days in range(11)
+        ),
+        table_code="YEONSUNG_2027_ATTENDANCE_CANDIDATE",
+        table_version="extracted-v1",
+        source="UNIVERSITY_OFFICIAL",
+        minor_event_conversion_unit=3,
+    )
+    result = calculate_selected_score(
+        selected,
+        definition,
+        rule_id="yeonsung-2027-general-score",
+        rule_version="extracted-v1",
+        attendance=attendance,
+    )
+
+    assert [(row.grade, row.semester) for row in selected.trace.selected_semesters] == [
+        (1, 1),
+        (2, 1),
+    ]
+    assert "VOCATIONAL_SEMESTER_EXCLUDED" in scoped.trace.exclusion_reasons
+    assert "MINIMUM_SEMESTER_CREDITS_NOT_MET" in selected.trace.exclusion_reasons
+    assert result.trace.academic_score == Decimal("875.00")
+    assert result.trace.attendance_score == Decimal("90")
+    assert result.final_score == Decimal("965.00")

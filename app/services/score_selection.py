@@ -151,6 +151,20 @@ def select_terms_and_subjects(
         if not selected_courses:
             exclusion_reasons.append("NO_SUBJECTS_SELECTED")
             continue
+        if definition.minimum_semester_credits is not None:
+            credits = tuple(course.credits for course in selected_courses)
+            if any(credit is None or credit <= 0 for credit in credits):
+                return _result(
+                    ScoreInputStatus.NEEDS_REVIEW,
+                    (),
+                    definition,
+                    value_scale=None,
+                    exclusion_reasons=("CREDIT_VALUE_MISSING",),
+                )
+            total_credits = sum((credit for credit in credits if credit is not None), Decimal(0))
+            if total_credits < definition.minimum_semester_credits:
+                exclusion_reasons.append("MINIMUM_SEMESTER_CREDITS_NOT_MET")
+                continue
         comparison = _semester_value(
             tuple(selected_courses), tuple(selected_values), definition.credit_weighted
         )

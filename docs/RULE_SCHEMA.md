@@ -83,6 +83,8 @@ policy는 `HOME_ONLY`, `VOCATIONAL_INCLUDED`, `VOCATIONAL_ONLY`, `EXCLUDE_VOCATI
 
 가중치 모드는 `EQUAL`, `GRADE_ONLY`, `GLOBAL_SEMESTER`, `GRADE_WITHIN_SEMESTER`로 구분한다. 마지막 모드는 학년 가중치와 학년 내부 학기 가중치를 곱하므로 두 수준을 전역 학기 가중치와 혼동하지 않는다. `PER_GRADE + BEST_N`은 각 학년의 우수 학기를 먼저 선택한 뒤 학년 가중치를 적용한다.
 
+대학이 학기별 최소 이수단위를 요구하면 `minimum_semester_credits`로 명시한다. 하한 미달 학기는 우수학기 순위 전에 제외하고, 이수단위 누락은 0으로 보정하지 않고 검토 대상으로 돌린다.
+
 Z점수 변환표는 하한·상한과 각 경계의 포함 여부를 별도 값으로 저장한다. `STANDARD_Z_V1` 계산의 원값·반올림값·절단값, 표 코드·버전, 근거 상태를 trace에 남긴다. 참고표는 `UNIVERSITY_OFFICIAL`로 승격할 수 없으며 공식 PDF 근거가 없는 경우 자동 게시하지 않는다.
 
 성취도는 `EXCLUDE`, `GRADE_TABLE`, `DISTRIBUTION`, `MANUAL_REVIEW`로 분기한다. 자동 변환은 표 코드·버전·출처를 요구하며 분포값은 `RATIO` 또는 `PERCENT` 척도와 합계를 검증한다. `P`, 빈 분포, 잘못된 합계를 0으로 바꾸지 않는다.

@@ -83,6 +83,7 @@ def _definition() -> ScoreRuleDefinition:
         best_subject_count=None,
         subject_scope="ALL",
         credit_weighted=False,
+        minimum_semester_credits=None,
         semester_rounding_mode=None,
         semester_rounding_scale=None,
         grade_weight_1=None,
@@ -315,6 +316,17 @@ def test_missing_comparable_value_and_unknown_inclusion_require_review() -> None
 
     assert missing_value.status is ScoreInputStatus.NEEDS_REVIEW
     assert unknown_inclusion.status is ScoreInputStatus.NEEDS_REVIEW
+
+
+def test_semester_below_explicit_minimum_credits_is_excluded_not_zero_filled() -> None:
+    result = select_terms_and_subjects(
+        _selection(),
+        replace(_definition(), minimum_semester_credits=Decimal("5")),
+        _values(),
+    )
+
+    assert result.status is ScoreInputStatus.INSUFFICIENT_DATA
+    assert "MINIMUM_SEMESTER_CREDITS_NOT_MET" in result.trace.exclusion_reasons
 
 
 def test_input_order_and_ties_produce_same_trace() -> None:

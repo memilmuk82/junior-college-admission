@@ -32,6 +32,7 @@ SCORE_RULE_CSV_HEADERS = (
     "best_subject_count",
     "subject_scope",
     "credit_weighted",
+    "minimum_semester_credits",
     "semester_rounding_mode",
     "semester_rounding_scale",
     "weighting_mode",
@@ -218,6 +219,7 @@ class ScoreRuleDefinition:
     best_subject_count: int | None
     subject_scope: str
     credit_weighted: bool | None
+    minimum_semester_credits: Decimal | None
     semester_rounding_mode: str | None
     semester_rounding_scale: int | None
     grade_weight_1: Decimal | None
@@ -381,6 +383,7 @@ def score_rule_to_payload(row: ManagedScoreRule) -> dict[str, object]:
             "best_count": definition.best_subject_count,
             "scope": definition.subject_scope,
             "credit_weighted": definition.credit_weighted,
+            "minimum_semester_credits": _decimal_text(definition.minimum_semester_credits),
         },
         "semester_rounding": {
             "mode": definition.semester_rounding_mode,
@@ -503,7 +506,7 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
     subject = _payload_mapping(payload, "subject_selection")
     _payload_exact_keys(
         subject,
-        {"method", "best_count", "scope", "credit_weighted"},
+        {"method", "best_count", "scope", "credit_weighted", "minimum_semester_credits"},
         "subject_selection",
     )
     if subject.get("method") not in SUBJECT_SELECTION_METHODS:
@@ -515,6 +518,9 @@ def validate_score_rule_payload(payload: Mapping[str, object]) -> None:
     ):
         raise ValueError("credit_weighted는 bool 또는 null이어야 합니다.")
     _payload_count(subject.get("best_count"), subject.get("method"), "과목")
+    minimum_semester_credits = _payload_decimal(subject.get("minimum_semester_credits"))
+    if minimum_semester_credits is not None and minimum_semester_credits <= 0:
+        raise ValueError("minimum_semester_credits는 양수여야 합니다.")
     semester_rounding = _payload_mapping(payload, "semester_rounding")
     _payload_exact_keys(semester_rounding, {"mode", "scale"}, "semester_rounding")
     _validate_optional_rounding(
@@ -700,6 +706,7 @@ def score_rule_definition_from_payload(
         best_subject_count=cast(int | None, subject["best_count"]),
         subject_scope=cast(str, subject["scope"]),
         credit_weighted=cast(bool | None, subject["credit_weighted"]),
+        minimum_semester_credits=_payload_decimal(subject["minimum_semester_credits"]),
         semester_rounding_mode=cast(str | None, semester_rounding["mode"]),
         semester_rounding_scale=cast(int | None, semester_rounding["scale"]),
         grade_weight_1=_payload_decimal(grade_weights["grade_1"]),
@@ -1064,6 +1071,15 @@ def _parse_score_rule_row(
         raw["best_semester_count"], "best_semester_count", issue
     )
     best_subject_count = _optional_integer(raw["best_subject_count"], "best_subject_count", issue)
+    minimum_semester_credits = _optional_decimal(
+        raw["minimum_semester_credits"], "minimum_semester_credits", issue
+    )
+    if minimum_semester_credits is not None and minimum_semester_credits <= 0:
+        issue(
+            "minimum_semester_credits",
+            "POSITIVE_DECIMAL_REQUIRED",
+            "minimum_semester_credits는 양수여야 합니다.",
+        )
     semester_rounding_scale = _optional_integer(
         raw["semester_rounding_scale"], "semester_rounding_scale", issue
     )
@@ -1279,6 +1295,7 @@ def _parse_score_rule_row(
         best_subject_count=best_subject_count,
         subject_scope=subject_scope,
         credit_weighted=booleans["credit_weighted"],
+        minimum_semester_credits=minimum_semester_credits,
         semester_rounding_mode=semester_rounding_mode,
         semester_rounding_scale=semester_rounding_scale,
         grade_weight_1=grade_weights[0],
@@ -1534,6 +1551,7 @@ def _score_rule_to_csv_values(row: ManagedScoreRule) -> dict[str, str]:
         "subject_selection_method": definition.subject_selection_method,
         "best_subject_count": _optional_text(definition.best_subject_count),
         "subject_scope": definition.subject_scope,
+        "minimum_semester_credits": _decimal_text(definition.minimum_semester_credits) or "",
         "semester_rounding_mode": definition.semester_rounding_mode or "",
         "semester_rounding_scale": _optional_text(definition.semester_rounding_scale),
         "weighting_mode": definition.weighting_mode,

@@ -48,6 +48,7 @@ subject_selection_method
 best_subject_count
 subject_scope
 credit_weighted
+minimum_semester_credits
 semester_rounding_mode
 semester_rounding_scale
 weighting_mode
@@ -129,6 +130,7 @@ administrator_note
 - `GRADE_WITHIN_SEMESTER`는 `학년 가중치 × 해당 학년 내부 학기 가중치`로 유효 가중치를 계산한다. 각 단계 합계는 정확히 1이어야 한다.
 - 학기 가중치는 선택된 정확한 학년·학기에 적용한다. 선택되지 않은 학기의 양수 가중치와 선택된 학기의 빈 가중치는 오류다.
 - 공식 가중치가 일부만 있으면 동일 비율로 추정하지 않는다. 빈 값은 미확정, `0`은 명시적 미반영으로 구분한다.
+- `minimum_semester_credits`가 있으면 선택 대상 과목의 이수단위 합이 하한보다 작은 학기는 계산 후보에서 제외한다. 이수단위 누락을 0으로 해석하지 않는다.
 - 학기 평균 반올림은 과목 집계 직후와 학기 순위 선택 전에 적용하며, 설정이 없으면 중간값을 임의 반올림하지 않는다.
 - `DISPLAY_ONLY`는 계산값을 바꾸지 않고 표시값만 양자화한다. 실제 최종 반올림과 표시 자릿수를 분리한다.
 - `LINEAR` 점수 환산은 `base + multiplier × 집계값`만 허용한다. 자유 수식은 허용하지 않는다.

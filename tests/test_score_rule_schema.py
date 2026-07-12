@@ -143,6 +143,17 @@ def test_blank_and_decimal_zero_remain_distinct() -> None:
     assert str(parsed.rows[0].definition.practical_ratio) == "0"
 
 
+def test_minimum_semester_credits_round_trips_as_positive_decimal() -> None:
+    row = _valid_row()
+    row["minimum_semester_credits"] = "15"
+
+    parsed = parse_score_rule_csv(_csv_bytes([row]))
+
+    assert parsed.issues == ()
+    assert parsed.rows[0].definition.minimum_semester_credits == Decimal("15")
+    assert parse_score_rule_csv(write_score_rule_csv(parsed.rows)).issues == ()
+
+
 def test_unknown_header_and_duplicate_business_key_are_explicit() -> None:
     unknown_headers = (*SCORE_RULE_CSV_HEADERS, "formula")
     row = _valid_row()
