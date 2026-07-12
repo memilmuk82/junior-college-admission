@@ -98,6 +98,8 @@
 - 폴리텍 서울정수 자료는 2027 표지와 2026 내부 표시가 혼재해 규칙을 추정하지 않고 `MANUAL_REVIEW`로 분리했다.
 - 참고 XLSX와 공식 문서의 구조적 일치·불일치만 기록하고 원본·추출본이나 실제 대학 seed는 추가하지 않았다.
 - DB에 저장된 canonical 성적 규칙 payload를 검증 후 동일한 `ScoreRuleDefinition`으로 복원하는 역변환을 추가해 파일럿 실행 연결 기반을 마련했다.
+- 파일럿 후보의 연도·근거·자격·성적 범위·계산 payload를 함께 검증하고 `VERIFICATION_PENDING → GOLDEN_PENDING → HUMAN_APPROVAL_PENDING` 게이트를 강제했다.
+- 혼합연도 후보는 payload를 실행하지 않고 `MANUAL_REVIEW`로 두며 후보 서비스는 `PUBLISHED` 입력이나 자동 게시를 허용하지 않는다.
 
 
 ## 확정 기술 결정

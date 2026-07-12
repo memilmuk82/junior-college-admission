@@ -35,3 +35,11 @@
 - 공식 문서 정정본 존재 여부
 
 Codex는 이 문서의 후보를 `HUMAN_APPROVED` 또는 `PUBLISHED`로 전환하지 않는다.
+
+## 후보 게이트 계약
+
+- 혼합·불명확 연도는 payload를 실행하지 않고 즉시 `MANUAL_REVIEW`로 분류한다.
+- `EXTRACTED` 후보는 독립 검증 전 `VERIFICATION_PENDING`이다.
+- `VERIFIED` 이상은 독립 검증, `TESTED` 이상은 골든 테스트 참조를 요구한다.
+- `HUMAN_APPROVED`는 사람 승인 시각을 요구하며 후보 서비스 자체는 `PUBLISHED` 입력이나 게시 변경을 허용하지 않는다.
+- 자격·성적 범위·성적 계산 payload와 세 근거 쪽이 모두 유효해야 다음 게이트로 진행한다.
