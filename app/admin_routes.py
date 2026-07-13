@@ -25,6 +25,17 @@ from werkzeug.security import check_password_hash
 
 from app.database import db
 from app.models import AdmissionTrack, RuleVersionLineage, ScoreRule, SourceCitation
+from app.services.consultation_forms import (
+    CONSULTATION_FORM_FIELDS,
+    ConsultationFormResult,
+    parse_consultation_form,
+)
+from app.services.consultations import (
+    ConsultationError,
+    ConsultationResult,
+    list_consultation_targets,
+    run_consultation,
+)
 from app.services.rule_admin import (
     HumanApproval,
     RuleAdministrationError,
@@ -64,6 +75,15 @@ RULE_TYPE_LABELS = {
     "SCORE_RULE": "성적 계산",
     "MULTIPLE_APPLICATION_RULE": "복수지원",
     "DISQUALIFICATION_RULE": "결격",
+}
+
+CONSULTATION_DEFAULTS = {field: "" for field in CONSULTATION_FORM_FIELDS} | {
+    "home_school_type": "GENERAL",
+    "final_school_type": "GENERAL",
+    "graduation_status": "EXPECTED",
+    "vocational_training_status": "PARTICIPATING",
+    "transferred": "FALSE",
+    "ged": "FALSE",
 }
 
 
@@ -193,6 +213,80 @@ def rules() -> Response:
             grouped=tuple(grouped),
             csrf_token=_csrf_token(),
             actor_ref=_actor_ref(),
+        )
+    )
+
+
+def _render_consultation_form(
+    values: dict[str, str],
+    *,
+    errors: tuple[str, ...] = (),
+    status: int = 200,
+) -> Response:
+    targets = list_consultation_targets(cast(Session, db.session))
+    return _private(
+        render_template(
+            "admin_consultation_form.html",
+            values=values,
+            targets=targets,
+            errors=errors,
+            csrf_token=_csrf_token(),
+            actor_ref=_actor_ref(),
+        ),
+        status,
+    )
+
+
+def _evaluate_consultation_form(parsed: ConsultationFormResult) -> ConsultationResult:
+    if parsed.request is None:
+        raise ConsultationError("상담 입력을 확인하세요.")
+    return run_consultation(cast(Session, db.session), parsed.request)
+
+
+@bp.route("/consultations/new", methods=["GET", "POST"])
+@admin_required
+def new_consultation() -> Response:
+    if request.method == "GET":
+        return _render_consultation_form(dict(CONSULTATION_DEFAULTS))
+    _require_csrf()
+    parsed = parse_consultation_form(request.form)
+    if parsed.errors:
+        return _render_consultation_form(parsed.values, errors=parsed.errors, status=400)
+    try:
+        result = _evaluate_consultation_form(parsed)
+    except ValueError as error:
+        return _render_consultation_form(parsed.values, errors=(str(error),), status=400)
+    return _private(
+        render_template(
+            "admin_consultation_result.html",
+            result=result,
+            values=parsed.values,
+            consultation_note=parsed.consultation_note,
+            csrf_token=_csrf_token(),
+            actor_ref=_actor_ref(),
+        )
+    )
+
+
+@bp.post("/consultations/print/<audience>")
+@admin_required
+def print_consultation(audience: str) -> Response:
+    if audience not in {"student", "teacher"}:
+        abort(404)
+    _require_csrf()
+    parsed = parse_consultation_form(request.form)
+    if parsed.errors:
+        return _render_consultation_form(parsed.values, errors=parsed.errors, status=400)
+    try:
+        result = _evaluate_consultation_form(parsed)
+    except ValueError as error:
+        return _render_consultation_form(parsed.values, errors=(str(error),), status=400)
+    return _private(
+        render_template(
+            "consultation_print.html",
+            audience=audience,
+            result=result,
+            consultation_note=parsed.consultation_note,
         )
     )
 

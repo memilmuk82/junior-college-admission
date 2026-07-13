@@ -11,10 +11,12 @@
     background: #fff !important;
     color: #000 !important;
     font-size: 10pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
-  header,
-  footer,
+  body > header,
+  body > footer,
   .no-print {
     display: none !important;
   }
@@ -32,6 +34,28 @@
 
   section {
     break-inside: avoid;
+  }
+
+  .consultation-print-page {
+    background: #fff !important;
+  }
+
+  .consultation-print-page .print-sheet,
+  .consultation-print-page .print-title,
+  .consultation-print-page .print-target {
+    background: #fff !important;
+  }
+
+  .print-title {
+    display: block !important;
+  }
+
+  .print-sheet {
+    min-height: 0 !important;
+  }
+
+  .teacher-print .print-sheet {
+    font-size: 9pt;
   }
 
   a {

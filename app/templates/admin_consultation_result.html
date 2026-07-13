@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>상담 결과 · 2027 전문대 입시 상담</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="admin-page consultation-page">
+    <header class="admin-header"><div><p class="admin-eyebrow">CONSULTATION RESULT</p><a href="{{ url_for('admin.rules') }}">규칙 관리자</a></div><span>{{ actor_ref }}</span></header>
+    <main class="admin-shell consultation-shell">
+      <a class="admin-back" href="{{ url_for('admin.new_consultation') }}">← 새 상담</a>
+      <div class="admin-heading"><div><h1>지원자격 확인 완료</h1><p>{{ result.target.institution_name }} · {{ result.target.program_name }} · {{ result.target.admission_track_name }}</p></div><span class="status-badge status-badge--{{ result.eligibility.status.value|lower }}">{{ result.eligibility.status.value }}</span></div>
+      {% for warning in result.warnings %}<div class="admin-alert" role="status">{{ warning }}</div>{% endfor %}
+      <section class="consultation-summary" aria-label="상담 결과 요약"><div><span>모집학년도</span><strong>{{ result.target.academic_year }}</strong></div><div><span>자격 사유</span><strong>{{ result.eligibility.reason_code }}</strong></div><div><span>환산점수</span><strong>{% if result.score %}{{ result.score.display_score }} / {{ result.score.maximum_score }}{% else %}계산하지 않음{% endif %}</strong></div></section>
+      {% if result.score_selection and result.score_selection.trace.selected_semesters %}<section class="admin-section"><div class="admin-section__heading"><h2>반영 학기</h2><span>{{ result.score_selection.trace.selected_semesters|length }}개</span></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>학년</th><th>학기</th><th>출처</th><th>비교값</th></tr></thead><tbody>{% for term in result.score_selection.trace.selected_semesters %}<tr><td>{{ term.grade }}</td><td>{{ term.semester }}</td><td>{{ term.record_source }}</td><td>{{ term.comparison_value }}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
+      <section class="admin-section"><div class="admin-section__heading"><h2>과거 입시결과</h2><span>{{ result.admission_result.status.value }}</span></div>{% if result.admission_result.result %}{% set historical = result.admission_result.result %}<div class="consultation-summary consultation-summary--compact"><div><span>지원/합격</span><strong>{{ historical.applicant_count if historical.applicant_count is not none else '자료 없음' }} / {{ historical.admitted_count if historical.admitted_count is not none else '자료 없음' }}</strong></div><div><span>경쟁률</span><strong>{{ historical.competition_rate if historical.competition_rate is not none else '자료 없음' }}</strong></div><div><span>평균/최저</span><strong>{{ historical.average_score if historical.average_score is not none else '자료 없음' }} / {{ historical.lowest_score if historical.lowest_score is not none else '자료 없음' }}</strong></div></div>{% endif %}{% if result.admission_result.warning %}<p class="evidence-warning">{{ result.admission_result.warning }}</p>{% endif %}</section>
+      <section class="admin-section"><div class="admin-section__heading"><h2>근거와 규칙 버전</h2><span>{{ result.evidence|length }}건</span></div><ul class="evidence-list">{% for evidence in result.evidence %}<li><strong>{{ evidence.rule_kind }} {{ evidence.rule_version }}</strong><span>{{ evidence.document_type }} · {{ evidence.page_number }}쪽 · {{ evidence.locator or '위치 미기재' }} · {{ evidence.document_status }}</span></li>{% endfor %}</ul></section>
+      <div class="print-actions"><h2>분리 출력</h2><p>학생용에는 간결 결과만, 교사용에는 trace·근거·메모를 포함합니다.</p><div>{% for audience, label in [('student','학생용 A4 열기'),('teacher','교사용 A4 열기')] %}<form method="post" action="{{ url_for('admin.print_consultation', audience=audience) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% for field, value in values.items() %}<input type="hidden" name="{{ field }}" value="{{ value }}">{% endfor %}<button type="submit">{{ label }}</button></form>{% endfor %}</div></div>
+    </main>
+  </body>
+</html>

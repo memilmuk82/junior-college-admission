@@ -59,12 +59,16 @@ class Campus(TimestampMixin, Base):
 
 class Program(TimestampMixin, Base):
     __tablename__ = "programs"
-    __table_args__ = (UniqueConstraint("campus_id", "name"),)
+    __table_args__ = (
+        UniqueConstraint("campus_id", "name", name="uq_programs_campus_id"),
+        UniqueConstraint("campus_id", "code", name="uq_programs_campus_id_code"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     campus_id: Mapped[str] = mapped_column(
         ForeignKey("campuses.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    code: Mapped[str | None] = mapped_column(String(120))
     name: Mapped[str] = mapped_column(String(200), nullable=False)
 
 
