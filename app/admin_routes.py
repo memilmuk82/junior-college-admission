@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash
 
 from app.database import db
-from app.models import RuleVersionLineage
+from app.models import AdmissionTrack, RuleVersionLineage, ScoreRule, SourceCitation
 from app.services.rule_admin import (
     HumanApproval,
     RuleAdministrationError,
@@ -37,7 +37,9 @@ from app.services.rule_admin import (
 from app.services.score_rule_csv_drafts import (
     ScoreRuleDraftPersistenceError,
     load_managed_score_rules,
+    managed_score_rule_from_record,
     persist_score_rule_drafts,
+    update_score_rule_draft,
 )
 from app.services.score_rule_csv_preview import (
     DraftSelectionError,
@@ -45,7 +47,13 @@ from app.services.score_rule_csv_preview import (
     build_score_rule_csv_preview,
     prepare_selected_score_rule_drafts,
 )
-from app.services.score_rule_schema import write_score_rule_csv
+from app.services.score_rule_schema import (
+    BOOLEAN_FIELDS,
+    SCORE_RULE_CSV_HEADERS,
+    parse_score_rule_form,
+    score_rule_form_values,
+    write_score_rule_csv,
+)
 from app.services.temporary_uploads import TemporaryUploadStore
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -207,6 +215,84 @@ def _render_csv_review(
         ),
         status,
     )
+
+
+def _render_score_rule_edit(
+    rule: ScoreRule,
+    values: dict[str, str],
+    *,
+    errors: tuple[str, ...] = (),
+    status: int = 200,
+) -> Response:
+    database_session = cast(Session, db.session)
+    tracks = tuple(database_session.scalars(select(AdmissionTrack).order_by(AdmissionTrack.name)))
+    citations = tuple(
+        database_session.scalars(
+            select(SourceCitation).order_by(
+                SourceCitation.source_document_id,
+                SourceCitation.page_number,
+            )
+        )
+    )
+    return _private(
+        render_template(
+            "admin_score_rule_edit.html",
+            rule=rule,
+            fields=SCORE_RULE_CSV_HEADERS,
+            boolean_fields=BOOLEAN_FIELDS,
+            textarea_fields={"evidence_location", "change_reason", "administrator_note"},
+            values=values,
+            tracks=tracks,
+            citations=citations,
+            errors=errors,
+            csrf_token=_csrf_token(),
+            actor_ref=_actor_ref(),
+        ),
+        status,
+    )
+
+
+@bp.route("/rules/SCORE_RULE/<rule_id>/edit", methods=["GET", "POST"])
+@admin_required
+def edit_score_rule(rule_id: str) -> Response | Any:
+    database_session = cast(Session, db.session)
+    rule = database_session.get(ScoreRule, rule_id)
+    if rule is None:
+        abort(404)
+    if rule.lifecycle_status != "DRAFT":
+        abort(409)
+    try:
+        current = managed_score_rule_from_record(rule)
+    except ScoreRuleDraftPersistenceError as error:
+        return _private(str(error), 409)
+    if request.method == "GET":
+        return _render_score_rule_edit(rule, score_rule_form_values(current))
+
+    _require_csrf()
+    values = {header: request.form.get(header, "") for header in SCORE_RULE_CSV_HEADERS}
+    parsed = parse_score_rule_form(values)
+    if parsed.issues or len(parsed.rows) != 1:
+        messages = tuple(issue.message for issue in parsed.issues) or (
+            "규칙 입력을 canonical schema로 변환할 수 없습니다.",
+        )
+        return _render_score_rule_edit(rule, values, errors=messages, status=400)
+    try:
+        update_score_rule_draft(
+            database_session,
+            rule_id=rule.id,
+            managed=parsed.rows[0],
+            admission_track_id=request.form.get("admission_track_id") or None,
+            source_citation_id=request.form.get("source_citation_id") or None,
+            actor_ref=_actor_ref(),
+            occurred_at=datetime.now(UTC),
+        )
+        db.session.commit()
+    except ScoreRuleDraftPersistenceError as error:
+        db.session.rollback()
+        rule = database_session.get(ScoreRule, rule_id)
+        assert rule is not None
+        return _render_score_rule_edit(rule, values, errors=(str(error),), status=400)
+    return redirect(url_for("admin.rule_detail", rule_type="SCORE_RULE", rule_id=rule.id))
 
 
 @bp.route("/rules/csv", methods=["GET", "POST"])

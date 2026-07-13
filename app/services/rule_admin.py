@@ -118,6 +118,23 @@ def clone_published_rule_as_draft(
         golden_test_ref=None,
         human_approved_at=None,
     )
+    if isinstance(source, ScoreRule):
+        for attribute in (
+            "admission_year",
+            "university_code",
+            "university_name",
+            "campus_code",
+            "admission_round",
+            "admission_track_code",
+            "admission_track_name",
+            "evidence_document_ref",
+            "evidence_page",
+            "evidence_location",
+            "source_status",
+            "change_reason",
+            "administrator_note",
+        ):
+            setattr(draft, attribute, copy.deepcopy(getattr(source, attribute)))
     session.add(draft)
     session.flush()
     session.add(

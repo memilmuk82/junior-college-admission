@@ -10,7 +10,11 @@ from werkzeug.security import generate_password_hash
 
 from app import create_app
 from app.models import RuleAuditEvent, ScoreRule
-from app.services.score_rule_schema import parse_score_rule_csv, write_score_rule_csv
+from app.services.score_rule_schema import (
+    parse_score_rule_csv,
+    score_rule_form_values,
+    write_score_rule_csv,
+)
 from tests.test_score_rule_schema import _csv_bytes, _valid_row
 
 
@@ -63,6 +67,15 @@ def test_authenticated_admin_can_list_and_open_rule_detail(postgres_engine: Engi
     assert "Canonical payload" in body
     assert "synthetic-admin-v1" in body
     assert "DRAFT" in body
+
+    with Session(postgres_engine) as database_session:
+        loaded_rule = database_session.get(ScoreRule, rule_id)
+        assert loaded_rule is not None
+        loaded_rule.lifecycle_status = "TESTED"
+        database_session.commit()
+
+    blocked_edit = client.get(f"/admin/rules/SCORE_RULE/{rule_id}/edit")
+    assert blocked_edit.status_code == 409
 
     with Session(postgres_engine) as database_session:
         database_session.execute(delete(ScoreRule).where(ScoreRule.id == rule_id))
@@ -136,8 +149,40 @@ def test_admin_csv_preview_saves_only_confirmed_draft_and_purges_upload(
             select(ScoreRule).where(ScoreRule.version == parsed.rows[0].rule_version)
         )
         assert rule is not None
+        rule_id = rule.id
+
+    edit_page = client.get(f"/admin/rules/SCORE_RULE/{rule_id}/edit")
+    assert edit_page.status_code == 200
+    assert "DRAFT 성적 규칙 직접 편집" in edit_page.get_data(as_text=True)
+    edit_values = score_rule_form_values(parsed.rows[0])
+    edit_values["maximum_score"] = "900"
+    edit_values["administrator_note"] = "합성 관리자 직접 편집"
+    updated = client.post(
+        f"/admin/rules/SCORE_RULE/{rule_id}/edit",
+        data={
+            **edit_values,
+            "csrf_token": _csrf(edit_page.get_data(as_text=True)),
+            "admission_track_id": "",
+            "source_citation_id": "",
+        },
+    )
+    assert updated.status_code == 302
+
+    with Session(postgres_engine) as database_session:
+        rule = database_session.get(ScoreRule, rule_id)
+        assert rule is not None
         assert rule.lifecycle_status == "DRAFT"
         assert rule.admission_track_id is None
+        assert rule.rule_payload["maximum_score"] == "900"
+        assert rule.administrator_note == "합성 관리자 직접 편집"
+        actions = tuple(
+            database_session.scalars(
+                select(RuleAuditEvent.action)
+                .where(RuleAuditEvent.rule_id == rule.id)
+                .order_by(RuleAuditEvent.created_at)
+            )
+        )
+        assert actions == ("DRAFT_CREATED", "DRAFT_UPDATED")
         database_session.execute(delete(RuleAuditEvent).where(RuleAuditEvent.rule_id == rule.id))
         database_session.delete(rule)
         database_session.commit()

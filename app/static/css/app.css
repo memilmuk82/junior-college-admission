@@ -82,6 +82,10 @@ body {
 .admin-alert { margin: 20px 0; padding: 16px 18px; border: 1px solid #dc2626; color: #991b1b; background: #fef2f2; }
 .admin-actions { display: flex; justify-content: flex-end; margin: 20px 0; }
 .admin-table ul { min-width: 260px; margin: 0; padding-left: 18px; }
+.admin-edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+.admin-edit-grid label { display: grid; align-content: start; gap: 7px; color: #364458; font-size: .82rem; font-weight: 750; }
+.admin-edit-grid input, .admin-edit-grid select, .admin-edit-grid textarea { width: 100%; min-height: 44px; padding: 10px; border: 1px solid #aeb9c8; background: #fff; font: inherit; }
+.admin-edit-grid textarea { min-height: 96px; resize: vertical; }
 @media (max-width: 760px) { .admin-facts { grid-template-columns: 1fr; } .admin-header { align-items: flex-start; } .admin-heading { display: block; } }
 
 .review-page {

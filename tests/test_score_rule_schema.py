@@ -9,8 +9,10 @@ from app.services.score_rule_schema import (
     Z_SCORE_TABLE_CSV_HEADERS,
     ManagedScoreRule,
     parse_score_rule_csv,
+    parse_score_rule_form,
     parse_z_score_table_csv,
     score_rule_definition_from_payload,
+    score_rule_form_values,
     score_rule_to_payload,
     validate_score_rule_payload,
     write_score_rule_csv,
@@ -389,6 +391,16 @@ def test_z_score_tables_use_separate_fixed_csv_without_json_cells() -> None:
     assert len(parsed.rows) == 2
     assert parsed.rows[0].z_min == Decimal("1.76")
     reparsed = parse_z_score_table_csv(write_z_score_table_csv(parsed.rows))
+    assert reparsed.issues == ()
+    assert reparsed.rows == parsed.rows
+
+
+def test_admin_form_round_trip_uses_same_canonical_rule_schema() -> None:
+    parsed = parse_score_rule_csv(_csv_bytes([_valid_row()]))
+    assert parsed.issues == ()
+
+    reparsed = parse_score_rule_form(score_rule_form_values(parsed.rows[0]))
+
     assert reparsed.issues == ()
     assert reparsed.rows == parsed.rows
 

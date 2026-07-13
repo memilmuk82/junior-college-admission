@@ -87,6 +87,18 @@ def _published_score_rule(session: Session) -> ScoreRule:
         independent_verified=True,
         golden_test_ref="tests/synthetic::v1",
         human_approved_at=datetime(2026, 7, 13, tzinfo=UTC),
+        admission_year=2027,
+        university_code="SYNTHETIC_U",
+        university_name="합성 규칙 대학",
+        campus_code="MAIN",
+        admission_round="EARLY_1",
+        admission_track_code="GENERAL",
+        admission_track_name="일반전형",
+        evidence_document_ref=document.id,
+        evidence_page=1,
+        evidence_location="합성 표",
+        source_status="FINAL_GUIDE",
+        change_reason="합성 최초 규칙",
     )
     session.add(rule)
     session.flush()
@@ -108,6 +120,8 @@ def test_published_rule_is_cloned_approved_and_replaced_with_audit(session: Sess
     assert source.lifecycle_status == "PUBLISHED"
     assert draft.lifecycle_status == "DRAFT"
     assert draft.rule_payload == source.rule_payload
+    assert draft.university_code == source.university_code
+    assert draft.evidence_document_ref == source.evidence_document_ref
     assert draft.independent_verified is False
     lineage = session.scalar(
         select(RuleVersionLineage).where(RuleVersionLineage.rule_id == draft.id)

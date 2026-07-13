@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import copy
 from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import RuleVersionLineage, ScoreRule, SourceCitation
+from app.models import AdmissionTrack, RuleVersionLineage, ScoreRule, SourceCitation
 from app.services.rule_admin import record_rule_audit
 from app.services.score_rule_csv_preview import (
     RuleBusinessKey,
@@ -31,6 +32,10 @@ def load_managed_score_rules(session: Session) -> tuple[ManagedScoreRule, ...]:
         .order_by(ScoreRule.created_at.desc())
     )
     return tuple(_managed_rule(row) for row in rows)
+
+
+def managed_score_rule_from_record(row: ScoreRule) -> ManagedScoreRule:
+    return _managed_rule(row)
 
 
 def persist_score_rule_drafts(
@@ -136,6 +141,92 @@ def persist_score_rule_drafts(
     return tuple(drafts)
 
 
+def update_score_rule_draft(
+    session: Session,
+    *,
+    rule_id: str,
+    managed: ManagedScoreRule,
+    admission_track_id: str | None,
+    source_citation_id: str | None,
+    actor_ref: str,
+    occurred_at: datetime,
+) -> ScoreRule:
+    draft = session.get(ScoreRule, rule_id)
+    if draft is None or draft.lifecycle_status != "DRAFT":
+        raise ScoreRuleDraftPersistenceError("DRAFT 성적 규칙만 직접 편집할 수 있습니다.")
+    if not actor_ref.strip() or occurred_at.tzinfo is None:
+        raise ScoreRuleDraftPersistenceError(
+            "관리자 식별자와 timezone 포함 저장 시각이 필요합니다."
+        )
+    duplicate = session.scalar(
+        _business_key_query(managed.identity.key).where(
+            ScoreRule.version == managed.rule_version,
+            ScoreRule.id != draft.id,
+        )
+    )
+    if duplicate is not None:
+        raise ScoreRuleDraftPersistenceError(
+            "동일 업무키와 버전의 규칙이 이미 존재하여 덮어쓸 수 없습니다."
+        )
+    if admission_track_id and session.get(AdmissionTrack, admission_track_id) is None:
+        raise ScoreRuleDraftPersistenceError("선택한 전형 연결 대상을 찾을 수 없습니다.")
+    citation = None
+    if source_citation_id:
+        citation = session.get(SourceCitation, source_citation_id)
+        if citation is None:
+            raise ScoreRuleDraftPersistenceError("선택한 근거 위치를 찾을 수 없습니다.")
+        if (
+            citation.source_document_id != managed.evidence_document_id
+            or citation.page_number != managed.evidence_page
+            or citation.locator != managed.evidence_location
+        ):
+            raise ScoreRuleDraftPersistenceError(
+                "선택한 근거 위치와 규칙의 문서·페이지·위치가 일치하지 않습니다."
+            )
+
+    before_payload = copy.deepcopy(draft.rule_payload)
+    before_identity = _stored_identity(draft)
+    draft.admission_track_id = admission_track_id
+    draft.version = managed.rule_version
+    draft.rule_payload = score_rule_to_payload(managed)
+    draft.source_citation_id = None if citation is None else citation.id
+    draft.independent_verified = False
+    draft.golden_test_ref = None
+    draft.human_approved_at = None
+    draft.admission_year = managed.identity.admission_year
+    draft.university_code = managed.identity.university_code
+    draft.university_name = managed.university_name
+    draft.campus_code = managed.identity.campus_code
+    draft.admission_round = managed.identity.admission_round
+    draft.admission_track_code = managed.identity.admission_track_code
+    draft.admission_track_name = managed.admission_track_name
+    draft.evidence_document_ref = managed.evidence_document_id
+    draft.evidence_page = managed.evidence_page
+    draft.evidence_location = managed.evidence_location
+    draft.source_status = managed.source_status
+    draft.change_reason = managed.change_reason
+    draft.administrator_note = managed.administrator_note
+    record_rule_audit(
+        session,
+        rule_type="SCORE_RULE",
+        rule=draft,
+        action="DRAFT_UPDATED",
+        actor_ref=actor_ref,
+        occurred_at=occurred_at,
+        before_payload=before_payload,
+        after_payload=draft.rule_payload,
+        details={
+            "source": "ADMIN_FORM",
+            "before_identity": before_identity,
+            "after_identity": list(managed.identity.key),
+            "admission_track_id": admission_track_id,
+            "source_citation_id": source_citation_id,
+        },
+    )
+    session.flush()
+    return draft
+
+
 def _business_key_query(key: RuleBusinessKey):  # type: ignore[no-untyped-def]
     year, university, campus, admission_round, track = key
     return select(ScoreRule).where(
@@ -145,6 +236,16 @@ def _business_key_query(key: RuleBusinessKey):  # type: ignore[no-untyped-def]
         ScoreRule.admission_round == admission_round,
         ScoreRule.admission_track_code == track,
     )
+
+
+def _stored_identity(rule: ScoreRule) -> list[object | None]:
+    return [
+        rule.admission_year,
+        rule.university_code,
+        rule.campus_code,
+        rule.admission_round,
+        rule.admission_track_code,
+    ]
 
 
 def _managed_rule(row: ScoreRule) -> ManagedScoreRule:
@@ -212,5 +313,7 @@ def _resolve_citation_id(session: Session, rule: ManagedScoreRule) -> str | None
 __all__ = [
     "ScoreRuleDraftPersistenceError",
     "load_managed_score_rules",
+    "managed_score_rule_from_record",
     "persist_score_rule_drafts",
+    "update_score_rule_draft",
 ]

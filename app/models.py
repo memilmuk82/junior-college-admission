@@ -203,7 +203,7 @@ class RuleAuditEvent(TimestampMixin, Base):
     __tablename__ = "rule_audit_events"
     __table_args__ = (
         CheckConstraint(
-            "action IN ('DRAFT_CREATED', 'DRAFT_CLONED', 'HUMAN_APPROVED', "
+            "action IN ('DRAFT_CREATED', 'DRAFT_CLONED', 'DRAFT_UPDATED', 'HUMAN_APPROVED', "
             "'PUBLISHED', 'SUPERSEDED', 'REJECTED')",
             name="action_valid",
         ),

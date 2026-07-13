@@ -69,5 +69,5 @@ make check
 - [x] 선택 DRAFT 후보의 DB 저장과 SSR 확인 화면
 - [x] 관리자 브라우저 E2E·접근성 검증
 - [x] 현재 성적 규칙의 표준 CSV 내보내기
-- [ ] DRAFT canonical 성적 규칙 직접 편집과 전형·근거 연결
-- [ ] Phase 7 전체 검증과 최종 게이트
+- [x] DRAFT canonical 성적 규칙 직접 편집과 전형·근거 연결
+- [x] Phase 7 전체 검증과 최종 게이트 `PASS`

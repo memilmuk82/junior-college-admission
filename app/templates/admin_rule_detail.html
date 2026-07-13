@@ -10,7 +10,7 @@
     <header class="admin-header"><div><p class="admin-eyebrow">RULE REVIEW</p><a href="{{ url_for('admin.rules') }}">규칙 관리자</a></div><span>{{ actor_ref }}</span></header>
     <main class="admin-shell admin-detail-shell">
       <a class="admin-back" href="{{ url_for('admin.rules') }}">← 검수 대기열</a>
-      <div class="admin-heading"><div><h1>{{ rule_type_label }} 규칙 {{ rule.version }}</h1><p>상태와 근거 게이트를 확인한 뒤 명시적으로 처리하세요.</p></div><span class="status-badge status-badge--{{ rule.lifecycle_status|lower }}">{{ rule.lifecycle_status }}</span></div>
+      <div class="admin-heading"><div><h1>{{ rule_type_label }} 규칙 {{ rule.version }}</h1><p>상태와 근거 게이트를 확인한 뒤 명시적으로 처리하세요.</p></div><div>{% if rule_type == 'SCORE_RULE' and rule.lifecycle_status == 'DRAFT' %}<a class="button-link" href="{{ url_for('admin.edit_score_rule', rule_id=rule.id) }}">DRAFT 규칙 직접 편집</a>{% endif %} <span class="status-badge status-badge--{{ rule.lifecycle_status|lower }}">{{ rule.lifecycle_status }}</span></div></div>
       {% if error %}<div class="form-alert" role="alert">{{ error }}</div>{% endif %}
       <dl class="admin-facts">
         <div><dt>규칙 ID</dt><dd>{{ rule.id }}</dd></div><div><dt>전형</dt><dd>{{ rule.admission_track_id or '미연결' }}</dd></div>

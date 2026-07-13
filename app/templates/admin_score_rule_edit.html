@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DRAFT 성적 규칙 편집 · 2027 전문대 입시 상담</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="admin-page">
+    <header class="admin-header"><div><p class="admin-eyebrow">RULE EDIT</p><a href="{{ url_for('admin.rules') }}">규칙 관리자</a></div><span>{{ actor_ref }}</span></header>
+    <main class="admin-shell">
+      <a class="admin-back" href="{{ url_for('admin.rule_detail', rule_type='SCORE_RULE', rule_id=rule.id) }}">← 상세 검수</a>
+      <div class="admin-heading"><div><h1>DRAFT 성적 규칙 직접 편집</h1><p>고정 canonical 필드만 저장할 수 있으며 편집 후 검증·골든·사람 승인은 다시 필요합니다.</p></div></div>
+      {% if errors %}<div class="admin-alert" role="alert"><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
+      <form method="post" class="admin-edit-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <section class="admin-section"><h2>DB 연결</h2><div class="admin-edit-grid">
+          <label>적용 전형<select name="admission_track_id"><option value="">미연결</option>{% for track in tracks %}<option value="{{ track.id }}" {% if rule.admission_track_id == track.id %}selected{% endif %}>{{ track.name }} · {{ track.code }} · {{ track.id }}</option>{% endfor %}</select></label>
+          <label>공식 근거 위치<select name="source_citation_id"><option value="">미연결</option>{% for citation in citations %}<option value="{{ citation.id }}" {% if rule.source_citation_id == citation.id %}selected{% endif %}>{{ citation.source_document_id }} · {{ citation.page_number }}쪽 · {{ citation.locator or '위치 없음' }}</option>{% endfor %}</select></label>
+        </div></section>
+        <section class="admin-section"><h2>Canonical 규칙 필드</h2><div class="admin-edit-grid">
+          {% for field in fields %}
+            <label for="field-{{ field }}">{{ field }}
+              {% if field in boolean_fields %}<select id="field-{{ field }}" name="{{ field }}"><option value="" {% if values[field] == '' %}selected{% endif %}>빈 값</option><option value="TRUE" {% if values[field] == 'TRUE' %}selected{% endif %}>TRUE</option><option value="FALSE" {% if values[field] == 'FALSE' %}selected{% endif %}>FALSE</option></select>
+              {% elif field in textarea_fields %}<textarea id="field-{{ field }}" name="{{ field }}">{{ values[field] }}</textarea>
+              {% else %}<input id="field-{{ field }}" name="{{ field }}" value="{{ values[field] }}" {% if field == 'schema_version' %}readonly{% endif %}>
+              {% endif %}
+            </label>
+          {% endfor %}
+        </div></section>
+        <div class="admin-actions"><button type="submit">DRAFT 변경 저장</button></div>
+      </form>
+    </main>
+  </body>
+</html>

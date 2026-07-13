@@ -368,6 +368,18 @@ def write_score_rule_csv(rows: Sequence[ManagedScoreRule], *, include_bom: bool 
     return output.getvalue().encode("utf-8-sig" if include_bom else "utf-8")
 
 
+def score_rule_form_values(row: ManagedScoreRule) -> dict[str, str]:
+    return _score_rule_to_csv_values(row)
+
+
+def parse_score_rule_form(values: Mapping[str, str]) -> ScoreRuleCsvResult:
+    output = StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=SCORE_RULE_CSV_HEADERS, lineterminator="\n")
+    writer.writeheader()
+    writer.writerow({header: values.get(header, "") for header in SCORE_RULE_CSV_HEADERS})
+    return parse_score_rule_csv(output.getvalue().encode("utf-8"))
+
+
 def score_rule_to_payload(row: ManagedScoreRule) -> dict[str, object]:
     definition = row.definition
     return {
@@ -1925,6 +1937,8 @@ __all__ = [
     "ZScoreTableCsvResult",
     "ZScoreTableRow",
     "parse_score_rule_csv",
+    "parse_score_rule_form",
+    "score_rule_form_values",
     "parse_z_score_table_csv",
     "score_rule_definition_from_payload",
     "score_rule_to_payload",
