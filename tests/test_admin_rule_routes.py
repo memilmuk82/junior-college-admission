@@ -121,6 +121,16 @@ def test_admin_csv_preview_saves_only_confirmed_draft_and_purges_upload(
     assert confirmed.status_code == 302
     assert not (tmp_path / review_session_id).exists()
 
+    exported = client.get("/admin/rules/csv/export")
+    assert exported.status_code == 200
+    assert exported.headers["Cache-Control"] == "no-store, max-age=0"
+    assert exported.headers["Content-Disposition"] == 'attachment; filename="score_rules.csv"'
+    exported_rules = parse_score_rule_csv(exported.data)
+    assert exported_rules.issues == ()
+    assert len(exported_rules.rows) == 1
+    assert exported_rules.rows[0].identity == parsed.rows[0].identity
+    assert exported_rules.rows[0].rule_version == parsed.rows[0].rule_version
+
     with Session(postgres_engine) as database_session:
         rule = database_session.scalar(
             select(ScoreRule).where(ScoreRule.version == parsed.rows[0].rule_version)

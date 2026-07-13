@@ -15,7 +15,7 @@
       </form>
     </header>
     <main class="admin-shell">
-      <div class="admin-heading"><div><h1>성적 규칙 CSV 검토</h1><p>검증·비교 후 선택한 신규·변경 행만 DRAFT로 저장합니다. 자동 게시하지 않습니다.</p></div></div>
+      <div class="admin-heading"><div><h1>성적 규칙 CSV 검토</h1><p>검증·비교 후 선택한 신규·변경 행만 DRAFT로 저장합니다. 자동 게시하지 않습니다.</p></div><a class="button-link" href="{{ url_for('admin.export_rule_csv') }}">현재 규칙 CSV 내보내기</a></div>
       {% if error %}<div class="admin-alert" role="alert">{{ error }}</div>{% endif %}
       {% if preview is none %}
         <section class="admin-section">

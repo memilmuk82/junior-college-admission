@@ -45,6 +45,7 @@ from app.services.score_rule_csv_preview import (
     build_score_rule_csv_preview,
     prepare_selected_score_rule_drafts,
 )
+from app.services.score_rule_schema import write_score_rule_csv
 from app.services.temporary_uploads import TemporaryUploadStore
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -83,6 +84,16 @@ def _private(content: str, status: int = 200) -> Response:
         "default-src 'self'; script-src 'self'; style-src 'self'; "
         "img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
     )
+    return response
+
+
+def _private_csv(content: bytes, filename: str) -> Response:
+    response = make_response(content)
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
 
@@ -220,6 +231,13 @@ def rule_csv() -> Response:
         _upload_store().purge_session(review_session_id)
         return _render_csv_review(None, None, error=str(error), status=400)
     return _render_csv_review(review_session_id, preview)
+
+
+@bp.get("/rules/csv/export")
+@admin_required
+def export_rule_csv() -> Response:
+    rows = load_managed_score_rules(cast(Session, db.session))
+    return _private_csv(write_score_rule_csv(rows), "score_rules.csv")
 
 
 @bp.post("/rules/csv/<review_session_id>/confirm")
