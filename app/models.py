@@ -768,7 +768,66 @@ class VocationalCourseStatistic(TimestampMixin, Base):
     enrollment_count: Mapped[int | None] = mapped_column(Integer)
 
 
+class AiProviderCredential(TimestampMixin, Base):
+    __tablename__ = "ai_provider_credentials"
+    __table_args__ = (
+        UniqueConstraint("actor_ref", "provider"),
+        CheckConstraint(
+            "provider IN ('OPENAI', 'GEMINI', 'ANTHROPIC')",
+            name="provider_valid",
+        ),
+        CheckConstraint("char_length(actor_ref) > 0", name="actor_present"),
+        CheckConstraint("char_length(encrypted_api_key) > 0", name="ciphertext_present"),
+        CheckConstraint("char_length(masked_hint) = 8", name="masked_hint_valid"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    actor_ref: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(30), nullable=False)
+    encrypted_api_key: Mapped[str] = mapped_column(Text, nullable=False)
+    masked_hint: Mapped[str] = mapped_column(String(8), nullable=False)
+    encryption_version: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
+class AiConsultationDraft(TimestampMixin, Base):
+    __tablename__ = "ai_consultation_drafts"
+    __table_args__ = (
+        CheckConstraint(
+            "provider IN ('OPENAI', 'GEMINI', 'ANTHROPIC')",
+            name="provider_valid",
+        ),
+        CheckConstraint(
+            "status IN ('GENERATED_DRAFT', 'TEACHER_CONFIRMED', 'REJECTED')",
+            name="status_valid",
+        ),
+        CheckConstraint("char_length(actor_ref) > 0", name="actor_present"),
+        CheckConstraint("char_length(payload_digest) = 64", name="payload_digest_valid"),
+        CheckConstraint(
+            "(status = 'TEACHER_CONFIRMED' AND teacher_text IS NOT NULL "
+            "AND confirmed_by IS NOT NULL AND confirmed_at IS NOT NULL) OR "
+            "(status IN ('GENERATED_DRAFT', 'REJECTED') AND teacher_text IS NULL "
+            "AND confirmed_by IS NULL AND confirmed_at IS NULL)",
+            name="confirmed_draft_complete",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    actor_ref: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(30), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    payload_schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    payload_digest: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    generated_text: Mapped[str] = mapped_column(Text, nullable=False)
+    check_items: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    teacher_text: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="GENERATED_DRAFT")
+    confirmed_by: Mapped[str | None] = mapped_column(String(120))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 __all__ = [
+    "AiConsultationDraft",
+    "AiProviderCredential",
     "AdmissionEligibilityRule",
     "AdmissionRound",
     "AdmissionTrack",

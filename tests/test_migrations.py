@@ -23,6 +23,8 @@ def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> No
         "admission_tracks",
         "alembic_version",
         "assessment_components",
+        "ai_consultation_drafts",
+        "ai_provider_credentials",
         "campuses",
         "disqualification_rules",
         "document_requirements",

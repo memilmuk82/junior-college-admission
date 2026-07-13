@@ -13,6 +13,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         ),
         ADMIN_USERNAME=os.environ.get("ADMIN_USERNAME"),
         ADMIN_PASSWORD_HASH=os.environ.get("ADMIN_PASSWORD_HASH"),
+        BYOK_MASTER_KEY=os.environ.get("BYOK_MASTER_KEY"),
     )
 
     if test_config:

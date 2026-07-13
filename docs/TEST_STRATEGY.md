@@ -98,3 +98,15 @@ Phase 0 검증 범위는 다음과 같다.
 - 교과점수와 출결점수의 분리 trace 및 면접·실기 미합산
 - Hypothesis 100예제씩 결정성·입력 순서 독립성·단조성·점수 범위 속성 검증
 - 학년별 우수학기 30/30/40과 별도 출결을 독립 수기식으로 대조하는 합성 골든 테스트
+
+## Phase 9 진행 중 검증 범위
+
+- 상담 결과 비식별 payload의 고정 allowlist와 학생 코드·성적 원문·상담 메모 부재
+- Decimal의 문자열 결정성, 누락 `null`과 숫자 0의 구분, canonical JSON digest 재현
+- 공급자 중립 합성 어댑터가 비식별 payload만 수신하는지 검증
+- 합격 확률·합격 가능·안정/적정/소신/위험 표현이 포함된 초안 거부
+- Fernet 암호문의 평문 부재, 변조 탐지, 잘못된 master key 복호화 차단
+- 사용자·공급자별 키 저장·교체·마스킹·삭제와 DB ciphertext 확인
+- 생성 초안의 소유권, 교사 수정·확정 actor/시각/payload digest 보존
+- 관리자 키·초안 route의 인증·CSRF·`no-store`와 평문 키 미반환
+- BYOK master key 또는 공급자 키가 없어도 Phase 8 핵심 단위·통합·E2E 회귀 유지

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI 상담 초안 검토 · 2027 전문대 입시 상담</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="admin-page">
+    <header class="admin-header"><div><p class="admin-eyebrow">TEACHER REVIEW</p><a href="{{ url_for('admin.ai_settings') }}">BYOK AI 설정</a></div><span>{{ actor_ref }}</span></header>
+    <main class="admin-shell">
+      <div class="admin-heading"><div><h1>상담 문장 초안 검토</h1><p>{{ draft.provider }} · {{ draft.model_name }} · {{ draft.status }}</p></div><a class="button-link button-link--secondary" href="{{ url_for('admin.ai_settings') }}">목록으로</a></div>
+      {% if error %}<div class="form-errors" role="alert"><p>{{ error }}</p></div>{% endif %}
+      <section class="admin-section"><h2>생성 초안</h2><p class="narrative-draft">{{ draft.generated_text }}</p>{% if draft.check_items %}<h3>추가 확인 항목</h3><ul>{% for item in draft.check_items %}<li>{{ item }}</li>{% endfor %}</ul>{% endif %}<p>입력 digest: <code>{{ draft.payload_digest }}</code></p></section>
+      <section class="admin-section"><h2>교사 검토</h2>{% if draft.status == 'GENERATED_DRAFT' %}<form method="post" action="{{ url_for('admin.confirm_ai_draft_route', draft_id=draft.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>확정 문장<textarea name="teacher_text" maxlength="2000" required>{{ draft.generated_text }}</textarea></label><button class="primary-button" type="submit">수정 문장 확정</button></form><form method="post" action="{{ url_for('admin.reject_ai_draft_route', draft_id=draft.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">초안 거부</button></form>{% elif draft.status == 'TEACHER_CONFIRMED' %}<p class="narrative-draft">{{ draft.teacher_text }}</p><p>확정자 {{ draft.confirmed_by }} · {{ draft.confirmed_at }}</p>{% else %}<p>교사가 사용하지 않기로 한 초안입니다.</p>{% endif %}</section>
+    </main>
+  </body>
+</html>

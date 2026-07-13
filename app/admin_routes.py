@@ -24,7 +24,22 @@ from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash
 
 from app.database import db
-from app.models import AdmissionTrack, RuleVersionLineage, ScoreRule, SourceCitation
+from app.models import (
+    AdmissionTrack,
+    AiConsultationDraft,
+    AiProviderCredential,
+    RuleVersionLineage,
+    ScoreRule,
+    SourceCitation,
+)
+from app.services.ai_credentials import (
+    ByokCredentialCipher,
+    ByokCredentialError,
+    delete_provider_credential,
+    save_provider_credential,
+)
+from app.services.ai_drafts import AiDraftError, confirm_ai_draft, reject_ai_draft
+from app.services.ai_providers import PROVIDER_CODES
 from app.services.consultation_forms import (
     CONSULTATION_FORM_FIELDS,
     ConsultationFormResult,
@@ -134,6 +149,13 @@ def _actor_ref() -> str:
 
 def _upload_store() -> TemporaryUploadStore:
     return TemporaryUploadStore(str(current_app.config["TEMP_UPLOAD_ROOT"]))
+
+
+def _byok_cipher() -> ByokCredentialCipher:
+    master_key = current_app.config.get("BYOK_MASTER_KEY")
+    if not isinstance(master_key, str):
+        raise ByokCredentialError("BYOK 키 암호화 설정이 없어 공급자 키를 저장할 수 없습니다.")
+    return ByokCredentialCipher(master_key)
 
 
 def _csv_artifact(review_session_id: str):  # type: ignore[no-untyped-def]
@@ -266,6 +288,156 @@ def new_consultation() -> Response:
             actor_ref=_actor_ref(),
         )
     )
+
+
+def _render_ai_settings(*, error: str | None = None, status: int = 200) -> Response:
+    actor_ref = _actor_ref()
+    database_session = cast(Session, db.session)
+    credentials = tuple(
+        database_session.scalars(
+            select(AiProviderCredential)
+            .where(AiProviderCredential.actor_ref == actor_ref)
+            .order_by(AiProviderCredential.provider)
+        )
+    )
+    drafts = tuple(
+        database_session.scalars(
+            select(AiConsultationDraft)
+            .where(AiConsultationDraft.actor_ref == actor_ref)
+            .order_by(AiConsultationDraft.created_at.desc())
+            .limit(20)
+        )
+    )
+    try:
+        _byok_cipher()
+        encryption_available = True
+    except ByokCredentialError:
+        encryption_available = False
+    return _private(
+        render_template(
+            "admin_ai_settings.html",
+            actor_ref=actor_ref,
+            csrf_token=_csrf_token(),
+            credentials=credentials,
+            drafts=drafts,
+            providers=tuple(sorted(PROVIDER_CODES)),
+            encryption_available=encryption_available,
+            error=error,
+        ),
+        status,
+    )
+
+
+@bp.get("/ai/settings")
+@admin_required
+def ai_settings() -> Response:
+    return _render_ai_settings()
+
+
+@bp.post("/ai/credentials")
+@admin_required
+def save_ai_credential() -> Response | Any:
+    _require_csrf()
+    try:
+        save_provider_credential(
+            cast(Session, db.session),
+            actor_ref=_actor_ref(),
+            provider=request.form.get("provider", ""),
+            api_key=request.form.get("api_key", ""),
+            cipher=_byok_cipher(),
+        )
+        db.session.commit()
+    except ByokCredentialError as error:
+        db.session.rollback()
+        status = 503 if not current_app.config.get("BYOK_MASTER_KEY") else 400
+        return _render_ai_settings(error=str(error), status=status)
+    return redirect(url_for("admin.ai_settings"))
+
+
+@bp.post("/ai/credentials/<provider>/delete")
+@admin_required
+def delete_ai_credential(provider: str) -> Any:
+    _require_csrf()
+    try:
+        delete_provider_credential(
+            cast(Session, db.session), actor_ref=_actor_ref(), provider=provider
+        )
+        db.session.commit()
+    except ByokCredentialError as error:
+        db.session.rollback()
+        return _render_ai_settings(error=str(error), status=400)
+    return redirect(url_for("admin.ai_settings"))
+
+
+def _owned_ai_draft(draft_id: str) -> AiConsultationDraft:
+    record = cast(Session, db.session).get(AiConsultationDraft, draft_id)
+    if record is None or record.actor_ref != _actor_ref():
+        abort(404)
+    return record
+
+
+def _render_ai_draft(
+    record: AiConsultationDraft,
+    *,
+    error: str | None = None,
+    status: int = 200,
+) -> Response:
+    return _private(
+        render_template(
+            "admin_ai_draft.html",
+            actor_ref=_actor_ref(),
+            csrf_token=_csrf_token(),
+            draft=record,
+            error=error,
+        ),
+        status,
+    )
+
+
+@bp.get("/ai/drafts/<draft_id>")
+@admin_required
+def ai_draft_detail(draft_id: str) -> Response:
+    return _render_ai_draft(_owned_ai_draft(draft_id))
+
+
+@bp.post("/ai/drafts/<draft_id>/confirm")
+@admin_required
+def confirm_ai_draft_route(draft_id: str) -> Response | Any:
+    _require_csrf()
+    record = _owned_ai_draft(draft_id)
+    try:
+        confirm_ai_draft(
+            cast(Session, db.session),
+            draft_id=record.id,
+            actor_ref=_actor_ref(),
+            teacher_text=request.form.get("teacher_text", ""),
+            confirmed_at=datetime.now(UTC),
+        )
+        db.session.commit()
+    except AiDraftError as error:
+        db.session.rollback()
+        record = _owned_ai_draft(draft_id)
+        return _render_ai_draft(record, error=str(error), status=400)
+    return redirect(url_for("admin.ai_draft_detail", draft_id=record.id))
+
+
+@bp.post("/ai/drafts/<draft_id>/reject")
+@admin_required
+def reject_ai_draft_route(draft_id: str) -> Response | Any:
+    _require_csrf()
+    record = _owned_ai_draft(draft_id)
+    try:
+        reject_ai_draft(
+            cast(Session, db.session),
+            draft_id=record.id,
+            actor_ref=_actor_ref(),
+        )
+        db.session.commit()
+    except AiDraftError as error:
+        db.session.rollback()
+        record = _owned_ai_draft(draft_id)
+        return _render_ai_draft(record, error=str(error), status=400)
+    return redirect(url_for("admin.ai_draft_detail", draft_id=record.id))
 
 
 @bp.post("/consultations/print/<audience>")
