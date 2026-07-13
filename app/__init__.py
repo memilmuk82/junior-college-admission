@@ -11,6 +11,8 @@ def create_app(test_config: dict | None = None) -> Flask:
         TEMP_UPLOAD_ROOT=os.environ.get(
             "TEMP_UPLOAD_ROOT", "/tmp/junior-college-admission/uploads"
         ),
+        ADMIN_USERNAME=os.environ.get("ADMIN_USERNAME"),
+        ADMIN_PASSWORD_HASH=os.environ.get("ADMIN_PASSWORD_HASH"),
     )
 
     if test_config:
@@ -23,4 +25,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     from app.routes import bp
 
     app.register_blueprint(bp)
+    from app.admin_routes import bp as admin_bp
+
+    app.register_blueprint(admin_bp)
     return app

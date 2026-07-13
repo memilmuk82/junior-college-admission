@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>규칙 관리자 · 2027 전문대 입시 상담</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="admin-page">
+    <header class="admin-header">
+      <div><p class="admin-eyebrow">RULE GOVERNANCE</p><a href="{{ url_for('admin.rules') }}">규칙 관리자</a></div>
+      <form method="post" action="{{ url_for('admin.logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <span>{{ actor_ref }}</span><button class="text-action" type="submit">로그아웃</button>
+      </form>
+    </header>
+    <main class="admin-shell">
+      <div class="admin-heading">
+        <div><h1>규칙 검수 대기열</h1><p>게시 규칙은 직접 수정하지 않고 새 DRAFT 버전으로 시작합니다.</p></div>
+      </div>
+      {% for rule_type, label, rows in grouped %}
+        <section class="admin-section" aria-labelledby="heading-{{ rule_type }}">
+          <div class="admin-section__heading"><h2 id="heading-{{ rule_type }}">{{ label }}</h2><span>{{ rows|length }}건</span></div>
+          {% if rows %}
+            <div class="admin-table-wrap"><table class="admin-table">
+              <thead><tr><th>버전</th><th>전형 연결</th><th>상태</th><th>근거</th><th>검수</th></tr></thead>
+              <tbody>{% for rule in rows %}<tr>
+                <td>{{ rule.version }}</td>
+                <td>{{ rule.admission_track_id or '미연결' }}</td>
+                <td><span class="status-badge status-badge--{{ rule.lifecycle_status|lower }}">{{ rule.lifecycle_status }}</span></td>
+                <td>{{ '연결됨' if rule.source_citation_id else '미연결' }}</td>
+                <td><a href="{{ url_for('admin.rule_detail', rule_type=rule_type, rule_id=rule.id) }}">상세 검수</a></td>
+              </tr>{% endfor %}</tbody>
+            </table></div>
+          {% else %}<p class="admin-empty">등록된 규칙이 없습니다.</p>{% endif %}
+        </section>
+      {% endfor %}
+    </main>
+  </body>
+</html>

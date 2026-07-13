@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>관리자 인증 · 2027 전문대 입시 상담</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="admin-page">
+    <main class="admin-login-shell">
+      <p class="admin-eyebrow">ADMIN REVIEW</p>
+      <h1>관리자 인증</h1>
+      <p>규칙 검수·승인·게시 작업은 감사 로그에 관리자 식별자와 함께 기록됩니다.</p>
+      {% if error %}<div class="form-alert" role="alert">{{ error }}</div>{% endif %}
+      <form method="post" class="admin-login-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="username">관리자 ID</label>
+        <input id="username" name="username" autocomplete="username" required>
+        <label for="password">비밀번호</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <button class="primary-button" type="submit">검수 화면으로 이동</button>
+      </form>
+      <a class="text-action" href="/">상담 앱으로 돌아가기</a>
+    </main>
+  </body>
+</html>

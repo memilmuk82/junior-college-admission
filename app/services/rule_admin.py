@@ -247,6 +247,10 @@ def _rule_model(rule_type: str) -> Any:
     return model
 
 
+def rule_model_for_type(rule_type: str) -> Any:
+    return _rule_model(rule_type)
+
+
 def _validate_actor_and_time(actor_ref: str, occurred_at: datetime) -> None:
     if not actor_ref.strip() or occurred_at.tzinfo is None:
         raise RuleAdministrationError("관리자 식별자와 timezone 포함 시각이 필요합니다.")
@@ -297,4 +301,5 @@ __all__ = [
     "compare_rule_payloads",
     "human_approve_tested_rule",
     "publish_human_approved_rule",
+    "rule_model_for_type",
 ]

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ rule_type_label }} 규칙 검수 · 2027 전문대 입시 상담</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="admin-page">
+    <header class="admin-header"><div><p class="admin-eyebrow">RULE REVIEW</p><a href="{{ url_for('admin.rules') }}">규칙 관리자</a></div><span>{{ actor_ref }}</span></header>
+    <main class="admin-shell admin-detail-shell">
+      <a class="admin-back" href="{{ url_for('admin.rules') }}">← 검수 대기열</a>
+      <div class="admin-heading"><div><h1>{{ rule_type_label }} 규칙 {{ rule.version }}</h1><p>상태와 근거 게이트를 확인한 뒤 명시적으로 처리하세요.</p></div><span class="status-badge status-badge--{{ rule.lifecycle_status|lower }}">{{ rule.lifecycle_status }}</span></div>
+      {% if error %}<div class="form-alert" role="alert">{{ error }}</div>{% endif %}
+      <dl class="admin-facts">
+        <div><dt>규칙 ID</dt><dd>{{ rule.id }}</dd></div><div><dt>전형</dt><dd>{{ rule.admission_track_id or '미연결' }}</dd></div>
+        <div><dt>공식 근거</dt><dd>{{ rule.source_citation_id or '미연결' }}</dd></div><div><dt>독립 검증</dt><dd>{{ '완료' if rule.independent_verified else '대기' }}</dd></div>
+        <div><dt>골든 테스트</dt><dd>{{ rule.golden_test_ref or '대기' }}</dd></div><div><dt>사람 승인</dt><dd>{{ rule.human_approved_at or '대기' }}</dd></div>
+      </dl>
+      <section class="admin-section"><h2>버전 변경 비교</h2>
+        {% if previous %}<p>이전 버전: {{ previous.version }}</p>{% endif %}
+        {% if changes %}<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>필드</th><th>변경 전</th><th>변경 후</th></tr></thead><tbody>{% for change in changes %}<tr><td>{{ change.path }}</td><td><code>{{ change.before }}</code></td><td><code>{{ change.after }}</code></td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="admin-empty">비교할 변경이 없습니다.</p>{% endif %}
+      </section>
+      <section class="admin-section"><h2>Canonical payload</h2><pre class="admin-payload">{{ rule.rule_payload|tojson(indent=2) }}</pre></section>
+      <section class="admin-action-grid" aria-label="규칙 상태 작업">
+        {% if rule.lifecycle_status == 'PUBLISHED' %}<form method="post" action="{{ url_for('admin.clone_rule', rule_type=rule_type, rule_id=rule.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><h2>새 DRAFT 복제</h2><label>새 버전<input name="new_version" required></label><label>변경 사유<textarea name="change_reason" required></textarea></label><button class="primary-button" type="submit">DRAFT 생성</button></form>{% endif %}
+        {% if rule.lifecycle_status == 'TESTED' %}<form method="post" action="{{ url_for('admin.approve_rule', rule_type=rule_type, rule_id=rule.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><h2>사람 승인</h2><label>확인 문구<input name="confirmation" placeholder="HUMAN_APPROVED" required></label><button class="primary-button" type="submit">승인 기록</button></form>{% endif %}
+        {% if rule.lifecycle_status == 'HUMAN_APPROVED' %}<form method="post" action="{{ url_for('admin.publish_rule', rule_type=rule_type, rule_id=rule.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><h2>게시</h2><p>같은 전형의 기존 게시 버전은 SUPERSEDED로 보존됩니다.</p><button class="primary-button" type="submit">규칙 게시</button></form>{% endif %}
+      </section>
+    </main>
+  </body>
+</html>
