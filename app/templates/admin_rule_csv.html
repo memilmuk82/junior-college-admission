@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>성적 규칙 CSV 검토 · 2027 전문대 입시 상담</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="admin-page">
+    <header class="admin-header">
+      <div><p class="admin-eyebrow">RULE GOVERNANCE</p><a href="{{ url_for('admin.rules') }}">규칙 관리자</a></div>
+      <form method="post" action="{{ url_for('admin.logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <span>{{ actor_ref }}</span><button class="text-action" type="submit">로그아웃</button>
+      </form>
+    </header>
+    <main class="admin-shell">
+      <div class="admin-heading"><div><h1>성적 규칙 CSV 검토</h1><p>검증·비교 후 선택한 신규·변경 행만 DRAFT로 저장합니다. 자동 게시하지 않습니다.</p></div></div>
+      {% if error %}<div class="admin-alert" role="alert">{{ error }}</div>{% endif %}
+      {% if preview is none %}
+        <section class="admin-section">
+          <h2>표준 CSV 업로드</h2>
+          <form class="admin-form" method="post" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label for="score_rules_csv">score_rules.csv</label>
+            <input id="score_rules_csv" name="score_rules_csv" type="file" accept=".csv,text/csv" required>
+            <button type="submit">검증하고 미리보기</button>
+          </form>
+        </section>
+      {% else %}
+        {% if preview.issues %}
+          <section class="admin-section" aria-labelledby="csv-errors">
+            <div class="admin-section__heading"><h2 id="csv-errors">오류</h2><span>{{ preview.issues|length }}건</span></div>
+            <ul>{% for issue in preview.issues %}<li>행 {{ issue.row_number }} · {{ issue.column or '행 전체' }} · {{ issue.message }}</li>{% endfor %}</ul>
+          </section>
+        {% endif %}
+        <form method="post" action="{{ url_for('admin.confirm_rule_csv', review_session_id=review_session_id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <section class="admin-section" aria-labelledby="csv-preview">
+            <div class="admin-section__heading"><h2 id="csv-preview">변경 전후 미리보기</h2><span>{{ preview.items|length }}행</span></div>
+            <div class="admin-table-wrap"><table class="admin-table">
+              <thead><tr><th>선택</th><th>행</th><th>대학·전형</th><th>버전</th><th>분류</th><th>변경</th><th>근거</th></tr></thead>
+              <tbody>{% for item in preview.items %}<tr>
+                <td>{% if item.classification in ('NEW', 'CHANGED') %}<input type="checkbox" name="selected_row" value="{{ item.row_number }}" aria-label="{{ item.row_number }}행 선택">{% else %}—{% endif %}</td>
+                <td>{{ item.row_number }}</td>
+                <td>{{ item.rule.university_name }}<br>{{ item.rule.admission_track_name }}</td>
+                <td>{{ item.rule.rule_version }}</td>
+                <td><span class="status-badge">{{ item.classification }}</span></td>
+                <td>{% if item.changes %}<ul>{% for change in item.changes %}<li>{{ change.path }}: {{ change.before }} → {{ change.after }}</li>{% endfor %}</ul>{% else %}—{% endif %}</td>
+                <td>{{ item.rule.evidence_level }}<br>{{ item.rule.evidence_document_id or '미연결' }}{% if item.rule.evidence_page %} · {{ item.rule.evidence_page }}쪽{% endif %}</td>
+              </tr>{% endfor %}</tbody>
+            </table></div>
+          </section>
+          <div class="admin-actions"><button type="submit">선택 행을 DRAFT로 저장</button></div>
+        </form>
+        <form method="post" action="{{ url_for('admin.discard_rule_csv', review_session_id=review_session_id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="text-action text-action--danger" type="submit">업로드 폐기</button>
+        </form>
+      {% endif %}
+    </main>
+  </body>
+</html>

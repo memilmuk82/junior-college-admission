@@ -291,6 +291,32 @@ def _audit(
     )
 
 
+def record_rule_audit(
+    session: Session,
+    *,
+    rule_type: str,
+    rule: Any,
+    action: str,
+    actor_ref: str,
+    occurred_at: datetime,
+    before_payload: Mapping[str, object] | None,
+    after_payload: Mapping[str, object] | None,
+    details: dict[str, object],
+) -> None:
+    _validate_actor_and_time(actor_ref, occurred_at)
+    _audit(
+        session,
+        rule_type=rule_type,
+        rule=rule,
+        action=action,
+        actor_ref=actor_ref,
+        occurred_at=occurred_at,
+        before_payload=before_payload,
+        after_payload=after_payload,
+        details=details,
+    )
+
+
 __all__ = [
     "HumanApproval",
     "PayloadChange",
@@ -301,5 +327,6 @@ __all__ = [
     "compare_rule_payloads",
     "human_approve_tested_rule",
     "publish_human_approved_rule",
+    "record_rule_audit",
     "rule_model_for_type",
 ]

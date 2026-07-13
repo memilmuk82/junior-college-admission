@@ -107,6 +107,7 @@ def _comparable(rule: ManagedScoreRule) -> dict[str, object]:
 
 __all__ = [
     "DraftSelectionError",
+    "RuleBusinessKey",
     "ScoreRuleCsvPreview",
     "ScoreRuleCsvPreviewItem",
     "ScoreRuleDraftCandidate",

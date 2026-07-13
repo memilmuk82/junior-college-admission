@@ -14,7 +14,7 @@ test-unit:
 test-integration:
 	$(COMPOSE_TEST_ENV) docker compose --profile test rm -f -s -v db-test
 	$(COMPOSE_TEST_ENV) docker compose --profile test up -d --wait db-test
-	@status=0; TEST_DATABASE_URL=$(TEST_DATABASE_URL) $(PYTHON) pytest tests/test_admin_rule_routes.py tests/test_admission_result_models.py tests/test_rule_admin_models.py tests/test_confirmed_imports.py tests/test_database.py tests/test_migrations.py tests/test_models.py tests/test_published_rules.py tests/test_review_routes.py || status=$$?; \
+	@status=0; TEST_DATABASE_URL=$(TEST_DATABASE_URL) $(PYTHON) pytest tests/test_admin_rule_routes.py tests/test_score_rule_csv_drafts.py tests/test_admission_result_models.py tests/test_rule_admin_models.py tests/test_confirmed_imports.py tests/test_database.py tests/test_migrations.py tests/test_models.py tests/test_published_rules.py tests/test_review_routes.py || status=$$?; \
 		$(COMPOSE_TEST_ENV) docker compose --profile test rm -f -s -v db-test; \
 		exit $$status
 

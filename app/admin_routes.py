@@ -34,6 +34,18 @@ from app.services.rule_admin import (
     publish_human_approved_rule,
     rule_model_for_type,
 )
+from app.services.score_rule_csv_drafts import (
+    ScoreRuleDraftPersistenceError,
+    load_managed_score_rules,
+    persist_score_rule_drafts,
+)
+from app.services.score_rule_csv_preview import (
+    DraftSelectionError,
+    ScoreRuleCsvPreview,
+    build_score_rule_csv_preview,
+    prepare_selected_score_rule_drafts,
+)
+from app.services.temporary_uploads import TemporaryUploadStore
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -79,6 +91,26 @@ def _actor_ref() -> str:
     if not isinstance(actor, str) or not actor:
         abort(401)
     return actor
+
+
+def _upload_store() -> TemporaryUploadStore:
+    return TemporaryUploadStore(str(current_app.config["TEMP_UPLOAD_ROOT"]))
+
+
+def _csv_artifact(review_session_id: str):  # type: ignore[no-untyped-def]
+    original = _upload_store().session_path(review_session_id) / "original"
+    files = tuple(original.glob("*.csv")) if original.is_dir() else ()
+    if len(files) != 1:
+        abort(404)
+    return files[0]
+
+
+def _csv_preview(review_session_id: str) -> ScoreRuleCsvPreview:
+    csv_path = _csv_artifact(review_session_id)
+    database_session = cast(Session, db.session)
+    return build_score_rule_csv_preview(
+        csv_path.read_bytes(), load_managed_score_rules(database_session)
+    )
 
 
 def admin_required(view: Callable[..., Any]) -> Callable[..., Any]:
@@ -144,6 +176,103 @@ def rules() -> Response:
             actor_ref=_actor_ref(),
         )
     )
+
+
+def _render_csv_review(
+    review_session_id: str | None,
+    preview: ScoreRuleCsvPreview | None,
+    *,
+    error: str | None = None,
+    status: int = 200,
+) -> Response:
+    return _private(
+        render_template(
+            "admin_rule_csv.html",
+            review_session_id=review_session_id,
+            preview=preview,
+            error=error,
+            csrf_token=_csrf_token(),
+            actor_ref=_actor_ref(),
+        ),
+        status,
+    )
+
+
+@bp.route("/rules/csv", methods=["GET", "POST"])
+@admin_required
+def rule_csv() -> Response:
+    if request.method == "GET":
+        return _render_csv_review(None, None)
+    _require_csrf()
+    upload = request.files.get("score_rules_csv")
+    if upload is None or not upload.filename:
+        return _render_csv_review(None, None, error="CSV 파일을 선택하세요.", status=400)
+    review_session_id = _upload_store().create_session()
+    try:
+        _upload_store().write_artifact(
+            review_session_id,
+            upload.read(),
+            kind="original",
+            suffix=".csv",
+        )
+        preview = _csv_preview(review_session_id)
+    except (ValueError, OSError, ScoreRuleDraftPersistenceError) as error:
+        _upload_store().purge_session(review_session_id)
+        return _render_csv_review(None, None, error=str(error), status=400)
+    return _render_csv_review(review_session_id, preview)
+
+
+@bp.post("/rules/csv/<review_session_id>/confirm")
+@admin_required
+def confirm_rule_csv(review_session_id: str) -> Any:
+    _require_csrf()
+    try:
+        preview = _csv_preview(review_session_id)
+        selected_rows = tuple(int(value) for value in request.form.getlist("selected_row"))
+        selected_keys = tuple(
+            item.rule.identity.key for item in preview.items if item.row_number in selected_rows
+        )
+        if len(selected_keys) != len(selected_rows):
+            raise DraftSelectionError("선택한 행을 현재 미리보기에서 식별할 수 없습니다.")
+        candidates = prepare_selected_score_rule_drafts(preview, selected_keys)
+        drafts = persist_score_rule_drafts(
+            cast(Session, db.session),
+            candidates=candidates,
+            actor_ref=_actor_ref(),
+            occurred_at=datetime.now(UTC),
+        )
+        db.session.commit()
+        _upload_store().purge_session(review_session_id)
+    except (
+        DraftSelectionError,
+        ScoreRuleDraftPersistenceError,
+        ValueError,
+        OSError,
+    ) as error:
+        db.session.rollback()
+        try:
+            preview = _csv_preview(review_session_id)
+        except (FileNotFoundError, ValueError, ScoreRuleDraftPersistenceError):
+            abort(404)
+        return _render_csv_review(review_session_id, preview, error=str(error), status=400)
+    if len(drafts) == 1:
+        return redirect(
+            url_for(
+                "admin.rule_detail",
+                rule_type="SCORE_RULE",
+                rule_id=drafts[0].id,
+            )
+        )
+    return redirect(url_for("admin.rules"))
+
+
+@bp.post("/rules/csv/<review_session_id>/discard")
+@admin_required
+def discard_rule_csv(review_session_id: str) -> Any:
+    _require_csrf()
+    _csv_artifact(review_session_id)
+    _upload_store().purge_session(review_session_id)
+    return redirect(url_for("admin.rule_csv"))
 
 
 def _rule_detail(rule_type: str, rule_id: str) -> tuple[Any, Any | None, tuple[Any, ...]]:

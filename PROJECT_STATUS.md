@@ -133,5 +133,5 @@
 - [x] 관리자 해시 인증·CSRF·비공개 캐시 경계
 - [x] JavaScript 없는 규칙 목록·상세·DRAFT 복제·승인·게시 SSR
 - [x] CSV 신규·변경·동일·충돌·오류 분류와 선택 DRAFT 후보 계약
-- [ ] CSV 선택 DRAFT DB 저장과 SSR 미리보기
+- [x] CSV 선택 DRAFT DB 저장과 SSR 미리보기
 - [ ] 관리자 브라우저 E2E·접근성 및 Phase 7 최종 게이트

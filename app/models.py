@@ -203,7 +203,8 @@ class RuleAuditEvent(TimestampMixin, Base):
     __tablename__ = "rule_audit_events"
     __table_args__ = (
         CheckConstraint(
-            "action IN ('DRAFT_CLONED', 'HUMAN_APPROVED', 'PUBLISHED', 'SUPERSEDED', 'REJECTED')",
+            "action IN ('DRAFT_CREATED', 'DRAFT_CLONED', 'HUMAN_APPROVED', "
+            "'PUBLISHED', 'SUPERSEDED', 'REJECTED')",
             name="action_valid",
         ),
         CheckConstraint("char_length(actor_ref) > 0", name="actor_present"),
@@ -291,13 +292,54 @@ class ScoreRule(RuleRecordMixin, Base):
     __tablename__ = "score_rules"
     __table_args__ = (
         *rule_constraints(),
+        CheckConstraint(
+            "(admission_year IS NULL AND university_code IS NULL AND campus_code IS NULL "
+            "AND admission_round IS NULL AND admission_track_code IS NULL) OR "
+            "(admission_year IS NOT NULL AND university_code IS NOT NULL "
+            "AND campus_code IS NOT NULL AND admission_round IS NOT NULL "
+            "AND admission_track_code IS NOT NULL)",
+            name="business_key_complete",
+        ),
+        UniqueConstraint(
+            "admission_year",
+            "university_code",
+            "campus_code",
+            "admission_round",
+            "admission_track_code",
+            "version",
+            name="business_key_version",
+        ),
         Index(
             "uq_score_rules_one_published_per_track",
             "admission_track_id",
             unique=True,
             postgresql_where=text("lifecycle_status = 'PUBLISHED'"),
         ),
+        Index(
+            "uq_score_rules_one_published_per_business_key",
+            "admission_year",
+            "university_code",
+            "campus_code",
+            "admission_round",
+            "admission_track_code",
+            unique=True,
+            postgresql_where=text("lifecycle_status = 'PUBLISHED' AND admission_year IS NOT NULL"),
+        ),
     )
+
+    admission_year: Mapped[int | None] = mapped_column(Integer, index=True)
+    university_code: Mapped[str | None] = mapped_column(String(80))
+    university_name: Mapped[str | None] = mapped_column(String(200))
+    campus_code: Mapped[str | None] = mapped_column(String(80))
+    admission_round: Mapped[str | None] = mapped_column(String(80))
+    admission_track_code: Mapped[str | None] = mapped_column(String(80))
+    admission_track_name: Mapped[str | None] = mapped_column(String(200))
+    evidence_document_ref: Mapped[str | None] = mapped_column(String(200))
+    evidence_page: Mapped[int | None] = mapped_column(Integer)
+    evidence_location: Mapped[str | None] = mapped_column(String(240))
+    source_status: Mapped[str | None] = mapped_column(String(40))
+    change_reason: Mapped[str | None] = mapped_column(Text)
+    administrator_note: Mapped[str | None] = mapped_column(Text)
 
 
 class MultipleApplicationRule(RuleRecordMixin, Base):
