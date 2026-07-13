@@ -175,6 +175,11 @@
 - 단위 199건, PostgreSQL 통합 50건, Ruff·포맷·mypy와 migration drift를 통과했다.
 - Chromium에서 평문 키 미노출·마스킹·삭제·가로 넘침·콘솔 오류 없음과 JavaScript 비활성 SSR을 포함한 BYOK 설정 2건을 통과했다.
 - 실제 공급자 네트워크 어댑터는 공식 API 계약과 운영 자격증명 게이트를 확인하기 전까지 구현 완료로 표시하지 않는다.
+- OpenAI Responses, Gemini generateContent, Anthropic Messages 공식 계약에 맞춘 고정 HTTPS 어댑터와 구조화 JSON 응답 검증을 구현했다.
+- 요청 64 KiB·응답 128 KiB·timeout 15초를 적용하고 중복 과금 방지를 위해 자동 재시도를 하지 않으며 공급자 오류 본문과 키를 노출하지 않는다.
+- 상담 결과 화면에서 현재 관리자 소유 키와 모델을 선택해 비식별 결과만 초안으로 만들고 교사 검토 화면으로 이동하는 SSR 경로를 연결했다.
+- 최종 회귀에서 단위 217건, PostgreSQL 통합 52건과 Chromium BYOK·상담 E2E 5건, Ruff·포맷·mypy·규칙·민감자료 검사를 통과했다.
+- 로컬 개발 키로 비식별 합성 payload 실제 smoke를 수행했으나 OpenAI의 두 모델 모두 HTTP 429를 반환했다. Gemini·Anthropic 키도 없어 성공 smoke와 Phase 9 최종 `PASS`는 보류한다.
 
 ## 확정 기술 결정
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 
+import pytest
 from cryptography.fernet import Fernet
 from sqlalchemy import Engine, delete, select
 from sqlalchemy.orm import Session
@@ -9,6 +10,8 @@ from werkzeug.security import generate_password_hash
 
 from app import create_app
 from app.models import AiConsultationDraft, AiProviderCredential
+from app.services.ai_providers import NarrativeDraft
+from tests.test_consultation_routes import _cleanup, _form, _seed
 
 
 def _csrf(html: str) -> str:
@@ -181,3 +184,96 @@ def test_missing_master_key_disables_key_write_without_breaking_settings(
         },
     )
     assert blocked.status_code == 503
+
+
+def test_admin_generates_reviewable_draft_from_consultation_result(
+    postgres_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with Session(postgres_engine) as database_session:
+        track_id = _seed(database_session)
+    master_key = Fernet.generate_key().decode("ascii")
+    client = _client(postgres_engine, master_key)
+    settings = client.get("/admin/ai/settings")
+    saved = client.post(
+        "/admin/ai/credentials",
+        data={
+            "csrf_token": _csrf(settings.get_data(as_text=True)),
+            "provider": "OPENAI",
+            "api_key": "synthetic-provider-key-1234",
+        },
+        follow_redirects=True,
+    )
+    assert saved.status_code == 200
+
+    class SyntheticProvider:
+        provider_code = "OPENAI"
+
+        def generate(self, payload: dict[str, object], api_key: str) -> NarrativeDraft:
+            assert api_key == "synthetic-provider-key-1234"
+            assert "student_id" not in payload
+            return NarrativeDraft(
+                text="검증된 상담 결과를 근거 범위 안에서 요약했습니다.",
+                check_items=("공식 근거와 최신 모집요강을 다시 확인하세요.",),
+            )
+
+    monkeypatch.setattr(
+        "app.admin_routes.provider_adapter",
+        lambda provider_code, model_name: SyntheticProvider(),
+    )
+    consultation = client.get("/admin/consultations/new")
+    generated = client.post(
+        "/admin/consultations/ai-draft",
+        data={
+            **_form(track_id, _csrf(consultation.get_data(as_text=True))),
+            "provider": "OPENAI",
+            "model_name": "synthetic-model",
+        },
+        follow_redirects=True,
+    )
+
+    body = generated.get_data(as_text=True)
+    assert generated.status_code == 200
+    assert "상담 문장 초안 검토" in body
+    assert "GENERATED_DRAFT" in body
+    assert "synthetic-provider-key" not in body
+    with Session(postgres_engine) as database_session:
+        draft = database_session.scalar(
+            select(AiConsultationDraft).where(AiConsultationDraft.actor_ref == "synthetic-admin")
+        )
+        assert draft is not None
+        assert draft.provider == "OPENAI"
+        assert draft.model_name == "synthetic-model"
+        database_session.delete(draft)
+        database_session.execute(
+            delete(AiProviderCredential).where(AiProviderCredential.actor_ref == "synthetic-admin")
+        )
+        database_session.commit()
+        _cleanup(database_session, track_id)
+
+
+def test_ai_generation_without_owned_key_keeps_deterministic_result_available(
+    postgres_engine: Engine,
+) -> None:
+    with Session(postgres_engine) as database_session:
+        track_id = _seed(database_session)
+    client = _client(postgres_engine, Fernet.generate_key().decode("ascii"))
+    consultation = client.get("/admin/consultations/new")
+
+    blocked = client.post(
+        "/admin/consultations/ai-draft",
+        data={
+            **_form(track_id, _csrf(consultation.get_data(as_text=True))),
+            "provider": "OPENAI",
+            "model_name": "synthetic-model",
+        },
+    )
+
+    body = blocked.get_data(as_text=True)
+    assert blocked.status_code == 400
+    assert "등록된 공급자 키가 없습니다" in body
+    assert "지원자격 확인 완료" in body
+    assert "2.00" in body
+    with Session(postgres_engine) as database_session:
+        assert database_session.scalar(select(AiConsultationDraft)) is None
+        _cleanup(database_session, track_id)

@@ -39,7 +39,9 @@ from app.services.ai_credentials import (
     save_provider_credential,
 )
 from app.services.ai_drafts import AiDraftError, confirm_ai_draft, reject_ai_draft
-from app.services.ai_providers import PROVIDER_CODES
+from app.services.ai_http_providers import provider_adapter
+from app.services.ai_narratives import AiNarrativeError, generate_consultation_narrative
+from app.services.ai_providers import PROVIDER_CODES, NarrativeProviderError
 from app.services.consultation_forms import (
     CONSULTATION_FORM_FIELDS,
     ConsultationFormResult,
@@ -265,6 +267,36 @@ def _evaluate_consultation_form(parsed: ConsultationFormResult) -> ConsultationR
     return run_consultation(cast(Session, db.session), parsed.request)
 
 
+def _render_consultation_result(
+    parsed: ConsultationFormResult,
+    result: ConsultationResult,
+    *,
+    ai_error: str | None = None,
+    status: int = 200,
+) -> Response:
+    actor_ref = _actor_ref()
+    credentials = tuple(
+        cast(Session, db.session).scalars(
+            select(AiProviderCredential)
+            .where(AiProviderCredential.actor_ref == actor_ref)
+            .order_by(AiProviderCredential.provider)
+        )
+    )
+    return _private(
+        render_template(
+            "admin_consultation_result.html",
+            result=result,
+            values=parsed.values,
+            consultation_note=parsed.consultation_note,
+            csrf_token=_csrf_token(),
+            actor_ref=actor_ref,
+            credentials=credentials,
+            ai_error=ai_error,
+        ),
+        status,
+    )
+
+
 @bp.route("/consultations/new", methods=["GET", "POST"])
 @admin_required
 def new_consultation() -> Response:
@@ -278,16 +310,39 @@ def new_consultation() -> Response:
         result = _evaluate_consultation_form(parsed)
     except ValueError as error:
         return _render_consultation_form(parsed.values, errors=(str(error),), status=400)
-    return _private(
-        render_template(
-            "admin_consultation_result.html",
-            result=result,
-            values=parsed.values,
-            consultation_note=parsed.consultation_note,
-            csrf_token=_csrf_token(),
+    return _render_consultation_result(parsed, result)
+
+
+@bp.post("/consultations/ai-draft")
+@admin_required
+def generate_ai_consultation_draft() -> Response | Any:
+    _require_csrf()
+    parsed = parse_consultation_form(request.form)
+    if parsed.errors:
+        return _render_consultation_form(parsed.values, errors=parsed.errors, status=400)
+    try:
+        result = _evaluate_consultation_form(parsed)
+    except ValueError as error:
+        return _render_consultation_form(parsed.values, errors=(str(error),), status=400)
+    provider_code = request.form.get("provider", "")
+    model_name = request.form.get("model_name", "")
+    try:
+        adapter = provider_adapter(provider_code, model_name)
+        draft = generate_consultation_narrative(
+            cast(Session, db.session),
             actor_ref=_actor_ref(),
+            provider_code=provider_code,
+            model_name=model_name,
+            result=result,
+            provider=adapter,
+            cipher=_byok_cipher(),
         )
-    )
+        db.session.commit()
+    except (AiNarrativeError, ByokCredentialError, NarrativeProviderError) as error:
+        db.session.rollback()
+        status = 503 if isinstance(error, ByokCredentialError) else 400
+        return _render_consultation_result(parsed, result, ai_error=str(error), status=status)
+    return redirect(url_for("admin.ai_draft_detail", draft_id=draft.id))
 
 
 def _render_ai_settings(*, error: str | None = None, status: int = 200) -> Response:

@@ -98,5 +98,7 @@ make check
 - [x] 교사 수정·확정·거부 생명주기
 - [x] 관리자 SSR 설정·초안 화면
 - [x] 단위·PostgreSQL 통합·Chromium 보안 기반 회귀
-- [ ] OpenAI·Gemini·Anthropic 실제 HTTP 어댑터
+- [x] OpenAI·Gemini·Anthropic 실제 HTTP 어댑터
+- [x] 고정 HTTPS 엔드포인트·구조화 출력·크기·timeout·무자동재시도 계약
+- [ ] 운영 자격증명 성공 smoke test(OpenAI 429, Gemini·Anthropic 키 미제공)
 - [ ] Phase 9 최종 게이트 판정

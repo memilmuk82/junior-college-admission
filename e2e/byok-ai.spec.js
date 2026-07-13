@@ -54,6 +54,22 @@ test('admin stores only a masked BYOK key and can delete it without JavaScript-o
   expect(hasHorizontalOverflow).toBe(false);
   await page.screenshot({ path: `${screenshotDir}/byok-ai-settings.png`, fullPage: true });
 
+  await page.getByRole('link', { name: '상담으로 돌아가기' }).click();
+  await page.getByLabel('내부 익명 학생 코드').fill('synthetic-student');
+  await page.getByLabel('대학·학과·전형').selectOption({ index: 1 });
+  await page.getByLabel('위탁 학기 수').fill('1');
+  await page.getByRole('button', { name: '지원자격부터 확인' }).click();
+  await expect(page.getByRole('heading', { name: '선택적 AI 상담 초안' })).toBeVisible();
+  await expect(page.getByLabel('공급자', { exact: true })).toHaveValue('OPENAI');
+  await expect(page.getByLabel('모델 ID')).toBeVisible();
+  await expect(page.getByRole('button', { name: '검토용 초안 생성' })).toBeVisible();
+  await expect(page.locator('body')).not.toContainText('synthetic-browser-provider-key');
+  const resultHasHorizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth
+  );
+  expect(resultHasHorizontalOverflow).toBe(false);
+
+  await page.goto(`${adminUrl}/admin/ai/settings`);
   await page.getByRole('button', { name: '키 삭제' }).click();
   await expect(page.getByText('••••1234')).toHaveCount(0);
   expect(consoleErrors).toEqual([]);

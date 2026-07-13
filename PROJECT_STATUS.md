@@ -3,8 +3,8 @@
 - 기준일: 2026-07-14
 - 현재 단계: Phase 9 BYOK AI 진행 중
 - 단계 판정: IN_PROGRESS
-- 현재 작업: 비식별 payload·사용자별 키 암호화·공급자 계약·교사 확정 경계 구현
-- 다음 게이트: Phase 9 보안·기능·회귀 검증
+- 현재 작업: 실제 공급자 어댑터 구현 완료, 운영 자격증명 성공 smoke test 대기
+- 다음 게이트: OpenAI 한도 정상화와 Gemini·Anthropic 운영 키 확보 후 Phase 9 성공 smoke test
 
 ## 저장소 인벤토리
 
@@ -157,6 +157,9 @@
 - [x] 암호문 변조·잘못된 master key 차단
 - [x] 생성 초안과 교사 수정·확정 상태의 분리 저장 계약
 - [x] 관리자 인증·CSRF·비공개 캐시를 유지한 BYOK 설정·초안 검수 SSR
-- [ ] OpenAI·Gemini·Anthropic 실제 공급자 호출 어댑터
+- [x] OpenAI·Gemini·Anthropic 실제 공급자 호출 어댑터
+- [x] 상담 결과 SSR에서 관리자 소유 키로 검토용 초안 생성
+- [x] 고정 엔드포인트·구조화 JSON·15초 timeout·64/128 KiB 제한·오류 은닉
+- [ ] 운영 성공 smoke test(OpenAI HTTP 429, Gemini·Anthropic 키 미제공)
 - [x] PostgreSQL 통합·마이그레이션 drift·브라우저 E2E
 - [ ] Phase 9 최종 게이트 판정
