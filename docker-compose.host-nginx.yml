@@ -1,0 +1,7 @@
+services:
+  proxy-production:
+    profiles: ["container-tls"]
+
+  web-production:
+    ports:
+      - "127.0.0.1:${PRODUCTION_ORIGIN_PORT:-8000}:5000"

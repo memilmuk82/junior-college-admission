@@ -196,7 +196,8 @@
 - [x] 합성 Nginx TLS·Gunicorn·PostgreSQL production 후보와 migration `head`·healthcheck
 - [x] 합성 HTTPS 보안 헤더·HTTP redirect·관리자/상담/BYOK/A4 Playwright 8건 통과
 - [x] 합성 OCR 업로드 검수 데스크톱·모바일·무JavaScript Playwright 3건 통과
-- [x] Cloudflare 원본 연결용 기본 Compose `8000:8000` 포트와 앱 수신 포트 일치
+- [x] Cloudflare/호스트 Nginx 원본 연결을 `127.0.0.1:8000`으로 제한하고 외부 직접 노출 차단
+- [x] Flask 개발 서버 대신 호스트 Nginx 뒤 Gunicorn을 사용하는 production origin override 준비
 - [x] Phase 10 최종 게이트 `PASS_NONPROD`(실제 운영 전환 별도 보류)
 
-최신 `make check`는 정적 검사·단위 234건·PostgreSQL 통합 53건·규칙·민감자료 검사를 모두 통과했다. 합성 production 후보의 HTTPS 사용자 흐름 8건과 OCR 검수 흐름 3건도 실패·skip 없이 통과했다. 실제 도메인·공인 TLS·Cloudflare 외부 설정·secret manager 키 회전, 운영 DB 보유기간 삭제, 운영 PostgreSQL 쿼리 지표 수집, 규칙별 사람 승인은 별도 운영 전환 항목이다. 이 보류는 Phase 10 개발·비운영 준비의 실패가 아니며 외부 서비스나 실제 게시 상태를 자동 변경하지 않는다.
+최신 `make check`는 정적 검사·단위 236건·PostgreSQL 통합 53건·규칙·민감자료 검사를 모두 통과했다. 합성 production 후보의 HTTPS 사용자 흐름 8건과 OCR 검수 흐름 3건도 실패·skip 없이 통과했다. 실제 도메인·공인 TLS·Cloudflare 외부 설정·secret manager 키 회전, 운영 DB 보유기간 삭제, 운영 PostgreSQL 쿼리 지표 수집, 규칙별 사람 승인은 별도 운영 전환 항목이다. 이 보류는 Phase 10 개발·비운영 준비의 실패가 아니며 외부 서비스나 실제 게시 상태를 자동 변경하지 않는다.

@@ -9,7 +9,7 @@ PRODUCTION_ENV_FILE ?= .env.production
 PRODUCTION_URL ?=
 PRODUCTION_CA_CERT ?=
 
-.PHONY: setup test-unit test-integration test-e2e lint validate-rules check-sensitive-data check production-preflight production-up production-check production-e2e production-status production-logs production-down alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
+.PHONY: setup test-unit test-integration test-e2e lint validate-rules check-sensitive-data check production-preflight production-up production-check production-e2e production-status production-logs production-down production-origin-up production-origin-check production-origin-status production-origin-logs production-origin-down alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
 
 setup:
 	uv sync --frozen
@@ -67,6 +67,25 @@ production-logs:
 
 production-down:
 	docker compose -f docker-compose.production.yml --env-file $(PRODUCTION_ENV_FILE) stop proxy-production web-production db-production
+
+production-origin-up:
+	test -f $(PRODUCTION_ENV_FILE)
+	PRODUCTION_ENV_FILE=$(PRODUCTION_ENV_FILE) UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.check_production_readiness
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml --env-file $(PRODUCTION_ENV_FILE) up -d --build --wait web-production
+
+production-origin-check:
+	test -n "$(PRODUCTION_URL)" && test -n "$(PRODUCTION_CA_CERT)"
+	PRODUCTION_URL="$(PRODUCTION_URL)" PRODUCTION_CA_CERT="$(PRODUCTION_CA_CERT)" UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.check_production_https
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml --env-file $(PRODUCTION_ENV_FILE) exec -T web-production flask --app wsgi db current
+
+production-origin-status:
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml --env-file $(PRODUCTION_ENV_FILE) ps
+
+production-origin-logs:
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml --env-file $(PRODUCTION_ENV_FILE) logs --tail=200 web-production db-production
+
+production-origin-down:
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml --env-file $(PRODUCTION_ENV_FILE) stop web-production db-production
 
 alpha-up:
 	test -f $(ALPHA_ENV_FILE)

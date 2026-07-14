@@ -62,6 +62,12 @@ def test_production_enables_secure_cookie_and_single_proxy_hop() -> None:
     assert app.config["PREFERRED_URL_SCHEME"] == "https"
     assert isinstance(app.wsgi_app, ProxyFix)
 
+    response = app.test_client().get("/health", base_url="https://service.example.test")
+    assert response.headers["Strict-Transport-Security"] == ("max-age=31536000; includeSubDomains")
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["Referrer-Policy"] == "no-referrer"
+    assert response.headers["X-Frame-Options"] == "DENY"
+
 
 def test_production_rejects_nonempty_but_invalid_admin_hash() -> None:
     config = _production_config()
@@ -160,3 +166,17 @@ def test_production_requires_exactly_one_trusted_proxy_hop(proxy_hops: object) -
 
     with pytest.raises(RuntimeError, match="TRUST_PROXY_HOPS"):
         create_app(config)
+
+
+def test_default_compose_origin_port_is_loopback_only() -> None:
+    compose = Path("docker-compose.yml").read_text(encoding="utf-8")
+
+    assert '      - "127.0.0.1:8000:8000"' in compose
+    assert '      - "0.0.0.0:8000:8000"' not in compose
+
+
+def test_host_nginx_production_override_exposes_only_gunicorn_on_loopback() -> None:
+    compose = Path("docker-compose.host-nginx.yml").read_text(encoding="utf-8")
+
+    assert '"127.0.0.1:${PRODUCTION_ORIGIN_PORT:-8000}:5000"' in compose
+    assert 'profiles: ["container-tls"]' in compose

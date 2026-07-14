@@ -57,3 +57,18 @@ make production-check
 ```
 
 합성 로컬 인증서 리허설에서만 `E2E_IGNORE_HTTPS_ERRORS=true`를 사용할 수 있다. 실제 서비스 인증서 검증에서는 이를 사용하지 않는다.
+
+## 호스트 Nginx 원본 모드
+
+호스트 Nginx가 이미 공인 TLS를 종료하고 `127.0.0.1:8000`으로 전달하는 서버에서는 `docker-compose.host-nginx.yml`을 함께 사용한다. 이 override는 컨테이너 TLS proxy를 기본 profile에서 제외하고 Gunicorn `web-production`만 loopback 원본 포트에 게시한다. Flask 개발 서버를 외부에 노출하지 않으며 PostgreSQL은 계속 호스트 포트를 열지 않는다.
+
+```bash
+PRODUCTION_ENV_FILE=.env.production make production-origin-up
+PRODUCTION_ENV_FILE=.env.production make production-origin-status
+PRODUCTION_ENV_FILE=.env.production \
+PRODUCTION_URL=https://service.example.org \
+PRODUCTION_CA_CERT=/approved/path/fullchain.pem \
+make production-origin-check
+```
+
+호스트 Nginx는 정확히 한 단계의 신뢰 proxy로 `Host`, `X-Forwarded-For`, `X-Forwarded-Proto`, `X-Forwarded-Host`, `X-Forwarded-Port`를 설정해야 한다. production 앱도 HSTS·nosniff·referrer·frame 헤더를 반환한다. 8000번 원본은 `127.0.0.1` 외 주소에 바인딩하면 안 된다.

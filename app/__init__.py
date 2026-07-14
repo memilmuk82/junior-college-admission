@@ -118,6 +118,16 @@ def _configure_production_security(app: Flask) -> None:
         x_port=proxy_hops,
     )
 
+    @app.after_request
+    def add_production_security_headers(response):  # type: ignore[no-untyped-def]
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        return response
+
 
 def create_app(test_config: dict | None = None) -> Flask:
     app = Flask(__name__)
