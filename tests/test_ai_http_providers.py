@@ -138,6 +138,9 @@ def test_provider_specific_structured_output_contracts_are_sent() -> None:
 
     openai_body = openai.calls[0][2]
     assert openai_body["store"] is False
+    assert openai_body["max_output_tokens"] == 4096
+    assert isinstance(openai_body["instructions"], str)
+    assert "적정" in openai_body["instructions"]
     assert openai_body["text"] == {
         "format": {
             "type": "json_schema",
