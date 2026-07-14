@@ -1,6 +1,31 @@
 name: junior-college-admission-production
 
 services:
+  init-production-uploads:
+    image: "${PRODUCTION_APP_IMAGE:-junior-college-admission-production-app:local}"
+    build: .
+    user: "0:0"
+    command:
+      - sh
+      - -c
+      - >-
+        chown
+        ${PRODUCTION_APP_UID:?PRODUCTION_APP_UID must be set}:${PRODUCTION_APP_GID:?PRODUCTION_APP_GID must be set}
+        /var/lib/admission/uploads &&
+        chmod 700 /var/lib/admission/uploads
+    volumes:
+      - production_uploads:/var/lib/admission/uploads
+    network_mode: none
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER
+    restart: "no"
+
   proxy-production:
     image: nginx:1.30.3-alpine
     user: "${PRODUCTION_PROXY_UID:?PRODUCTION_PROXY_UID must be set}:${PRODUCTION_PROXY_GID:?PRODUCTION_PROXY_GID must be set}"
@@ -39,7 +64,9 @@ services:
     stop_grace_period: 30s
 
   web-production:
+    image: "${PRODUCTION_APP_IMAGE:-junior-college-admission-production-app:local}"
     build: .
+    user: "${PRODUCTION_APP_UID:?PRODUCTION_APP_UID must be set}:${PRODUCTION_APP_GID:?PRODUCTION_APP_GID must be set}"
     command:
       - sh
       - -c
@@ -69,6 +96,8 @@ services:
     depends_on:
       db-production:
         condition: service_healthy
+      init-production-uploads:
+        condition: service_completed_successfully
     secrets:
       - app_secret_key
       - database_url

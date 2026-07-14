@@ -82,3 +82,7 @@ PRODUCTION_HOST=service.example.org make production-bootstrap
 ```
 
 최초 관리자 비밀번호는 `secrets/production/initial_admin_password`에서 운영 담당자만 확인한다. 채팅·로그·티켓에 복사하지 않으며 별도 승인된 비밀 저장소로 옮긴 뒤 원문 파일의 처리 정책을 확정한다. host Nginx override의 Compose 프로젝트명은 `junior-college-admission-live`로 고정해 기존 합성 production volume을 재사용하지 않는다.
+
+부트스트랩은 secret 파일을 생성한 호스트 계정의 UID/GID를 `PRODUCTION_APP_UID`·`PRODUCTION_APP_GID`로 기록한다. 웹 컨테이너는 해당 비root 사용자로 실행하므로 capability를 모두 제거한 상태에서도 권한 `0600`인 secret만 읽을 수 있다. 별도 `init-production-uploads` 컨테이너는 네트워크 없이 `CHOWN`·`FOWNER` capability만 잠시 사용해 업로드 named volume을 같은 UID/GID와 권한 `0700`으로 맞춘 뒤 종료한다. 웹 서비스는 이 초기화 성공과 PostgreSQL health를 모두 확인한 후 시작한다.
+
+2026-07-14 실제 서비스 기반 부트스트랩에서는 live 전용 빈 PostgreSQL volume에 Alembic `head`를 적용하고, Gunicorn health와 `127.0.0.1:8000` 원본 제한, 호스트 Nginx·Cloudflare 공인 HTTPS 보안 헤더를 확인했다. 관리자 Playwright smoke 3건도 통과했다. 이 결과는 인프라 경로 검증이며 공식 규칙 게시·학생 실데이터 반입·운영 정책 승인까지 자동 완료했다는 의미는 아니다.

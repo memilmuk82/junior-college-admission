@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import stat
 from pathlib import Path
 
@@ -35,6 +36,8 @@ def test_bootstrap_creates_isolated_bounded_production_secrets(tmp_path: Path) -
     assert "TRUST_PROXY_HOPS=1" in env_text
     assert "https://service.example.test" in env_text
     assert "PRODUCTION_ORIGIN_PORT=8000" in env_text
+    assert f"PRODUCTION_APP_UID={os.getuid()}" in env_text
+    assert f"PRODUCTION_APP_GID={os.getgid()}" in env_text
     assert initial_password not in env_text
     assert (secrets_dir / "app_secret_key").read_text().strip() not in env_text
     assert (secrets_dir / "postgres_password").read_text().strip() not in env_text

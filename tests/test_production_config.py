@@ -181,3 +181,14 @@ def test_host_nginx_production_override_exposes_only_gunicorn_on_loopback() -> N
     assert "name: junior-college-admission-live" in compose
     assert '"127.0.0.1:${PRODUCTION_ORIGIN_PORT:-8000}:5000"' in compose
     assert 'profiles: ["container-tls"]' in compose
+
+
+def test_production_compose_runs_app_as_secret_owner_and_initializes_upload_volume() -> None:
+    compose = Path("docker-compose.production.yml").read_text(encoding="utf-8")
+
+    assert 'user: "${PRODUCTION_APP_UID:?PRODUCTION_APP_UID must be set}' in compose
+    assert "init-production-uploads:" in compose
+    assert "condition: service_completed_successfully" in compose
+    assert "- CHOWN" in compose
+    assert "- FOWNER" in compose
+    assert "cap_drop:\n      - ALL" in compose

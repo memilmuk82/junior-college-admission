@@ -68,6 +68,8 @@ def bootstrap_production(
         absolute_secrets_dir = secrets_dir.resolve()
         env_lines = [
             "APP_ENV=production",
+            f"PRODUCTION_APP_UID={os.getuid()}",
+            f"PRODUCTION_APP_GID={os.getgid()}",
             f"PRODUCTION_SECRETS_DIR={absolute_secrets_dir}",
             f"SECRET_KEY_FILE={absolute_secrets_dir / 'app_secret_key'}",
             f"DATABASE_URL_FILE={absolute_secrets_dir / 'database_url'}",

@@ -1,10 +1,10 @@
 # 프로젝트 상태
 
 - 기준일: 2026-07-14
-- 현재 단계: Phase 10 개발·비운영 준비 완료
-- 단계 판정: PASS_NONPROD
-- 현재 작업: 합성 production 후보와 후보 대학 근거 교차검증 완료
-- 다음 게이트: 별도 운영 전환 — 실제 도메인·공인 TLS·secret manager·운영 정책·공식 자료 사람 승인
+- 현재 단계: Phase 10 완료 후 실제 서비스 기반 부트스트랩
+- 단계 판정: PASS_LIVE_BOOTSTRAP
+- 현재 작업: 공인 HTTPS 경로·격리 PostgreSQL·Gunicorn 원본 기동과 관리자 smoke 완료
+- 다음 게이트: 운영 안정화 — 백업·관찰·사람 승인된 공식 규칙 게시
 
 ## 저장소 인벤토리
 
@@ -199,5 +199,9 @@
 - [x] Cloudflare/호스트 Nginx 원본 연결을 `127.0.0.1:8000`으로 제한하고 외부 직접 노출 차단
 - [x] Flask 개발 서버 대신 호스트 Nginx 뒤 Gunicorn을 사용하는 production origin override 준비
 - [x] Phase 10 최종 게이트 `PASS_NONPROD`(실제 운영 전환 별도 보류)
+- [x] live 전용 PostgreSQL·업로드 named volume 생성과 Alembic `head` 적용
+- [x] 웹 컨테이너 비root 실행, `0600` secret 읽기 및 `0700` 업로드 볼륨 권한 확인
+- [x] 원본 포트 `127.0.0.1:8000`, 호스트 Nginx·Cloudflare 공인 HTTPS health 및 보안 헤더 확인
+- [x] 실제 HTTPS 관리자 로그인·CSV 오류 처리·모바일·무JavaScript Playwright 3건 통과
 
-최신 `make check`는 정적 검사·단위 241건·PostgreSQL 통합 53건·규칙·민감자료 검사를 모두 통과했다. 합성 production 후보의 HTTPS 사용자 흐름 8건과 OCR 검수 흐름 3건도 실패·skip 없이 통과했다. 실제 도메인·공인 TLS·Cloudflare 외부 설정·secret manager 키 회전, 운영 DB 보유기간 삭제, 운영 PostgreSQL 쿼리 지표 수집, 규칙별 사람 승인은 별도 운영 전환 항목이다. 이 보류는 Phase 10 개발·비운영 준비의 실패가 아니며 외부 서비스나 실제 게시 상태를 자동 변경하지 않는다.
+최신 `make check`는 정적 검사·단위 242건·PostgreSQL 통합 53건·규칙·민감자료 검사를 모두 통과했다. 합성 production 후보의 HTTPS 사용자 흐름 8건과 OCR 검수 흐름 3건에 더해 실제 공인 HTTPS 경로의 관리자 smoke 3건도 실패·skip 없이 통과했다. live 데이터베이스는 신규 격리 volume의 빈 스키마에 migration `head`만 적용했으며 공식 대학 규칙이나 실제 학생 자료를 자동 게시·반입하지 않았다. secret manager 키 회전, 공식 보유기간에 따른 삭제, PostgreSQL 쿼리 지표, 백업·복구, 규칙별 사람 승인은 운영 안정화 게이트로 계속 관리한다.

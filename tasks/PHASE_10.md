@@ -102,3 +102,14 @@
 Phase 9는 OpenAI 비식별 실호출, 세 공급자 합성 HTTP 계약, BYOK 암호화와 교사 확정 경계를 통과했다. Gemini·Anthropic 유료 실키 호출은 사용자 방침에 따라 완료 조건에서 제외했으며 실제 연결 성공을 주장하지 않는다.
 
 Phase 10은 대학 후보 근거 분류, 버전 교체 영향도, 알파·베타·합성 production 후보, PostgreSQL 통합, HTTPS E2E, 비운영 보안·삭제 준비까지 통과해 `PASS_NONPROD`로 종료한다. 실제 도메인·공인 TLS·secret manager·운영 DB 정책·최종 모집요강 사람 승인·운영 변경창은 저장소 개발 Phase가 아닌 별도 운영 전환 게이트로 유지한다.
+
+## 실제 서비스 기반 부트스트랩
+
+- [x] live 전용 PostgreSQL·업로드 volume을 기존 합성 환경과 분리
+- [x] 호스트 계정 UID/GID로 비root 웹 컨테이너를 실행하고 `0600` secret 읽기 확인
+- [x] 네트워크 없는 최소 capability 초기화 컨테이너로 업로드 volume 권한 `0700` 적용
+- [x] Alembic `head`, Gunicorn health, loopback 원본 포트 확인
+- [x] 호스트 Nginx·Cloudflare 공인 HTTPS health와 HSTS 등 보안 헤더 확인
+- [x] 실제 HTTPS 관리자 smoke Playwright 3건 통과
+
+실제 서비스 기반의 빈 DB 부트스트랩은 `PASS_LIVE_BOOTSTRAP`이다. 이는 서버 경로가 정상이라는 판정이며, 공식 대학 규칙의 사람 승인·게시나 학생 실데이터 반입을 뜻하지 않는다. 키 회전, 보유기간 삭제, PostgreSQL 관찰 지표와 백업·복구는 운영 안정화 게이트에서 별도로 수행한다.
