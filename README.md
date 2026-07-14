@@ -28,6 +28,10 @@ docker compose up --build
 
 브라우저에서 `http://127.0.0.1:5000`을 열고, 상태 확인은 `http://127.0.0.1:5000/health`를 사용합니다.
 
+내부 알파는 운영 구성과 분리된 `docker-compose.alpha.yml`을 사용합니다. Git 제외 `.env.alpha`를 준비한 뒤 `make alpha-up`, `make alpha-check`로 시작·검증합니다. 상세 절차는 [내부 알파 컨테이너](docs/ALPHA_ENVIRONMENT.md)를 참고합니다.
+
+내부 베타는 Gunicorn WSGI와 별도 PostgreSQL을 사용하는 `docker-compose.beta.yml`로 다시 격리합니다. 알파 게이트 통과 후에만 [내부 베타 컨테이너](docs/BETA_ENVIRONMENT.md)의 절차를 수행합니다.
+
 ## 검증
 
 ```bash

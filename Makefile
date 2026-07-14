@@ -1,8 +1,12 @@
 PYTHON := uv run
 TEST_DATABASE_URL := postgresql+psycopg://admission_test:test-only-password@127.0.0.1:$${TEST_POSTGRES_PORT:-55432}/admission_test
 COMPOSE_TEST_ENV := SECRET_KEY=test-only-secret DATABASE_URL=$(TEST_DATABASE_URL) POSTGRES_PASSWORD=test-only-password
+ALPHA_ENV_FILE ?= .env.alpha
+ALPHA_WEB_PORT ?= 5001
+BETA_ENV_FILE ?= .env.beta
+BETA_WEB_PORT ?= 5002
 
-.PHONY: setup test-unit test-integration test-e2e lint validate-rules check-sensitive-data check
+.PHONY: setup test-unit test-integration test-e2e lint validate-rules check-sensitive-data check alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
 
 setup:
 	uv sync --frozen
@@ -33,3 +37,54 @@ check-sensitive-data:
 	$(PYTHON) python scripts/check_sensitive_data.py
 
 check: lint test-unit test-integration validate-rules check-sensitive-data
+
+alpha-up:
+	test -f $(ALPHA_ENV_FILE)
+	docker compose -f docker-compose.alpha.yml --env-file $(ALPHA_ENV_FILE) up -d --build --wait
+
+alpha-check:
+	python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:$(ALPHA_WEB_PORT)/health', timeout=5).read()"
+	docker compose -f docker-compose.alpha.yml --env-file $(ALPHA_ENV_FILE) exec -T web-alpha uv run --no-sync flask --app wsgi db current
+
+alpha-e2e:
+	@test -n "$(ALPHA_ADMIN_USERNAME)" && test -n "$(ALPHA_ADMIN_PASSWORD)"
+	@ADMIN_URL=http://127.0.0.1:$(ALPHA_WEB_PORT) ADMIN_USERNAME="$(ALPHA_ADMIN_USERNAME)" ADMIN_PASSWORD="$(ALPHA_ADMIN_PASSWORD)" SCREENSHOT_DIR=/tmp npm run test:e2e -- e2e/admin.spec.js
+
+alpha-e2e-full:
+	@test -n "$(ALPHA_ADMIN_USERNAME)" && test -n "$(ALPHA_ADMIN_PASSWORD)"
+	@ADMIN_URL=http://127.0.0.1:$(ALPHA_WEB_PORT) ADMIN_USERNAME="$(ALPHA_ADMIN_USERNAME)" ADMIN_PASSWORD="$(ALPHA_ADMIN_PASSWORD)" SCREENSHOT_DIR=/tmp npm run test:e2e
+
+alpha-status:
+	docker compose -f docker-compose.alpha.yml --env-file $(ALPHA_ENV_FILE) ps
+
+alpha-logs:
+	docker compose -f docker-compose.alpha.yml --env-file $(ALPHA_ENV_FILE) logs --tail=200 web-alpha db-alpha
+
+alpha-down:
+	docker compose -f docker-compose.alpha.yml --env-file $(ALPHA_ENV_FILE) stop web-alpha db-alpha
+
+beta-up:
+	test -f $(BETA_ENV_FILE)
+	docker compose -f docker-compose.beta.yml --env-file $(BETA_ENV_FILE) up -d --build --wait
+
+beta-check:
+	python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:$(BETA_WEB_PORT)/health', timeout=5).read()"
+	docker compose -f docker-compose.beta.yml --env-file $(BETA_ENV_FILE) exec -T web-beta uv run --no-sync flask --app wsgi db current
+	docker compose -f docker-compose.beta.yml --env-file $(BETA_ENV_FILE) exec -T web-beta gunicorn --version
+
+beta-e2e:
+	@test -n "$(BETA_ADMIN_USERNAME)" && test -n "$(BETA_ADMIN_PASSWORD)"
+	@ADMIN_URL=http://127.0.0.1:$(BETA_WEB_PORT) ADMIN_USERNAME="$(BETA_ADMIN_USERNAME)" ADMIN_PASSWORD="$(BETA_ADMIN_PASSWORD)" SCREENSHOT_DIR=/tmp npm run test:e2e -- e2e/admin.spec.js
+
+beta-e2e-full:
+	@test -n "$(BETA_ADMIN_USERNAME)" && test -n "$(BETA_ADMIN_PASSWORD)"
+	@ADMIN_URL=http://127.0.0.1:$(BETA_WEB_PORT) ADMIN_USERNAME="$(BETA_ADMIN_USERNAME)" ADMIN_PASSWORD="$(BETA_ADMIN_PASSWORD)" SCREENSHOT_DIR=/tmp npm run test:e2e
+
+beta-status:
+	docker compose -f docker-compose.beta.yml --env-file $(BETA_ENV_FILE) ps
+
+beta-logs:
+	docker compose -f docker-compose.beta.yml --env-file $(BETA_ENV_FILE) logs --tail=200 web-beta db-beta
+
+beta-down:
+	docker compose -f docker-compose.beta.yml --env-file $(BETA_ENV_FILE) stop web-beta db-beta

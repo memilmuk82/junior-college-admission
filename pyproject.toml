@@ -10,6 +10,7 @@ dependencies = [
     "flask>=3.1,<4",
     "flask-migrate>=4,<5",
     "flask-sqlalchemy>=3.1,<4",
+    "gunicorn>=23,<24",
     "openpyxl>=3.1,<4",
     "pillow>=11,<13",
     "psycopg[binary]>=3.2,<4",

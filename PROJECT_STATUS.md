@@ -3,8 +3,8 @@
 - 기준일: 2026-07-14
 - 현재 단계: Phase 10 대상 대학 확대·운영
 - 단계 판정: IN_PROGRESS
-- 현재 작업: 운영 백업·복구 기반과 대학 확대 게이트 정의
-- 다음 게이트: 백업·복구 리허설, 성능 기준선, 대학 5곳 배치 후보 점검
+- 현재 작업: 내부 알파·베타 컨테이너 인수 검증 완료
+- 다음 게이트: 실제 서비스 reverse proxy·TLS·secret manager·운영 정책·공식 자료 승인
 
 ## 저장소 인벤토리
 
@@ -179,6 +179,13 @@
 - [x] 합성 회귀 실행시간 기준선 기록 (운영 쿼리 관찰 지표는 후속)
 - [x] 합성 BYOK 보안 테스트 및 리허설 절차 문서화 (실제 운영 회전·삭제는 보류)
 - [x] 합성 데이터 교사 검토 흐름 테스트
+- [x] 독립 알파 앱·PostgreSQL 컨테이너 기동, migration `head`, healthcheck
+- [x] 알파 관리자 Playwright smoke 3건 통과
+- [x] 합성 상담 seed 기반 알파 컨테이너 Playwright 8건 통과(검수 세션 전용 3건 skip)
+- [x] OpenAI 키 인증과 비식별 `gpt-4.1-mini` 구조화 응답 알파 smoke
+- [x] 독립 베타 Gunicorn·PostgreSQL 컨테이너와 migration·healthcheck
+- [x] 베타 상담·BYOK·A4 Playwright 8건과 업로드 검수 Playwright 3건 통과
+- [x] 베타 env-file 해시 보존과 합성 DB 저장 흐름 검증
 - [ ] Phase 10 최종 게이트
 
 최신 `make check`는 정적 검사·단위 217건·PostgreSQL 통합 52건·규칙·민감자료 검사를 모두 통과했다. 실제 운영 secret manager 키 회전, 운영 DB 보유기간 삭제, 운영 PostgreSQL 쿼리 지표 수집은 운영 권한·변경창이 필요한 보류 항목이며, 공식 모집요강 교차검증이 끝나기 전에는 버전 교체나 게시를 수행하지 않는다.

@@ -46,6 +46,28 @@
 
 `비운영 준비 완료 — 운영 전환 별도 보류`로 종료한다. 운영 키 회전·운영 데이터 삭제·운영 PostgreSQL 설정 변경·실제 모집요강 게시·운영 배포는 향후 운영 전환 Phase로 이관하며 현재 Phase에서 실행하지 않는다.
 
+## 내부 알파 컨테이너
+
+- [x] 운영 Compose와 분리된 알파 앱·PostgreSQL 프로젝트 구성
+- [x] 알파 DB·업로드 named volume과 loopback 앱 포트 분리
+- [x] 시작 시 Alembic `head` 적용과 앱·DB healthcheck
+- [x] 빈 DB 관리자 Playwright smoke 3건 통과
+- [x] 전체 정적·단위 217건·PostgreSQL 통합 52건·규칙·민감자료 검사 통과
+- [x] 합성 상담 seed 기반 알파 컨테이너 Playwright 8건 통과(업로드 검수 세션 전용 3건은 별도 skip)
+- [x] 비식별 OpenAI 알파 smoke(`gpt-4.1-mini`)와 키 인증 통과
+
+내부 알파 인프라와 합성 기능 인수는 `PASS`다. `gpt-5-mini`는 15초 응답 제한을 초과했으므로 알파에서는 검증된 `gpt-4.1-mini`를 사용한다. 베타 전환 전 별도 업로드 검수 세션 E2E와 WSGI·secret manager 등 베타 배포 조건을 확인한다.
+
+## 내부 베타 컨테이너
+
+- [x] 알파와 분리된 베타 Gunicorn 앱·PostgreSQL 프로젝트 구성
+- [x] 베타 시작 시 Alembic `head`, HTTP health, Gunicorn 23 확인
+- [x] 합성 상담·BYOK·학생/교사 A4 Playwright 8건 통과
+- [x] 합성 OCR 업로드 검수 데스크톱·모바일·무JavaScript Playwright 3건 통과
+- [x] env-file의 Werkzeug 해시 `$` 보존 절차 검증
+
+내부 베타 인수는 총 Playwright 11건 실패·skip 0으로 `PASS`다. 실제 서비스 전환은 reverse proxy·TLS, 운영 secret manager, 보유기간·백업·복구 정책, 최종 모집요강 사람 승인과 운영 변경창이 확인될 때까지 별도 보류한다.
+
 ## 게이트
 
 Phase 9에서 OpenAI smoke는 통과했으나 Gemini·Anthropic 키가 없어 전체 게이트는 `BLOCKED_SOURCE`다. 사용자가 Phase 10 시작을 승인했으므로 Phase 10의 문서·로컬 운영 기반 작업을 먼저 진행하며, 외부 키가 필요한 Phase 9 항목은 병렬 보류한다.
