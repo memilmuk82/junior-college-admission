@@ -1,10 +1,10 @@
 # 프로젝트 상태
 
-- 기준일: 2026-07-14
-- 현재 단계: Phase 10 완료 후 실제 서비스 기반 부트스트랩
-- 단계 판정: PASS_LIVE_BOOTSTRAP
-- 현재 작업: 공인 HTTPS 경로·격리 PostgreSQL·Gunicorn 원본 기동과 관리자 smoke 완료
-- 다음 게이트: 운영 안정화 — 백업·관찰·사람 승인된 공식 규칙 게시
+- 기준일: 2026-07-15
+- 현재 단계: Phase 10 게시 전 canonical 규칙·골든 테스트 증거 게이트
+- 단계 판정: `PASS_NONPROD_CANONICAL_GATE` — 정적·단위·PostgreSQL 통합·migration drift·격리 복원·합성 알파 브라우저 회귀 통과
+- 현재 작업: canonical 대학·캠퍼스 code와 검증된 골든 artifact·계약 버전의 DB/서비스/관리자 fail-closed 결속 완료
+- 다음 게이트: 기존 legacy 참조 0건 사전 확인, trusted runner attestation과 공식 canonical registry·사람 승인 후 실제 규칙 게시 별도 진행
 
 ## 저장소 인벤토리
 
@@ -203,5 +203,21 @@
 - [x] 웹 컨테이너 비root 실행, `0600` secret 읽기 및 `0700` 업로드 볼륨 권한 확인
 - [x] 원본 포트 `127.0.0.1:8000`, 호스트 Nginx·Cloudflare 공인 HTTPS health 및 보안 헤더 확인
 - [x] 실제 HTTPS 관리자 로그인·CSV 오류 처리·모바일·무JavaScript Playwright 3건 통과
+- [x] live custom-format 백업·SHA-256·archive 목차 검증
+- [x] live network·volume·secret과 분리된 network-none/tmpfs PostgreSQL 복원 검증
+- [x] 복원 DB Alembic `e51f0b24c8aa`와 공개 스키마 35개 테이블 확인
+- [x] 쿼리 원문·bind 값 없는 PostgreSQL 17 읽기 전용 집계 기준선 수집
+- [x] 규칙의 전체 감사 생명주기·시각 순서와 동일 검수 ID 재검증
+- [x] payload와 규칙·전형·citation·문서·승인 페이지·파일 hash의 계약 digest 결속
+- [x] 승인 페이지·제한형 DSL·독립 `RuleReview`의 승인·게시·실행 시 재검증 구현
+- [x] archive basename·원본 migration·`TABLE DATA` 수를 결속한 checksum·manifest 구현
+- [x] 신규 head PostgreSQL 통합·migration drift·합성 sentinel 격리 복원 재검증
+- [x] `Institution`·`Campus` canonical code와 ScoreRule 업무키 일치 검증
+- [x] 독립 검수·payload·계약 버전·합성 suite·case 집계에 결속된 골든 artifact 저장
+- [x] 8개 규칙 테이블의 `(golden_test_ref, rule_id, golden_test_rule_type)` 3열 FK·고정 유형 CHECK와 삭제 `RESTRICT`
+- [x] 관리자 TESTED 자유 입력 제거 및 유효한 PASSED artifact 선택
+- [x] legacy 임의 참조 upgrade·증거 포함 downgrade의 데이터 손실 차단
 
-최신 `make check`는 정적 검사·단위 242건·PostgreSQL 통합 53건·규칙·민감자료 검사를 모두 통과했다. 합성 production 후보의 HTTPS 사용자 흐름 8건과 OCR 검수 흐름 3건에 더해 실제 공인 HTTPS 경로의 관리자 smoke 3건도 실패·skip 없이 통과했다. live 데이터베이스는 신규 격리 volume의 빈 스키마에 migration `head`만 적용했으며 공식 대학 규칙이나 실제 학생 자료를 자동 게시·반입하지 않았다. secret manager 키 회전, 공식 보유기간에 따른 삭제, PostgreSQL 쿼리 지표, 백업·복구, 규칙별 사람 승인은 운영 안정화 게이트로 계속 관리한다.
+직전 배포 기준선은 정적 검사·단위 248건·PostgreSQL 통합 53건·규칙·민감자료 검사와 실제 공인 HTTPS 관리자 smoke 3건을 통과했다. live DB와 기존 백업의 migration은 `e51f0b24c8aa`이며, 현재 작업 트리의 신규 head `0d9f4a7c2b11`과 규칙 검수 코드는 아직 배포하지 않았다.
+
+현재 작업 트리는 최종 `make check`에서 정적 검사·mypy·단위 254건·PostgreSQL 통합 78건·규칙·민감자료 검사와 UUID sentinel custom-format 백업·network-none 격리 복원을 통과했다. 합성 secret과 독립 port·network·volume만 사용한 일회성 알파 image도 migration head `0d9f4a7c2b11`로 기동해 관리자 SSR·모바일·무JavaScript Playwright 3건을 통과했으며 컨테이너·network·volume과 임시 env를 제거했다. 기존 검수 digest·계약 버전과 임의 `golden_test_ref`는 자동 보정하지 않고 migration/실행 모두 fail-closed로 처리한다. 현재 변경은 `PASS_NONPROD_CANONICAL_GATE`이며 live DB와 기존 배포에는 적용하지 않았다. 실제 artifact 생산자는 아직 서명된 CI attestation 또는 허용 suite registry로 인증되지 않았으므로 실제 대학 규칙 게시 전 별도 게이트로 남긴다. 이전 live archive는 새 manifest 계약 이전 형식이므로 보존하되 새 검증 통과 증거로 재사용하지 않는다. 공식 대학 규칙 게시 수는 계속 0건이며 AI는 `HUMAN_APPROVED` 또는 게시 상태를 설정하지 않는다.

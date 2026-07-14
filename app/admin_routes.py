@@ -19,7 +19,8 @@ from flask import (
     session,
     url_for,
 )
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash
 
@@ -28,6 +29,9 @@ from app.models import (
     AdmissionTrack,
     AiConsultationDraft,
     AiProviderCredential,
+    RuleAuditEvent,
+    RuleGoldenTestArtifact,
+    RuleReview,
     RuleVersionLineage,
     ScoreRule,
     SourceCitation,
@@ -54,13 +58,22 @@ from app.services.consultations import (
     run_consultation,
 )
 from app.services.rule_admin import (
+    RULE_CONTRACT_SCHEMA_VERSION,
     HumanApproval,
     RuleAdministrationError,
+    RuleExtractionEvidence,
+    RuleTestEvidence,
+    RuleVerificationEvidence,
     clone_published_rule_as_draft,
     compare_rule_payloads,
     human_approve_tested_rule,
+    mark_rule_extracted,
+    mark_rule_tested,
     publish_human_approved_rule,
+    rule_contract_digest,
     rule_model_for_type,
+    rule_payload_digest,
+    verify_extracted_rule,
 )
 from app.services.score_rule_csv_drafts import (
     ScoreRuleDraftPersistenceError,
@@ -737,6 +750,72 @@ def _render_rule_detail(
     error: str | None = None,
     status: int = 200,
 ) -> Response:
+    database_session = db.session()
+    current_contract_digest = rule_contract_digest(database_session, rule_type, rule)
+    current_payload_digest = rule_payload_digest(rule.rule_payload)
+    approved_independent_reviews = tuple(
+        database_session.scalars(
+            select(RuleReview)
+            .where(
+                RuleReview.rule_type == rule_type,
+                RuleReview.rule_id == rule.id,
+                RuleReview.review_kind == "INDEPENDENT_VERIFICATION",
+                RuleReview.review_status == "APPROVED",
+                RuleReview.reviewed_at.is_not(None),
+                RuleReview.payload_digest == current_payload_digest,
+                RuleReview.__table__.c.contract_digest == current_contract_digest,
+                RuleReview.contract_schema_version == RULE_CONTRACT_SCHEMA_VERSION,
+                RuleReview.reviewer_ref != _actor_ref(),
+            )
+            .order_by(RuleReview.reviewed_at, RuleReview.id)
+        )
+    )
+    verified_event = database_session.scalar(
+        select(RuleAuditEvent)
+        .where(
+            RuleAuditEvent.rule_type == rule_type,
+            RuleAuditEvent.rule_id == rule.id,
+            RuleAuditEvent.action == "VERIFIED",
+        )
+        .order_by(
+            RuleAuditEvent.occurred_at.desc(),
+            RuleAuditEvent.created_at.desc(),
+            RuleAuditEvent.id.desc(),
+        )
+        .limit(1)
+    )
+    verified_review_id = None
+    if (
+        verified_event is not None
+        and verified_event.after_payload_digest == current_payload_digest
+        and verified_event.details.get("contract_digest") == current_contract_digest
+    ):
+        candidate_review_id = verified_event.details.get("independent_review_id")
+        approved_review_ids = {review.id for review in approved_independent_reviews}
+        if isinstance(candidate_review_id, str) and candidate_review_id in approved_review_ids:
+            verified_review_id = candidate_review_id
+    passed_golden_artifacts: tuple[RuleGoldenTestArtifact, ...] = ()
+    if verified_review_id is not None:
+        passed_golden_artifacts = tuple(
+            database_session.scalars(
+                select(RuleGoldenTestArtifact)
+                .where(
+                    RuleGoldenTestArtifact.rule_type == rule_type,
+                    RuleGoldenTestArtifact.rule_id == rule.id,
+                    RuleGoldenTestArtifact.independent_review_id == verified_review_id,
+                    RuleGoldenTestArtifact.result_status == "PASSED",
+                    func.length(func.btrim(RuleGoldenTestArtifact.suite_ref)) > 0,
+                    RuleGoldenTestArtifact.payload_digest == current_payload_digest,
+                    RuleGoldenTestArtifact.contract_digest == current_contract_digest,
+                    RuleGoldenTestArtifact.contract_schema_version == RULE_CONTRACT_SCHEMA_VERSION,
+                    RuleGoldenTestArtifact.executed_at <= datetime.now(UTC),
+                )
+                .order_by(
+                    RuleGoldenTestArtifact.executed_at.desc(),
+                    RuleGoldenTestArtifact.id.desc(),
+                )
+            )
+        )
     return _private(
         render_template(
             "admin_rule_detail.html",
@@ -748,6 +827,9 @@ def _render_rule_detail(
             error=error,
             csrf_token=_csrf_token(),
             actor_ref=_actor_ref(),
+            approved_independent_reviews=approved_independent_reviews,
+            passed_golden_artifacts=passed_golden_artifacts,
+            tested_independent_review_id=verified_review_id,
         ),
         status,
     )
@@ -798,6 +880,78 @@ def approve_rule(rule_type: str, rule_id: str) -> Any:
     return redirect(url_for("admin.rule_detail", rule_type=rule_type, rule_id=rule_id))
 
 
+@bp.post("/rules/<rule_type>/<rule_id>/extract")
+@admin_required
+def extract_rule(rule_type: str, rule_id: str) -> Any:
+    _require_csrf()
+    try:
+        mark_rule_extracted(
+            cast(Session, db.session),
+            rule_type=rule_type,
+            rule_id=rule_id,
+            evidence=RuleExtractionEvidence(
+                actor_ref=_actor_ref(),
+                extracted_at=datetime.now(UTC),
+                confirmation=request.form.get("confirmation", ""),
+            ),
+        )
+        db.session.commit()
+    except RuleAdministrationError as error:
+        db.session.rollback()
+        rule, previous, changes = _rule_detail(rule_type, rule_id)
+        return _render_rule_detail(rule_type, rule, previous, changes, error=str(error), status=400)
+    return redirect(url_for("admin.rule_detail", rule_type=rule_type, rule_id=rule_id))
+
+
+@bp.post("/rules/<rule_type>/<rule_id>/verify")
+@admin_required
+def verify_rule(rule_type: str, rule_id: str) -> Any:
+    _require_csrf()
+    try:
+        verify_extracted_rule(
+            cast(Session, db.session),
+            rule_type=rule_type,
+            rule_id=rule_id,
+            evidence=RuleVerificationEvidence(
+                actor_ref=_actor_ref(),
+                verified_at=datetime.now(UTC),
+                confirmation=request.form.get("confirmation", ""),
+                independent_review_id=request.form.get("independent_review_id", ""),
+            ),
+        )
+        db.session.commit()
+    except RuleAdministrationError as error:
+        db.session.rollback()
+        rule, previous, changes = _rule_detail(rule_type, rule_id)
+        return _render_rule_detail(rule_type, rule, previous, changes, error=str(error), status=400)
+    return redirect(url_for("admin.rule_detail", rule_type=rule_type, rule_id=rule_id))
+
+
+@bp.post("/rules/<rule_type>/<rule_id>/test")
+@admin_required
+def test_rule(rule_type: str, rule_id: str) -> Any:
+    _require_csrf()
+    try:
+        mark_rule_tested(
+            cast(Session, db.session),
+            rule_type=rule_type,
+            rule_id=rule_id,
+            evidence=RuleTestEvidence(
+                actor_ref=_actor_ref(),
+                tested_at=datetime.now(UTC),
+                confirmation=request.form.get("confirmation", ""),
+                golden_test_ref=request.form.get("golden_test_ref", ""),
+                independent_review_id=request.form.get("independent_review_id", ""),
+            ),
+        )
+        db.session.commit()
+    except RuleAdministrationError as error:
+        db.session.rollback()
+        rule, previous, changes = _rule_detail(rule_type, rule_id)
+        return _render_rule_detail(rule_type, rule, previous, changes, error=str(error), status=400)
+    return redirect(url_for("admin.rule_detail", rule_type=rule_type, rule_id=rule_id))
+
+
 @bp.post("/rules/<rule_type>/<rule_id>/publish")
 @admin_required
 def publish_rule(rule_type: str, rule_id: str) -> Any:
@@ -815,4 +969,15 @@ def publish_rule(rule_type: str, rule_id: str) -> Any:
         db.session.rollback()
         rule, previous, changes = _rule_detail(rule_type, rule_id)
         return _render_rule_detail(rule_type, rule, previous, changes, error=str(error), status=400)
+    except IntegrityError:
+        db.session.rollback()
+        rule, previous, changes = _rule_detail(rule_type, rule_id)
+        return _render_rule_detail(
+            rule_type,
+            rule,
+            previous,
+            changes,
+            error="동시에 다른 규칙이 게시되었습니다. 현재 상태를 다시 확인하세요.",
+            status=409,
+        )
     return redirect(url_for("admin.rule_detail", rule_type=rule_type, rule_id=rule_id))

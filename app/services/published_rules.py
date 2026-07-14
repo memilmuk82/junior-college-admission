@@ -21,6 +21,7 @@ from app.services.eligibility import (
     StudentFacts,
     evaluate_eligibility,
 )
+from app.services.rule_admin import RuleAdministrationError, validate_rule_execution_contract
 
 
 class PublishedRuleError(LookupError):
@@ -55,7 +56,7 @@ def load_published_eligibility_rule(session: Session, admission_track_id: str) -
             AdmissionEligibilityRule.lifecycle_status == "PUBLISHED",
         )
     ).all()
-    return _exactly_one(rows, admission_track_id, "지원자격")
+    return _exactly_one(session, rows, admission_track_id, "지원자격")
 
 
 def load_published_multiple_application_rule(
@@ -67,7 +68,7 @@ def load_published_multiple_application_rule(
             MultipleApplicationRule.lifecycle_status == "PUBLISHED",
         )
     ).all()
-    return _exactly_one(rows, admission_track_id, "복수지원")
+    return _exactly_one(session, rows, admission_track_id, "복수지원")
 
 
 def load_published_disqualification_rule(
@@ -79,7 +80,7 @@ def load_published_disqualification_rule(
             DisqualificationRule.lifecycle_status == "PUBLISHED",
         )
     ).all()
-    return _exactly_one(rows, admission_track_id, "결격")
+    return _exactly_one(session, rows, admission_track_id, "결격")
 
 
 def load_published_grade_source_scope_rule(
@@ -91,7 +92,7 @@ def load_published_grade_source_scope_rule(
             GradeSourceScopeRule.lifecycle_status == "PUBLISHED",
         )
     ).all()
-    return _exactly_one(rows, admission_track_id, "성적 출처 범위")
+    return _exactly_one(session, rows, admission_track_id, "성적 출처 범위")
 
 
 def load_published_score_rule(session: Session, admission_track_id: str) -> PublishedRule:
@@ -101,7 +102,7 @@ def load_published_score_rule(session: Session, admission_track_id: str) -> Publ
             ScoreRule.lifecycle_status == "PUBLISHED",
         )
     ).all()
-    return _exactly_one(rows, admission_track_id, "성적 계산")
+    return _exactly_one(session, rows, admission_track_id, "성적 계산")
 
 
 def evaluate_published_eligibility(
@@ -141,6 +142,7 @@ def require_published_rule_usable(rule: PublishedRule) -> None:
 
 
 def _exactly_one(
+    session: Session,
     rows: Sequence[
         AdmissionEligibilityRule
         | MultipleApplicationRule
@@ -162,6 +164,14 @@ def _exactly_one(
     row = rows[0]
     if row.admission_track_id is None:
         raise PublishedRuleError("전형이 연결되지 않은 규칙은 실행할 수 없습니다.")
+    try:
+        validate_rule_execution_contract(
+            session,
+            rule_type=_rule_type_for_row(row),
+            rule=row,
+        )
+    except RuleAdministrationError as error:
+        raise PublishedRuleError("게시 규칙의 무결성 검증에 실패했습니다.") from error
     rule = PublishedRule(
         rule_id=row.id,
         admission_track_id=row.admission_track_id,
@@ -175,6 +185,26 @@ def _exactly_one(
     )
     require_published_rule_usable(rule)
     return rule
+
+
+def _rule_type_for_row(
+    row: AdmissionEligibilityRule
+    | MultipleApplicationRule
+    | DisqualificationRule
+    | GradeSourceScopeRule
+    | ScoreRule,
+) -> str:
+    if isinstance(row, AdmissionEligibilityRule):
+        return "ADMISSION_ELIGIBILITY_RULE"
+    if isinstance(row, MultipleApplicationRule):
+        return "MULTIPLE_APPLICATION_RULE"
+    if isinstance(row, DisqualificationRule):
+        return "DISQUALIFICATION_RULE"
+    if isinstance(row, GradeSourceScopeRule):
+        return "GRADE_SOURCE_SCOPE_RULE"
+    if isinstance(row, ScoreRule):
+        return "SCORE_RULE"
+    raise PublishedRuleError("지원하지 않는 게시 규칙 유형입니다.")
 
 
 __all__ = [

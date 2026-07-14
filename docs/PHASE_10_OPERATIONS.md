@@ -8,7 +8,26 @@
 BACKUP_DIR=backups ./scripts/backup_postgres.sh
 ```
 
-스크립트는 `umask 077`을 적용하고 임시 dump를 만든 뒤 파일 크기를 확인해 원자적으로 이동한다. 실패하면 임시파일을 삭제하며, `backups/`는 Git과 Docker build context에서 제외된다.
+스크립트는 `umask 077`을 적용하고 임시 dump를 만든 뒤 파일 크기를 확인한다. hard-link 기반 no-clobber 게시로 같은 이름의 기존 archive를 덮어쓰지 않으며 실패하면 이번 실행이 만든 파일과 임시파일만 삭제한다. SHA-256 sidecar와 manifest는 정확한 archive basename에 결속한다. manifest에는 비밀값이나 행 원문 없이 원본 DB의 Alembic head와 archive의 `TABLE DATA` 항목 수만 기록한다. `backups/`는 Git과 Docker build context에서 제외된다.
+
+host Nginx live 프로젝트는 다음 전용 명령을 사용한다. 백업은 PostgreSQL의 일관된 `pg_dump --format=custom` 읽기만 수행하며 데이터베이스를 변경하지 않는다.
+
+```bash
+PRODUCTION_ENV_FILE=.env.production make production-origin-backup
+BACKUP_FILE=backups/production/admission_YYYYMMDD_HHMMSS_PID.dump \
+  PRODUCTION_ENV_FILE=.env.production make production-origin-backup-verify
+```
+
+두 번째 명령은 checksum·manifest·archive basename 결속을 먼저 확인하고 실행 중인 PostgreSQL 컨테이너의 `pg_restore --list`로 archive를 판독할 뿐 restore를 실행하지 않는다. 실제 복구는 live DB가 아닌 격리 DB와 별도 volume에서만 수행한다.
+
+archive 사전 검증 뒤 실제 복원 가능성은 다음 명령으로 리허설한다.
+
+```bash
+BACKUP_FILE=backups/production/admission_YYYYMMDD_HHMMSS_PID.dump \
+  make production-origin-restore-verify
+```
+
+이 명령은 live Compose·network·volume·secret을 사용하지 않는다. 포트를 열지 않고 `--network none`과 일회성 tmpfs 데이터 디렉터리를 사용하는 PostgreSQL 17 컨테이너에 `--no-owner --no-privileges --exit-on-error`로 복원한다. 복원 DB의 `alembic_version`은 작업 트리 head가 아니라 manifest에 기록된 백업 원본 head와 먼저 비교한다. 작업 트리 head 일치는 배포 호환성용 별도 엄격 게이트로 선택할 수 있다. archive 목록의 `TABLE DATA` 수와 복원된 public table 수를 확인하며 통합 테스트에서는 실행마다 새 UUID·이름·유형을 가진 합성 sentinel 행도 확인한 뒤 컨테이너를 항상 제거한다. Docker 실행·준비 확인·cleanup에는 timeout을 적용한다. 기본 tmpfs는 512MB이며 예상 복원 크기가 더 크면 검토 후 `RESTORE_TMPFS_SIZE_MB`를 명시한다. archive·SHA-256·manifest는 권한 `0600`, 백업 디렉터리는 `0700`으로 유지한다. 백업은 암호화 저장소로 이전하기 전까지 호스트 밖으로 복사하지 않으며, 보유기간 정책 없이 자동 삭제하지 않는다.
 
 ## 복구 리허설
 
@@ -84,3 +103,12 @@ BACKUP_DIR=backups ./scripts/backup_postgres.sh
 실제 운영 secret manager, 실제 공급자 키, 운영 DB에 대한 회전·삭제는 이 저장소에서 수행하지 않는다. 운영 실행 시에는 승인된 변경창, 백업, 복구 검증, 감사 로그를 함께 남긴다.
 
 운영 PostgreSQL 관찰 지표는 `query latency p50/p95/p99`, 느린 쿼리 수·상위 fingerprint, 커넥션 풀 사용률·대기, 오류율을 수집 대상으로 확정한다. 현재 저장소에서는 테스트 DB와 합성 회귀 시간만 검증했으며 운영 수집기는 배포 환경 작업으로 보류한다.
+
+재시작 없이 즉시 확인 가능한 집계 기준선은 다음 명령으로 수집한다.
+
+```bash
+PRODUCTION_ENV_FILE=.env.production METRICS_DB_USER=admission_monitor \
+  make production-origin-metrics
+```
+
+조회는 사용자 `psqlrc`를 무시하는 `psql -X`와 명시적인 `READ ONLY` 트랜잭션에서 DB 크기, 연결 상태별 건수, commit/rollback, block hit/read, 임시 파일, deadlock, 해당 DB의 대기 lock, 전체 사용자 테이블, I/O·WAL·checkpointer 집계를 출력한다. 쿼리 원문과 bind 값은 출력하지 않는다. `io_tracking`은 I/O 시간 측정 설정의 현재 상태다. preload와 extension이 모두 활성화된 경우에만 query text 대신 `queryid`별 호출 수·총/평균 실행시간·반환 행·shared block read·temp block과 통계 reset 시각을 추가 수집한다. 둘 중 하나라도 거짓이면 이 구간을 건너뛰며, 설정 변경과 PostgreSQL 재시작은 별도 변경창에서 승인받아야 한다. production Make target은 `METRICS_DB_USER`가 없으면 실행을 거부한다. 실제 운영에서는 원문 테이블 권한이 없고 필요한 통계 view만 읽는 최소권한 모니터 역할을 먼저 준비한다. `pg_stat_statements` 자체는 p50/p95/p99를 제공하지 않으므로 percentile은 애플리케이션 histogram이나 별도 시계열 수집기로 산출한다. 통계 reset도 기준선을 파괴하므로 별도 승인 없이는 실행하지 않는다.

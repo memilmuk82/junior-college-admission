@@ -11,6 +11,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
@@ -40,17 +41,33 @@ class TimestampMixin:
 
 class Institution(TimestampMixin, Base):
     __tablename__ = "institutions"
+    __table_args__ = (
+        UniqueConstraint("code"),
+        CheckConstraint(
+            "code IS NULL OR (code = btrim(code) AND char_length(code) > 0)",
+            name="code_valid",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    code: Mapped[str | None] = mapped_column(String(80))
     name: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
     institution_type: Mapped[str] = mapped_column(String(40), nullable=False)
 
 
 class Campus(TimestampMixin, Base):
     __tablename__ = "campuses"
-    __table_args__ = (UniqueConstraint("institution_id", "name"),)
+    __table_args__ = (
+        UniqueConstraint("institution_id", "name"),
+        UniqueConstraint("institution_id", "code", name="uq_campuses_institution_id_code"),
+        CheckConstraint(
+            "code IS NULL OR (code = btrim(code) AND char_length(code) > 0)",
+            name="code_valid",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    code: Mapped[str | None] = mapped_column(String(80))
     institution_id: Mapped[str] = mapped_column(
         ForeignKey("institutions.id", ondelete="CASCADE"), nullable=False, index=True
     )
@@ -177,7 +194,27 @@ class SourceCitation(TimestampMixin, Base):
 
 class RuleReview(TimestampMixin, Base):
     __tablename__ = "rule_reviews"
-    __table_args__ = (UniqueConstraint("rule_type", "rule_id", "review_kind", "reviewer_ref"),)
+    __table_args__ = (
+        UniqueConstraint("rule_type", "rule_id", "review_kind", "reviewer_ref"),
+        UniqueConstraint(
+            "id",
+            "rule_type",
+            "rule_id",
+            name="uq_rule_reviews_id_rule_type_rule_id",
+        ),
+        CheckConstraint(
+            "payload_digest IS NULL OR char_length(payload_digest) = 64",
+            name="payload_digest_valid",
+        ),
+        CheckConstraint(
+            "contract_digest IS NULL OR char_length(contract_digest) = 64",
+            name="contract_digest_valid",
+        ),
+        CheckConstraint(
+            "contract_schema_version IS NULL OR contract_schema_version > 0",
+            name="contract_schema_version_valid",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     rule_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
@@ -186,7 +223,102 @@ class RuleReview(TimestampMixin, Base):
     review_status: Mapped[str] = mapped_column(String(30), nullable=False)
     reviewer_ref: Mapped[str] = mapped_column(String(120), nullable=False)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    payload_digest: Mapped[str | None] = mapped_column(String(64))
+    contract_digest: Mapped[str | None] = mapped_column(String(64))
+    contract_schema_version: Mapped[int | None] = mapped_column(Integer)
     notes: Mapped[str | None] = mapped_column(Text)
+
+
+class RuleGoldenTestArtifact(TimestampMixin, Base):
+    __tablename__ = "rule_golden_test_artifacts"
+    __table_args__ = (
+        UniqueConstraint("artifact_ref"),
+        UniqueConstraint(
+            "artifact_ref",
+            "rule_id",
+            name="uq_rule_golden_test_artifacts_artifact_ref_rule_id",
+        ),
+        UniqueConstraint(
+            "artifact_ref",
+            "rule_id",
+            "rule_type",
+            name="uq_rule_golden_test_artifacts_artifact_ref_rule_id_rule_type",
+        ),
+        CheckConstraint(
+            "result_status IN ('PASSED', 'FAILED')",
+            name="result_status_valid",
+        ),
+        CheckConstraint(
+            "rule_type IN ('ADMISSION_ELIGIBILITY_RULE', 'GRADE_SOURCE_SCOPE_RULE', "
+            "'SCORE_RULE', 'MULTIPLE_APPLICATION_RULE', 'DISQUALIFICATION_RULE', "
+            "'SCORE_ADJUSTMENT_RULE', 'DOCUMENT_REQUIREMENT', 'TIE_BREAK_RULE')",
+            name="rule_type_valid",
+        ),
+        CheckConstraint("artifact_digest ~ '^[0-9a-f]{64}$'", name="artifact_digest_valid"),
+        CheckConstraint("payload_digest ~ '^[0-9a-f]{64}$'", name="payload_digest_valid"),
+        CheckConstraint("contract_digest ~ '^[0-9a-f]{64}$'", name="contract_digest_valid"),
+        CheckConstraint("suite_digest ~ '^[0-9a-f]{64}$'", name="suite_digest_valid"),
+        CheckConstraint(
+            "contract_schema_version = 2",
+            name="contract_schema_version_valid",
+        ),
+        CheckConstraint(
+            "artifact_ref = btrim(artifact_ref) AND char_length(artifact_ref) > 0",
+            name="artifact_ref_present",
+        ),
+        CheckConstraint(
+            "substr(artifact_ref, 1, char_length('golden-run/' || rule_type || '/')) "
+            "= 'golden-run/' || rule_type || '/'",
+            name="artifact_ref_rule_type",
+        ),
+        CheckConstraint(
+            "suite_ref = btrim(suite_ref) AND char_length(suite_ref) > 0",
+            name="suite_ref_present",
+        ),
+        CheckConstraint(
+            "runner_ref = btrim(runner_ref) AND char_length(runner_ref) > 0",
+            name="runner_present",
+        ),
+        CheckConstraint("case_count > 0", name="case_count_positive"),
+        CheckConstraint(
+            "passed_case_count >= 0 AND failed_case_count >= 0",
+            name="case_counts_nonnegative",
+        ),
+        CheckConstraint(
+            "passed_case_count + failed_case_count = case_count",
+            name="case_counts_complete",
+        ),
+        CheckConstraint(
+            "(result_status = 'PASSED' AND failed_case_count = 0 "
+            "AND passed_case_count = case_count) OR "
+            "(result_status = 'FAILED' AND failed_case_count > 0)",
+            name="result_counts_consistent",
+        ),
+        ForeignKeyConstraint(
+            ["independent_review_id", "rule_type", "rule_id"],
+            ["rule_reviews.id", "rule_reviews.rule_type", "rule_reviews.rule_id"],
+            ondelete="RESTRICT",
+        ),
+        Index("ix_rule_golden_test_artifacts_rule_type_rule_id", "rule_type", "rule_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    rule_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    rule_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    independent_review_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    artifact_ref: Mapped[str] = mapped_column(String(240), nullable=False)
+    artifact_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    contract_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    contract_schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    suite_ref: Mapped[str] = mapped_column(String(240), nullable=False)
+    suite_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    case_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    passed_case_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    failed_case_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    runner_ref: Mapped[str] = mapped_column(String(120), nullable=False)
+    executed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class RuleVersionLineage(TimestampMixin, Base):
@@ -207,8 +339,9 @@ class RuleAuditEvent(TimestampMixin, Base):
     __tablename__ = "rule_audit_events"
     __table_args__ = (
         CheckConstraint(
-            "action IN ('DRAFT_CREATED', 'DRAFT_CLONED', 'DRAFT_UPDATED', 'HUMAN_APPROVED', "
-            "'PUBLISHED', 'SUPERSEDED', 'REJECTED')",
+            "action IN ('DRAFT_CREATED', 'DRAFT_CLONED', 'DRAFT_UPDATED', 'EXTRACTED', "
+            "'VERIFIED', 'TESTED', 'HUMAN_APPROVED', 'PUBLISHED', 'SUPERSEDED', "
+            "'REJECTED')",
             name="action_valid",
         ),
         CheckConstraint("char_length(actor_ref) > 0", name="actor_present"),
@@ -246,10 +379,19 @@ class RuleRecordMixin(TimestampMixin):
     )
     independent_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     golden_test_ref: Mapped[str | None] = mapped_column(String(240))
+    golden_test_rule_type: Mapped[str | None] = mapped_column(String(80))
     human_approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-def rule_constraints() -> tuple[CheckConstraint, CheckConstraint, UniqueConstraint]:
+def rule_constraints(
+    rule_type: str,
+) -> tuple[
+    CheckConstraint,
+    CheckConstraint,
+    CheckConstraint,
+    UniqueConstraint,
+    ForeignKeyConstraint,
+]:
     return (
         CheckConstraint(
             "lifecycle_status IN ('DRAFT', 'EXTRACTED', 'VERIFIED', 'TESTED', "
@@ -262,14 +404,31 @@ def rule_constraints() -> tuple[CheckConstraint, CheckConstraint, UniqueConstrai
             "AND golden_test_ref IS NOT NULL AND human_approved_at IS NOT NULL)",
             name="published_rule_has_evidence",
         ),
+        CheckConstraint(
+            "(golden_test_ref IS NULL AND golden_test_rule_type IS NULL) OR "
+            "(golden_test_ref IS NOT NULL AND golden_test_rule_type IS NOT NULL AND "
+            f"golden_test_rule_type = '{rule_type}' AND "
+            f"substr(golden_test_ref, 1, char_length('golden-run/{rule_type}/')) "
+            f"= 'golden-run/{rule_type}/')",
+            name="golden_test_rule_type",
+        ),
         UniqueConstraint("admission_track_id", "version"),
+        ForeignKeyConstraint(
+            ["golden_test_ref", "id", "golden_test_rule_type"],
+            [
+                "rule_golden_test_artifacts.artifact_ref",
+                "rule_golden_test_artifacts.rule_id",
+                "rule_golden_test_artifacts.rule_type",
+            ],
+            ondelete="RESTRICT",
+        ),
     )
 
 
 class AdmissionEligibilityRule(RuleRecordMixin, Base):
     __tablename__ = "admission_eligibility_rules"
     __table_args__ = (
-        *rule_constraints(),
+        *rule_constraints("ADMISSION_ELIGIBILITY_RULE"),
         Index(
             "uq_admission_eligibility_rules_one_published_per_track",
             "admission_track_id",
@@ -282,7 +441,7 @@ class AdmissionEligibilityRule(RuleRecordMixin, Base):
 class GradeSourceScopeRule(RuleRecordMixin, Base):
     __tablename__ = "grade_source_scope_rules"
     __table_args__ = (
-        *rule_constraints(),
+        *rule_constraints("GRADE_SOURCE_SCOPE_RULE"),
         Index(
             "uq_grade_source_scope_rules_one_published_per_track",
             "admission_track_id",
@@ -295,7 +454,7 @@ class GradeSourceScopeRule(RuleRecordMixin, Base):
 class ScoreRule(RuleRecordMixin, Base):
     __tablename__ = "score_rules"
     __table_args__ = (
-        *rule_constraints(),
+        *rule_constraints("SCORE_RULE"),
         CheckConstraint(
             "(admission_year IS NULL AND university_code IS NULL AND campus_code IS NULL "
             "AND admission_round IS NULL AND admission_track_code IS NULL) OR "
@@ -349,7 +508,7 @@ class ScoreRule(RuleRecordMixin, Base):
 class MultipleApplicationRule(RuleRecordMixin, Base):
     __tablename__ = "multiple_application_rules"
     __table_args__ = (
-        *rule_constraints(),
+        *rule_constraints("MULTIPLE_APPLICATION_RULE"),
         Index(
             "uq_multiple_application_rules_one_published_per_track",
             "admission_track_id",
@@ -362,7 +521,7 @@ class MultipleApplicationRule(RuleRecordMixin, Base):
 class DisqualificationRule(RuleRecordMixin, Base):
     __tablename__ = "disqualification_rules"
     __table_args__ = (
-        *rule_constraints(),
+        *rule_constraints("DISQUALIFICATION_RULE"),
         Index(
             "uq_disqualification_rules_one_published_per_track",
             "admission_track_id",
@@ -374,17 +533,17 @@ class DisqualificationRule(RuleRecordMixin, Base):
 
 class ScoreAdjustmentRule(RuleRecordMixin, Base):
     __tablename__ = "score_adjustment_rules"
-    __table_args__ = rule_constraints()
+    __table_args__ = rule_constraints("SCORE_ADJUSTMENT_RULE")
 
 
 class DocumentRequirement(RuleRecordMixin, Base):
     __tablename__ = "document_requirements"
-    __table_args__ = rule_constraints()
+    __table_args__ = rule_constraints("DOCUMENT_REQUIREMENT")
 
 
 class TieBreakRule(RuleRecordMixin, Base):
     __tablename__ = "tie_break_rules"
-    __table_args__ = rule_constraints()
+    __table_args__ = rule_constraints("TIE_BREAK_RULE")
 
 
 class AdmissionResultRawBatch(TimestampMixin, Base):
@@ -841,6 +1000,7 @@ __all__ = [
     "MultipleApplicationRule",
     "Program",
     "RuleReview",
+    "RuleGoldenTestArtifact",
     "RuleAuditEvent",
     "RuleVersionLineage",
     "ScoreAdjustmentRule",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -21,9 +22,11 @@ from app.models import (
     GradeSourceScopeRule,
     Institution,
     Program,
+    RuleReview,
     ScoreRule,
     SourceCitation,
     SourceDocument,
+    SourceDocumentPage,
     StudentAcademicRecord,
     StudentCourseRecord,
 )
@@ -37,6 +40,14 @@ from app.services.consultations import (
     run_consultation,
 )
 from app.services.eligibility import StudentFacts
+from app.services.rule_admin import (
+    RULE_CONTRACT_SCHEMA_VERSION,
+    GoldenTestRunEvidence,
+    record_golden_test_artifact,
+    record_rule_audit,
+    rule_contract_digest,
+    rule_payload_digest,
+)
 from app.services.score_rule_schema import parse_score_rule_csv, score_rule_to_payload
 from tests.test_score_rule_schema import _csv_bytes, _valid_row
 
@@ -56,10 +67,14 @@ def session(postgres_engine: Engine) -> Iterator[Session]:
 
 
 def _target(session: Session) -> tuple[AdmissionTrack, SourceCitation]:
-    institution = Institution(name="합성 상담 전문대", institution_type="JUNIOR_COLLEGE")
+    institution = Institution(
+        code="SYNTHETIC_U",
+        name="합성 상담 전문대",
+        institution_type="JUNIOR_COLLEGE",
+    )
     session.add(institution)
     session.flush()
-    campus = Campus(institution_id=institution.id, name="합성 본교")
+    campus = Campus(code="MAIN", institution_id=institution.id, name="합성 본교")
     session.add(campus)
     session.flush()
     program = Program(campus_id=campus.id, name="합성 학과")
@@ -92,8 +107,17 @@ def _target(session: Session) -> tuple[AdmissionTrack, SourceCitation]:
     )
     session.add_all([track, document])
     session.flush()
+    page = SourceDocumentPage(
+        source_document_id=document.id,
+        page_number=7,
+        detected_academic_year=2027,
+        verification_status="HUMAN_APPROVED",
+    )
+    session.add(page)
+    session.flush()
     citation = SourceCitation(
         source_document_id=document.id,
+        source_document_page_id=page.id,
         page_number=7,
         locator="합성 지원자격·성적 표",
         excerpt_digest="8" * 64,
@@ -168,16 +192,118 @@ def _score_payload() -> dict[str, object]:
     return score_rule_to_payload(parsed.rows[0])
 
 
+def _persist_published_rules(
+    session: Session,
+    rules: list[AdmissionEligibilityRule | GradeSourceScopeRule | ScoreRule],
+) -> None:
+    occurred_at = datetime(2026, 7, 13, tzinfo=UTC)
+    rule_types = {
+        AdmissionEligibilityRule: "ADMISSION_ELIGIBILITY_RULE",
+        GradeSourceScopeRule: "GRADE_SOURCE_SCOPE_RULE",
+        ScoreRule: "SCORE_RULE",
+    }
+    for rule in rules:
+        rule.lifecycle_status = "VERIFIED"
+        rule.independent_verified = True
+        rule.golden_test_ref = None
+        rule.human_approved_at = None
+        session.add(rule)
+        session.flush()
+        rule_type = rule_types[type(rule)]
+        review = RuleReview(
+            rule_type=rule_type,
+            rule_id=rule.id,
+            review_kind="INDEPENDENT_VERIFICATION",
+            review_status="APPROVED",
+            reviewer_ref="synthetic-independent-reviewer",
+            reviewed_at=occurred_at,
+            payload_digest=rule_payload_digest(rule.rule_payload),
+            contract_digest=rule_contract_digest(session, rule_type, rule),
+            contract_schema_version=RULE_CONTRACT_SCHEMA_VERSION,
+        )
+        session.add(review)
+        session.flush()
+        for action in ("EXTRACTED", "VERIFIED"):
+            details: dict[str, object] = {}
+            if action == "VERIFIED":
+                details = {
+                    "independent_review_id": review.id,
+                    "independent_reviewer_ref": review.reviewer_ref,
+                }
+            record_rule_audit(
+                session,
+                rule_type=rule_type,
+                rule=rule,
+                action=action,
+                actor_ref="synthetic-admin",
+                occurred_at=occurred_at,
+                before_payload=rule.rule_payload,
+                after_payload=rule.rule_payload,
+                details=details,
+            )
+        artifact = record_golden_test_artifact(
+            session,
+            rule_type=rule_type,
+            rule_id=rule.id,
+            evidence=GoldenTestRunEvidence(
+                runner_ref="synthetic-golden-runner",
+                executed_at=occurred_at,
+                suite_ref=f"tests/synthetic/{rule_type.lower()}-v1",
+                suite_digest=hashlib.sha256(f"{rule_type}:synthetic-suite-v1".encode()).hexdigest(),
+                independent_review_id=review.id,
+                case_count=2,
+                passed_case_count=2,
+                failed_case_count=0,
+            ),
+        )
+        rule.golden_test_ref = artifact.artifact_ref
+        rule.golden_test_rule_type = rule_type
+        rule.lifecycle_status = "PUBLISHED"
+        rule.human_approved_at = occurred_at
+        for action, details in (
+            (
+                "TESTED",
+                {
+                    "golden_test_ref": artifact.artifact_ref,
+                    "golden_artifact_id": artifact.id,
+                    "golden_artifact_digest": artifact.artifact_digest,
+                    "golden_artifact_runner_ref": artifact.runner_ref,
+                    "golden_artifact_suite_ref": artifact.suite_ref,
+                    "golden_artifact_suite_digest": artifact.suite_digest,
+                    "golden_artifact_case_count": artifact.case_count,
+                    "independent_review_id": review.id,
+                    "independent_reviewer_ref": review.reviewer_ref,
+                },
+            ),
+            ("HUMAN_APPROVED", {}),
+            ("PUBLISHED", {}),
+        ):
+            record_rule_audit(
+                session,
+                rule_type=rule_type,
+                rule=rule,
+                action=action,
+                actor_ref="synthetic-admin",
+                occurred_at=occurred_at,
+                before_payload=rule.rule_payload,
+                after_payload=rule.rule_payload,
+                details=details,
+            )
+    session.flush()
+
+
 def test_ineligible_consultation_stops_before_score_rules_and_records(session: Session) -> None:
     track, citation = _target(session)
-    session.add(
-        AdmissionEligibilityRule(
-            version="eligibility-v1",
-            rule_payload=_eligibility_payload(),
-            **_metadata(track, citation),
-        )
+    _persist_published_rules(
+        session,
+        [
+            AdmissionEligibilityRule(
+                version="eligibility-v1",
+                rule_payload=_eligibility_payload(),
+                **_metadata(track, citation),
+            )
+        ],
     )
-    session.flush()
 
     result = run_consultation(
         session,
@@ -209,9 +335,14 @@ def test_eligible_consultation_calculates_only_verified_rank_grade(session: Sess
         admission_round="EARLY_1",
         admission_track_code="GENERAL",
         admission_track_name="일반고 전형",
+        evidence_document_ref=citation.source_document_id,
+        evidence_page=citation.page_number,
+        evidence_location=citation.locator,
+        source_status="FINAL_GUIDE",
         **_metadata(track, citation),
     )
-    session.add_all(
+    _persist_published_rules(
+        session,
         [
             AdmissionEligibilityRule(
                 version="eligibility-v1",
@@ -224,7 +355,7 @@ def test_eligible_consultation_calculates_only_verified_rank_grade(session: Sess
                 **_metadata(track, citation),
             ),
             score_rule,
-        ]
+        ],
     )
     record = StudentAcademicRecord(
         student_id="synthetic-student",

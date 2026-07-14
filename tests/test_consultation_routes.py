@@ -16,15 +16,20 @@ from app.models import (
     GradeSourceScopeRule,
     Institution,
     Program,
+    RuleAuditEvent,
+    RuleGoldenTestArtifact,
+    RuleReview,
     ScoreRule,
     SourceCitation,
     SourceDocument,
+    SourceDocumentPage,
     StudentAcademicRecord,
     StudentCourseRecord,
 )
 from tests.test_consultations import (
     _eligibility_payload,
     _metadata,
+    _persist_published_rules,
     _score_payload,
     _target,
 )
@@ -60,7 +65,8 @@ def _seed(session: Session) -> str:
     program = session.get(Program, track.program_id)
     assert program is not None
     program.code = "P1"
-    session.add_all(
+    _persist_published_rules(
+        session,
         [
             AdmissionEligibilityRule(
                 version="eligibility-v1",
@@ -82,11 +88,14 @@ def _seed(session: Session) -> str:
                 admission_round="EARLY_1",
                 admission_track_code="GENERAL",
                 admission_track_name="일반고 전형",
+                evidence_document_ref=citation.source_document_id,
+                evidence_page=citation.page_number,
+                evidence_location=citation.locator,
                 source_status="FINAL_GUIDE",
                 change_reason="합성 E2E 초기 규칙",
                 **_metadata(track, citation),
             ),
-        ]
+        ],
     )
     record = StudentAcademicRecord(
         student_id="synthetic-student",
@@ -136,9 +145,22 @@ def _cleanup(session: Session, track_id: str) -> None:
     session.execute(
         delete(StudentAcademicRecord).where(StudentAcademicRecord.student_id == "synthetic-student")
     )
+    rule_ids: list[str] = []
+    for model in (AdmissionEligibilityRule, GradeSourceScopeRule, ScoreRule):
+        rule_ids.extend(
+            session.scalars(select(model.id).where(model.admission_track_id == track_id))
+        )
+    session.execute(delete(RuleAuditEvent).where(RuleAuditEvent.rule_id.in_(rule_ids)))
     for model in (AdmissionEligibilityRule, GradeSourceScopeRule, ScoreRule):
         session.execute(delete(model).where(model.admission_track_id == track_id))
+    session.execute(
+        delete(RuleGoldenTestArtifact).where(RuleGoldenTestArtifact.rule_id.in_(rule_ids))
+    )
+    session.execute(delete(RuleReview).where(RuleReview.rule_id.in_(rule_ids)))
     session.execute(delete(SourceCitation).where(SourceCitation.source_document_id == document.id))
+    session.execute(
+        delete(SourceDocumentPage).where(SourceDocumentPage.source_document_id == document.id)
+    )
     session.execute(delete(SourceDocument).where(SourceDocument.id == document.id))
     session.execute(delete(AdmissionTrack).where(AdmissionTrack.id == track.id))
     session.execute(delete(AdmissionRound).where(AdmissionRound.id == admission_round.id))
