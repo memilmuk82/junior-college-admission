@@ -181,6 +181,7 @@
 - 최종 회귀에서 단위 217건, PostgreSQL 통합 52건과 Chromium BYOK·상담 E2E 5건, Ruff·포맷·mypy·규칙·민감자료 검사를 통과했다.
 - 로컬 개발 키로 비식별 합성 payload 실제 smoke를 수행했으나 OpenAI의 두 모델 모두 HTTP 429를 반환했다. Gemini·Anthropic 키도 없어 성공 smoke와 Phase 9 최종 `PASS`는 보류한다.
 - 같은 OpenAI 키의 공식 Models API 인증은 성공해 키 오류를 배제했다. 프로젝트 사용 한도·과금 활성화와 나머지 공급자 운영 키가 필요한 외부 게이트이므로 Phase 9 판정을 `BLOCKED_SOURCE`로 기록한다.
+- 새 `.env.local` 키를 기존 `OPENAI_API_KEY` 셸 변수와 분리해 재검증했으나 Models API와 Responses API 모두 HTTP 401이었다. 키 평문은 출력·저장하지 않았고, 키 교체 후 성공 smoke를 다시 수행해야 한다.
 
 ## 확정 기술 결정
 

@@ -4,7 +4,7 @@
 - 현재 단계: Phase 9 BYOK AI 진행 중
 - 단계 판정: BLOCKED_SOURCE
 - 현재 작업: 실제 공급자 어댑터 구현 완료, 운영 자격증명 성공 smoke test 대기
-- 다음 게이트: OpenAI 프로젝트 사용 한도·과금 활성화와 Gemini·Anthropic 운영 키 확보 후 Phase 9 성공 smoke test
+- 다음 게이트: 유효한 OpenAI 운영 키(현재 `.env.local` 키는 HTTP 401)와 Gemini·Anthropic 운영 키 확보 후 Phase 9 성공 smoke test
 
 ## 저장소 인벤토리
 
