@@ -160,6 +160,20 @@
 - [x] OpenAI·Gemini·Anthropic 실제 공급자 호출 어댑터
 - [x] 상담 결과 SSR에서 관리자 소유 키로 검토용 초안 생성
 - [x] 고정 엔드포인트·구조화 JSON·15초 timeout·64/128 KiB 제한·오류 은닉
-- [ ] 운영 성공 smoke test(OpenAI HTTP 429, Gemini·Anthropic 키 미제공)
+- [x] OpenAI 운영 성공 smoke test(비식별 합성 payload)
+- [ ] Gemini·Anthropic 운영 성공 smoke test(후속 키 적용 예정)
 - [x] PostgreSQL 통합·마이그레이션 drift·브라우저 E2E
 - [ ] Phase 9 최종 게이트 판정
+
+## Phase 10 진행 항목
+
+- [x] 대상 대학 확대·운영 작업 카드
+- [x] 백업 파일 권한·원자적 생성·실패 시 임시파일 정리
+- [x] 백업·복구 런북과 읽기 전용 archive 점검 절차
+- [x] Phase 10 이후 전체 회귀(단위 217건·통합 52건·정적·규칙·민감자료) 통과
+- [ ] 대학 5곳 배치 후보와 공식 근거 상태 점검
+- [ ] 최종 모집요강 교체의 새 버전·영향도·회귀 테스트
+- [ ] 성능 기준선과 PostgreSQL 쿼리 관찰 지표
+- [ ] 운영 보안·키 회전·보유기간 삭제 리허설
+- [ ] 합성 데이터 현장 교사 파일럿
+- [ ] Phase 10 최종 게이트
