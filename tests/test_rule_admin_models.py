@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import Engine, select
@@ -23,6 +24,8 @@ from app.services.rule_admin import (
     HumanApproval,
     RuleAdministrationError,
     clone_published_rule_as_draft,
+    compare_rule_impact,
+    compare_rule_payloads,
     human_approve_tested_rule,
     publish_human_approved_rule,
 )
@@ -175,3 +178,115 @@ def test_human_approval_requires_explicit_confirmation(session: Session) -> None
                 "synthetic-admin", datetime(2026, 7, 13, tzinfo=UTC), "AI_APPROVED"
             ),
         )
+
+
+def test_final_guide_replaces_implementation_plan_with_impact_and_lineage(
+    session: Session,
+) -> None:
+    source = _published_score_rule(session)
+    source_citation = session.get(SourceCitation, source.source_citation_id)
+    assert source_citation is not None
+    implementation_plan = session.get(SourceDocument, source_citation.source_document_id)
+    assert implementation_plan is not None
+    implementation_plan.document_type = "IMPLEMENTATION_PLAN"
+    implementation_plan.revision_label = "synthetic-plan-v1"
+    source.source_status = "IMPLEMENTATION_PLAN"
+    source.rule_payload = {
+        "schema_version": 1,
+        "maximum_score": "100",
+        "academic_multiplier": "1.00",
+    }
+
+    occurred_at = datetime(2026, 7, 14, 5, 0, tzinfo=UTC)
+    draft = clone_published_rule_as_draft(
+        session,
+        rule_type="SCORE_RULE",
+        source_rule_id=source.id,
+        new_version="synthetic-final-v2",
+        actor_ref="synthetic-admin",
+        change_reason="합성 최종 모집요강 교체",
+        occurred_at=occurred_at,
+    )
+    final_payload = {
+        "schema_version": 1,
+        "maximum_score": "100",
+        "academic_multiplier": "0.80",
+    }
+    changes = compare_rule_payloads(source.rule_payload, final_payload)
+    assert [(change.path, change.before, change.after) for change in changes] == [
+        ("academic_multiplier", "1.00", "0.80")
+    ]
+
+    def evaluate(payload: dict[str, object], sample: dict[str, str]) -> Decimal:
+        return Decimal(sample["base_score"]) * Decimal(str(payload["academic_multiplier"]))
+
+    impacts = compare_rule_impact(
+        source.rule_payload,
+        final_payload,
+        [{"sample_id": "synthetic-guide-replacement", "base_score": "80"}],
+        evaluate,
+    )
+    assert (impacts[0].before, impacts[0].after, impacts[0].delta) == (
+        Decimal("80.00"),
+        Decimal("64.00"),
+        Decimal("-16.00"),
+    )
+
+    final_guide = SourceDocument(
+        academic_year=2027,
+        institution_id=implementation_plan.institution_id,
+        campus_id=implementation_plan.campus_id,
+        document_type="FINAL_GUIDE",
+        document_status="HUMAN_APPROVED",
+        revision_label="synthetic-final-v2",
+        supersedes_id=implementation_plan.id,
+        file_hash="e" * 64,
+        page_count=2,
+        detected_years=[2027],
+        year_consistency_status="CONSISTENT",
+        verification_status="HUMAN_APPROVED",
+    )
+    session.add(final_guide)
+    session.flush()
+    final_citation = SourceCitation(
+        source_document_id=final_guide.id,
+        page_number=2,
+        locator="합성 최종 산식 표",
+    )
+    session.add(final_citation)
+    session.flush()
+
+    draft.rule_payload = final_payload
+    draft.source_citation_id = final_citation.id
+    draft.evidence_document_ref = final_guide.id
+    draft.evidence_page = 2
+    draft.evidence_location = "합성 최종 산식 표"
+    draft.source_status = "FINAL_GUIDE"
+    draft.lifecycle_status = "TESTED"
+    draft.independent_verified = True
+    draft.golden_test_ref = "tests/synthetic::final-guide-v2"
+    human_approve_tested_rule(
+        session,
+        rule_type="SCORE_RULE",
+        rule_id=draft.id,
+        approval=HumanApproval("synthetic-admin", occurred_at, "HUMAN_APPROVED"),
+    )
+    publish_human_approved_rule(
+        session,
+        rule_type="SCORE_RULE",
+        rule_id=draft.id,
+        actor_ref="synthetic-admin",
+        occurred_at=occurred_at,
+    )
+
+    active = session.scalar(
+        select(ScoreRule).where(
+            ScoreRule.admission_track_id == source.admission_track_id,
+            ScoreRule.lifecycle_status == "PUBLISHED",
+        )
+    )
+    assert active is not None and active.id == draft.id
+    assert source.lifecycle_status == "SUPERSEDED"
+    assert source.rule_payload["academic_multiplier"] == "1.00"
+    assert final_guide.supersedes_id == implementation_plan.id
+    assert implementation_plan.document_type == "IMPLEMENTATION_PLAN"
