@@ -21,6 +21,6 @@ COPY alembic.ini ./
 COPY migrations ./migrations
 COPY wsgi.py ./
 
-EXPOSE 5000
+EXPOSE 8000
 
-CMD ["uv", "run", "--no-sync", "flask", "--app", "wsgi", "run", "--host=0.0.0.0", "--port=5000"]
+CMD ["uv", "run", "--no-sync", "flask", "--app", "wsgi", "run", "--host=0.0.0.0", "--port=8000"]

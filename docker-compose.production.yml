@@ -1,0 +1,157 @@
+name: junior-college-admission-production
+
+services:
+  proxy-production:
+    image: nginx:1.30.3-alpine
+    user: "${PRODUCTION_PROXY_UID:?PRODUCTION_PROXY_UID must be set}:${PRODUCTION_PROXY_GID:?PRODUCTION_PROXY_GID must be set}"
+    depends_on:
+      web-production:
+        condition: service_healthy
+    ports:
+      - "${PRODUCTION_HTTP_PORT:-80}:8080"
+      - "${PRODUCTION_HTTPS_PORT:-443}:8443"
+    volumes:
+      - ./deploy/nginx.production.conf:/etc/nginx/nginx.conf:ro
+    secrets:
+      - tls_certificate
+      - tls_private_key
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - -q
+        - -O
+        - /dev/null
+        - http://127.0.0.1:8080/proxy-health
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    read_only: true
+    tmpfs:
+      - /tmp
+    networks:
+      - production-frontend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  web-production:
+    build: .
+    command:
+      - sh
+      - -c
+      - >-
+        flask --app wsgi db upgrade &&
+        exec gunicorn
+        --bind=0.0.0.0:5000
+        --workers=${PRODUCTION_WEB_WORKERS:-2}
+        --threads=${PRODUCTION_WEB_THREADS:-2}
+        --timeout=30
+        --graceful-timeout=30
+        --access-logfile=-
+        --error-logfile=-
+        wsgi:app
+    environment:
+      APP_ENV: production
+      SECRET_KEY_FILE: /run/secrets/app_secret_key
+      DATABASE_URL_FILE: /run/secrets/database_url
+      ADMIN_USERNAME_FILE: /run/secrets/admin_username
+      ADMIN_PASSWORD_HASH_FILE: /run/secrets/admin_password_hash
+      BYOK_MASTER_KEY_FILE: /run/secrets/byok_master_key
+      PUBLIC_BASE_URL: "${PRODUCTION_PUBLIC_BASE_URL:?PRODUCTION_PUBLIC_BASE_URL must be set}"
+      TRUSTED_HOSTS: "${PRODUCTION_TRUSTED_HOSTS:?PRODUCTION_TRUSTED_HOSTS must be set}"
+      HEALTHCHECK_HOST: "${PRODUCTION_HEALTHCHECK_HOST:?PRODUCTION_HEALTHCHECK_HOST must be set}"
+      TRUST_PROXY_HOPS: "1"
+      TEMP_UPLOAD_ROOT: /var/lib/admission/uploads
+    depends_on:
+      db-production:
+        condition: service_healthy
+    secrets:
+      - app_secret_key
+      - database_url
+      - admin_username
+      - admin_password_hash
+      - byok_master_key
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import os, urllib.request;
+          request = urllib.request.Request(
+          'http://127.0.0.1:5000/health',
+          headers={'Host': os.environ['HEALTHCHECK_HOST']});
+          urllib.request.urlopen(request, timeout=3).read()
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - production_uploads:/var/lib/admission/uploads
+    read_only: true
+    tmpfs:
+      - /tmp
+    networks:
+      - production-frontend
+      - production-backend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  db-production:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: "${PRODUCTION_POSTGRES_DB:-admission}"
+      POSTGRES_USER: "${PRODUCTION_POSTGRES_USER:-admission}"
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          pg_isready -U ${PRODUCTION_POSTGRES_USER:-admission}
+          -d ${PRODUCTION_POSTGRES_DB:-admission}
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - production_postgres_data:/var/lib/postgresql/data
+    networks:
+      - production-backend
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+networks:
+  production-frontend:
+    driver: bridge
+  production-backend:
+    driver: bridge
+
+volumes:
+  production_postgres_data:
+  production_uploads:
+
+secrets:
+  app_secret_key:
+    file: "${PRODUCTION_SECRETS_DIR:?PRODUCTION_SECRETS_DIR must be set}/app_secret_key"
+  database_url:
+    file: "${PRODUCTION_SECRETS_DIR:?PRODUCTION_SECRETS_DIR must be set}/database_url"
+  admin_username:
+    file: "${PRODUCTION_SECRETS_DIR:?PRODUCTION_SECRETS_DIR must be set}/admin_username"
+  admin_password_hash:
+    file: "${PRODUCTION_SECRETS_DIR:?PRODUCTION_SECRETS_DIR must be set}/admin_password_hash"
+  byok_master_key:
+    file: "${PRODUCTION_SECRETS_DIR:?PRODUCTION_SECRETS_DIR must be set}/byok_master_key"
+  postgres_password:
+    file: "${PRODUCTION_SECRETS_DIR:?PRODUCTION_SECRETS_DIR must be set}/postgres_password"
+  tls_certificate:
+    file: "${PRODUCTION_SECRETS_DIR:?PRODUCTION_SECRETS_DIR must be set}/tls_certificate.pem"
+  tls_private_key:
+    file: "${PRODUCTION_SECRETS_DIR:?PRODUCTION_SECRETS_DIR must be set}/tls_private_key.pem"

@@ -5,8 +5,11 @@ ALPHA_ENV_FILE ?= .env.alpha
 ALPHA_WEB_PORT ?= 5001
 BETA_ENV_FILE ?= .env.beta
 BETA_WEB_PORT ?= 5002
+PRODUCTION_ENV_FILE ?= .env.production
+PRODUCTION_URL ?=
+PRODUCTION_CA_CERT ?=
 
-.PHONY: setup test-unit test-integration test-e2e lint validate-rules check-sensitive-data check production-preflight alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
+.PHONY: setup test-unit test-integration test-e2e lint validate-rules check-sensitive-data check production-preflight production-up production-check production-e2e production-status production-logs production-down alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
 
 setup:
 	uv sync --frozen
@@ -40,6 +43,30 @@ check: lint test-unit test-integration validate-rules check-sensitive-data
 
 production-preflight:
 	UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.check_production_readiness
+
+production-up:
+	test -f $(PRODUCTION_ENV_FILE)
+	PRODUCTION_ENV_FILE=$(PRODUCTION_ENV_FILE) UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.check_production_readiness
+	docker compose -f docker-compose.production.yml --env-file $(PRODUCTION_ENV_FILE) up -d --build --wait
+
+production-check:
+	test -n "$(PRODUCTION_URL)" && test -n "$(PRODUCTION_CA_CERT)"
+	PRODUCTION_URL="$(PRODUCTION_URL)" PRODUCTION_CA_CERT="$(PRODUCTION_CA_CERT)" UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.check_production_https
+	docker compose -f docker-compose.production.yml --env-file $(PRODUCTION_ENV_FILE) exec -T proxy-production nginx -t
+	docker compose -f docker-compose.production.yml --env-file $(PRODUCTION_ENV_FILE) exec -T web-production flask --app wsgi db current
+
+production-e2e:
+	@test -n "$(PRODUCTION_URL)" && test -n "$(PRODUCTION_ADMIN_USERNAME)" && test -n "$(PRODUCTION_ADMIN_PASSWORD)"
+	@ADMIN_URL="$(PRODUCTION_URL)" ADMIN_USERNAME="$(PRODUCTION_ADMIN_USERNAME)" ADMIN_PASSWORD="$(PRODUCTION_ADMIN_PASSWORD)" E2E_IGNORE_HTTPS_ERRORS="$(E2E_IGNORE_HTTPS_ERRORS)" SCREENSHOT_DIR=/tmp npm run test:e2e -- e2e/admin.spec.js
+
+production-status:
+	docker compose -f docker-compose.production.yml --env-file $(PRODUCTION_ENV_FILE) ps
+
+production-logs:
+	docker compose -f docker-compose.production.yml --env-file $(PRODUCTION_ENV_FILE) logs --tail=200 proxy-production web-production db-production
+
+production-down:
+	docker compose -f docker-compose.production.yml --env-file $(PRODUCTION_ENV_FILE) stop proxy-production web-production db-production
 
 alpha-up:
 	test -f $(ALPHA_ENV_FILE)

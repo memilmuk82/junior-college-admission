@@ -13,7 +13,7 @@
 - 공개 주소와 일치하는 쉼표 구분 `TRUSTED_HOSTS`
 - 애플리케이션 앞의 신뢰 reverse proxy 한 대를 뜻하는 `TRUST_PROXY_HOPS=1`
 
-비밀값은 Git, Compose 파일, 이미지, 명령 인자와 로그에 기록하지 않는다. 실제 배포 환경에서는 secret manager가 프로세스 환경으로 주입해야 한다.
+비밀값은 Git, Compose 파일, 이미지, 명령 인자와 로그에 기록하지 않는다. 실제 배포 환경에서는 secret manager가 파일로 주입하고 애플리케이션에는 `SECRET_KEY_FILE`, `DATABASE_URL_FILE`, `ADMIN_USERNAME_FILE`, `ADMIN_PASSWORD_HASH_FILE`, `BYOK_MASTER_KEY_FILE` 경로만 전달한다. 직접 값과 대응하는 `*_FILE`을 동시에 지정하면 시작을 거부한다.
 
 ## 사전검사
 
@@ -41,3 +41,19 @@ PRODUCTION_ENV_FILE=.env.production make production-preflight
 - 운영 변경창, 관찰 지표, 장애 대응 담당자
 
 사전검사 통과만으로 외부 배포나 실제 모집요강 게시를 실행하지 않는다.
+
+## production 후보 Compose
+
+`docker-compose.production.yml`은 stable `nginx:1.30.3-alpine` reverse proxy, Gunicorn 앱, PostgreSQL 17을 서로 분리한다. 앱과 DB는 호스트 포트를 열지 않고 Nginx만 HTTP·HTTPS 포트를 공개한다. HTTP는 HTTPS로 영구 전환하며 TLS 1.2·1.3, HSTS와 기본 보안 헤더를 적용한다.
+
+모든 비밀값과 TLS 인증서는 `PRODUCTION_SECRETS_DIR` 아래 Git 제외 파일로 준비하고 컨테이너에는 `/run/secrets`로 읽기 전용 전달한다. 호스트에서 실행되는 `production-preflight`가 동일한 값을 검증할 수 있도록 `.env.production`의 각 `*_FILE`에는 해당 파일의 호스트 절대경로를 설정한다. `PRODUCTION_PROXY_UID`·`PRODUCTION_PROXY_GID`는 TLS 개인키를 읽을 수 있는 전용 비root 소유자와 일치해야 한다. 실제 서비스에서는 승인된 secret manager가 같은 파일 계약과 소유권을 제공해야 한다.
+
+```bash
+PRODUCTION_ENV_FILE=.env.production make production-up
+PRODUCTION_ENV_FILE=.env.production \
+PRODUCTION_URL=https://service.example.org \
+PRODUCTION_CA_CERT=/approved/path/fullchain.pem \
+make production-check
+```
+
+합성 로컬 인증서 리허설에서만 `E2E_IGNORE_HTTPS_ERRORS=true`를 사용할 수 있다. 실제 서비스 인증서 검증에서는 이를 사용하지 않는다.

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from logging import getLogger
 from logging.config import fileConfig
 from typing import Any
@@ -9,6 +8,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 import app.models  # noqa: F401
+from app import _environment_value
 from app.database import Base
 
 config = context.config
@@ -17,7 +17,7 @@ logger = getLogger("alembic.env")
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-database_url = os.environ.get("DATABASE_URL")
+database_url = _environment_value("DATABASE_URL")
 if not database_url:
     raise RuntimeError("Alembic 실행에는 PostgreSQL DATABASE_URL 환경 변수가 필요합니다.")
 if not database_url.startswith("postgresql+"):

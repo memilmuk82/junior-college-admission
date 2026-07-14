@@ -81,6 +81,20 @@
 
 위 검사는 안전하지 않은 구성으로 운영 프로세스가 시작되는 것을 차단한다. reverse proxy·TLS 인증서·secret manager·정책·공식 자료 승인이 실제 환경에서 확인되기 전에는 외부 배포를 수행하지 않는다.
 
+## 합성 production 후보 리허설
+
+- [x] Nginx TLS → Gunicorn → PostgreSQL 분리 구성과 독립 network·volume
+- [x] 파일 기반 secret 주입과 direct 값 동시 지정·빈값·다중행·과대 파일 차단
+- [x] PostgreSQL migration `head`와 앱·DB·proxy healthcheck
+- [x] CA 검증 HTTPS health와 HSTS·nosniff·referrer·frame 보안 헤더
+- [x] HTTP → HTTPS `308` redirect와 Nginx 설정 검사
+- [x] 관리자·상담·BYOK·학생/교사 A4 Playwright 8건 통과
+- [x] 합성 OCR 업로드 검수 데스크톱·모바일·무JavaScript Playwright 3건 통과
+- [x] 기본 Compose의 Cloudflare 원본 포트 `8000:8000` 및 컨테이너 수신 포트 일치
+- [x] 전체 정적·단위 234건·PostgreSQL 통합 52건·규칙·민감자료 검사 통과
+
+위 리허설은 `/tmp`의 합성 secret·단기 인증서·익명 데이터만 사용했다. 실제 도메인·공인 TLS·secret manager·운영 DB·외부 Cloudflare 설정·공식 모집요강 게시 상태는 변경하지 않았으며 별도 운영 게이트로 남긴다.
+
 ## 게이트
 
 Phase 9에서 OpenAI smoke는 통과했으나 Gemini·Anthropic 키가 없어 전체 게이트는 `BLOCKED_SOURCE`다. 사용자가 Phase 10 시작을 승인했으므로 Phase 10의 문서·로컬 운영 기반 작업을 먼저 진행하며, 외부 키가 필요한 Phase 9 항목은 병렬 보류한다.

@@ -5,7 +5,7 @@ services:
       SECRET_KEY: "${SECRET_KEY:?SECRET_KEY must be set in .env}"
       DATABASE_URL: "${DATABASE_URL:?DATABASE_URL must be set in .env}"
     ports:
-      - "5000:5000"
+      - "8000:8000"
     depends_on:
       db:
         condition: service_healthy

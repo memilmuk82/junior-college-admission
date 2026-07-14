@@ -1,5 +1,6 @@
 import os
 import re
+from pathlib import Path
 from urllib.parse import urlparse
 
 from cryptography.fernet import Fernet
@@ -8,6 +9,27 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 DEVELOPMENT_SECRET_KEY = "development-only-change-me"
 SCRYPT_PASSWORD_HASH = re.compile(r"scrypt:\d+:\d+:\d+\$[^$]{8,}\$[0-9a-f]{64,}\Z")
+MAX_SECRET_FILE_BYTES = 64 * 1024
+
+
+def _environment_value(name: str, default: str | None = None) -> str | None:
+    direct_value = os.environ.get(name)
+    file_name = os.environ.get(f"{name}_FILE")
+    if direct_value is not None and file_name:
+        raise RuntimeError(f"운영 비밀값 입력이 중복되었습니다: {name}, {name}_FILE")
+    if not file_name:
+        return direct_value if direct_value is not None else default
+
+    path = Path(file_name)
+    try:
+        if not path.is_file() or path.stat().st_size > MAX_SECRET_FILE_BYTES:
+            raise RuntimeError(f"운영 비밀값 파일이 유효하지 않습니다: {name}_FILE")
+        value = path.read_text(encoding="utf-8").rstrip("\r\n")
+    except (OSError, UnicodeError) as error:
+        raise RuntimeError(f"운영 비밀값 파일을 읽을 수 없습니다: {name}_FILE") from error
+    if not value or "\n" in value or "\r" in value:
+        raise RuntimeError(f"운영 비밀값 파일 형식이 유효하지 않습니다: {name}_FILE")
+    return value
 
 
 def _environment_hosts(value: str | None) -> list[str]:
@@ -101,14 +123,14 @@ def create_app(test_config: dict | None = None) -> Flask:
     app = Flask(__name__)
     app.config.from_mapping(
         APP_ENV=os.environ.get("APP_ENV", "development"),
-        SECRET_KEY=os.environ.get("SECRET_KEY", DEVELOPMENT_SECRET_KEY),
-        DATABASE_URL=os.environ.get("DATABASE_URL"),
+        SECRET_KEY=_environment_value("SECRET_KEY", DEVELOPMENT_SECRET_KEY),
+        DATABASE_URL=_environment_value("DATABASE_URL"),
         TEMP_UPLOAD_ROOT=os.environ.get(
             "TEMP_UPLOAD_ROOT", "/tmp/junior-college-admission/uploads"
         ),
-        ADMIN_USERNAME=os.environ.get("ADMIN_USERNAME"),
-        ADMIN_PASSWORD_HASH=os.environ.get("ADMIN_PASSWORD_HASH"),
-        BYOK_MASTER_KEY=os.environ.get("BYOK_MASTER_KEY"),
+        ADMIN_USERNAME=_environment_value("ADMIN_USERNAME"),
+        ADMIN_PASSWORD_HASH=_environment_value("ADMIN_PASSWORD_HASH"),
+        BYOK_MASTER_KEY=_environment_value("BYOK_MASTER_KEY"),
         PUBLIC_BASE_URL=os.environ.get("PUBLIC_BASE_URL"),
         TRUSTED_HOSTS=_environment_hosts(os.environ.get("TRUSTED_HOSTS")),
         TRUST_PROXY_HOPS=os.environ.get("TRUST_PROXY_HOPS", "0"),

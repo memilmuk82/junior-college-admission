@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from cryptography.fernet import Fernet
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -67,6 +69,61 @@ def test_production_rejects_nonempty_but_invalid_admin_hash() -> None:
 
     with pytest.raises(RuntimeError, match="ADMIN_PASSWORD_HASH"):
         create_app(config)
+
+
+def test_production_reads_secrets_from_bounded_single_line_files(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    values = {
+        "SECRET_KEY": "synthetic-production-secret-that-is-long-enough",
+        "DATABASE_URL": "postgresql+psycopg://synthetic:synthetic@db:5432/synthetic",
+        "ADMIN_USERNAME": "synthetic-admin",
+        "ADMIN_PASSWORD_HASH": generate_password_hash("synthetic-password"),
+        "BYOK_MASTER_KEY": Fernet.generate_key().decode(),
+    }
+    for name, value in values.items():
+        secret_file = tmp_path / name.lower()
+        secret_file.write_text(f"{value}\n", encoding="utf-8")
+        monkeypatch.delenv(name, raising=False)
+        monkeypatch.setenv(f"{name}_FILE", str(secret_file))
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://service.example.test")
+    monkeypatch.setenv("TRUSTED_HOSTS", "service.example.test")
+    monkeypatch.setenv("TRUST_PROXY_HOPS", "1")
+
+    app = create_app({"TESTING": True})
+
+    assert app.config["SECRET_KEY"] == values["SECRET_KEY"]
+    assert app.config["DATABASE_URL"] == values["DATABASE_URL"]
+    assert app.config["ADMIN_PASSWORD_HASH"] == values["ADMIN_PASSWORD_HASH"]
+
+
+def test_secret_rejects_direct_and_file_input_conflict(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    secret_file = tmp_path / "secret_key"
+    secret_file.write_text("synthetic-file-secret", encoding="utf-8")
+    monkeypatch.setenv("SECRET_KEY", "synthetic-direct-secret")
+    monkeypatch.setenv("SECRET_KEY_FILE", str(secret_file))
+
+    with pytest.raises(RuntimeError) as caught:
+        create_app({"TESTING": True})
+
+    assert "SECRET_KEY" in str(caught.value)
+    assert "synthetic" not in str(caught.value)
+
+
+@pytest.mark.parametrize("content", ["", "first\nsecond", "x" * (64 * 1024 + 1)])
+def test_secret_file_rejects_empty_multiline_and_oversized_values(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, content: str
+) -> None:
+    secret_file = tmp_path / "secret_key"
+    secret_file.write_text(content, encoding="utf-8")
+    monkeypatch.delenv("SECRET_KEY", raising=False)
+    monkeypatch.setenv("SECRET_KEY_FILE", str(secret_file))
+
+    with pytest.raises(RuntimeError, match="SECRET_KEY_FILE"):
+        create_app({"TESTING": True})
 
 
 def test_production_trusted_hosts_reject_unconfigured_host() -> None:

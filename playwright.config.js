@@ -9,6 +9,7 @@ export default defineConfig({
   workers: 1,
   reporter: 'list',
   use: {
+    ignoreHTTPSErrors: process.env.E2E_IGNORE_HTTPS_ERRORS === 'true',
     trace: 'on-first-retry',
   },
   projects: [

@@ -48,11 +48,11 @@ test('teacher completes eligibility-first consultation and opens separate A4 out
   await expect(page.locator('body')).not.toContainText('합성 브라우저 상담 메모');
   await expect(page.locator('body')).not.toContainText('조건 평가 trace');
   await page.emulateMedia({ media: 'print' });
-  const studentPrintColors = await page.evaluate(() => ({
-    body: getComputedStyle(document.body).backgroundColor,
-    sheet: getComputedStyle(document.querySelector('.print-sheet')).backgroundColor,
-  }));
-  expect(studentPrintColors).toEqual({ body: 'rgb(255, 255, 255)', sheet: 'rgb(255, 255, 255)' });
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(page.locator('.print-sheet')).toHaveCSS(
+    'background-color',
+    'rgb(255, 255, 255)'
+  );
   await page.screenshot({ path: `${screenshotDir}/consultation-student-print.png`, fullPage: true });
   const studentPdf = await page.pdf({ format: 'A4', printBackground: true });
   expect(studentPdf.length).toBeGreaterThan(1000);
@@ -72,11 +72,11 @@ test('teacher completes eligibility-first consultation and opens separate A4 out
   await expect(page.getByText('계산 trace', { exact: true })).toBeVisible();
   await expect(page.getByText('합성 브라우저 상담 메모')).toBeVisible();
   await page.emulateMedia({ media: 'print' });
-  const teacherPrintColors = await page.evaluate(() => ({
-    body: getComputedStyle(document.body).backgroundColor,
-    sheet: getComputedStyle(document.querySelector('.print-sheet')).backgroundColor,
-  }));
-  expect(teacherPrintColors).toEqual({ body: 'rgb(255, 255, 255)', sheet: 'rgb(255, 255, 255)' });
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(page.locator('.print-sheet')).toHaveCSS(
+    'background-color',
+    'rgb(255, 255, 255)'
+  );
   await page.screenshot({ path: `${screenshotDir}/consultation-teacher-print.png`, fullPage: true });
   const teacherPdf = await page.pdf({ format: 'A4', printBackground: true });
   expect(teacherPdf.length).toBeGreaterThan(1000);
