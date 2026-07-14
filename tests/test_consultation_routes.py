@@ -82,6 +82,8 @@ def _seed(session: Session) -> str:
                 admission_round="EARLY_1",
                 admission_track_code="GENERAL",
                 admission_track_name="일반고 전형",
+                source_status="FINAL_GUIDE",
+                change_reason="합성 E2E 초기 규칙",
                 **_metadata(track, citation),
             ),
         ]
