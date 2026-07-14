@@ -100,5 +100,6 @@ make check
 - [x] 단위·PostgreSQL 통합·Chromium 보안 기반 회귀
 - [x] OpenAI·Gemini·Anthropic 실제 HTTP 어댑터
 - [x] 고정 HTTPS 엔드포인트·구조화 출력·크기·timeout·무자동재시도 계약
-- [ ] 운영 자격증명 성공 smoke test(OpenAI 429, Gemini·Anthropic 키 미제공)
+- [x] OpenAI 운영 자격증명 성공 smoke test(비식별 합성 payload)
+- [ ] Gemini·Anthropic 운영 자격증명 성공 smoke test(키 미제공)
 - [ ] Phase 9 최종 게이트 판정
