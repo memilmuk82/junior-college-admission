@@ -1,10 +1,10 @@
 # 프로젝트 상태
 
 - 기준일: 2026-07-14
-- 현재 단계: Phase 10 대상 대학 확대·운영
-- 단계 판정: IN_PROGRESS
-- 현재 작업: 합성 production 후보 컨테이너 인수 검증 완료
-- 다음 게이트: 실제 도메인·공인 TLS·secret manager·운영 정책·공식 자료 사람 승인
+- 현재 단계: Phase 10 개발·비운영 준비 완료
+- 단계 판정: PASS_NONPROD
+- 현재 작업: 합성 production 후보와 후보 대학 근거 교차검증 완료
+- 다음 게이트: 별도 운영 전환 — 실제 도메인·공인 TLS·secret manager·운영 정책·공식 자료 사람 승인
 
 ## 저장소 인벤토리
 
@@ -161,9 +161,9 @@
 - [x] 상담 결과 SSR에서 관리자 소유 키로 검토용 초안 생성
 - [x] 고정 엔드포인트·구조화 JSON·15초 timeout·64/128 KiB 제한·오류 은닉
 - [x] OpenAI 운영 성공 smoke test(비식별 합성 payload)
-- [ ] Gemini·Anthropic 운영 성공 smoke test(후속 키 적용 예정)
+- [x] Gemini·Anthropic 유료 실키 검증 제외 방침 확정(실제 성공 미주장, 합성 HTTP 계약 검증 유지)
 - [x] PostgreSQL 통합·마이그레이션 drift·브라우저 E2E
-- [ ] Phase 9 최종 게이트 판정
+- [x] Phase 9 최종 게이트 `PASS`
 
 ## Phase 10 진행 항목
 
@@ -197,6 +197,6 @@
 - [x] 합성 HTTPS 보안 헤더·HTTP redirect·관리자/상담/BYOK/A4 Playwright 8건 통과
 - [x] 합성 OCR 업로드 검수 데스크톱·모바일·무JavaScript Playwright 3건 통과
 - [x] Cloudflare 원본 연결용 기본 Compose `8000:8000` 포트와 앱 수신 포트 일치
-- [ ] Phase 10 최종 게이트
+- [x] Phase 10 최종 게이트 `PASS_NONPROD`(실제 운영 전환 별도 보류)
 
-최신 `make check`는 정적 검사·단위 234건·PostgreSQL 통합 53건·규칙·민감자료 검사를 모두 통과했다. 합성 production 후보의 HTTPS 사용자 흐름 8건과 OCR 검수 흐름 3건도 실패·skip 없이 통과했다. 실제 도메인·공인 TLS·Cloudflare 외부 설정·secret manager 키 회전, 운영 DB 보유기간 삭제, 운영 PostgreSQL 쿼리 지표 수집은 운영 권한·변경창이 필요한 보류 항목이며, 공식 모집요강 교차검증이 끝나기 전에는 버전 교체나 게시를 수행하지 않는다.
+최신 `make check`는 정적 검사·단위 234건·PostgreSQL 통합 53건·규칙·민감자료 검사를 모두 통과했다. 합성 production 후보의 HTTPS 사용자 흐름 8건과 OCR 검수 흐름 3건도 실패·skip 없이 통과했다. 실제 도메인·공인 TLS·Cloudflare 외부 설정·secret manager 키 회전, 운영 DB 보유기간 삭제, 운영 PostgreSQL 쿼리 지표 수집, 규칙별 사람 승인은 별도 운영 전환 항목이다. 이 보류는 Phase 10 개발·비운영 준비의 실패가 아니며 외부 서비스나 실제 게시 상태를 자동 변경하지 않는다.

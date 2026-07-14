@@ -86,6 +86,7 @@ make check
 
 - 실제 외부 공급자 호출은 각 공급자 공식 API 계약과 운영 BYOK 자격증명 절차를 확인한 뒤 별도 어댑터에서만 수행한다.
 - 합성 어댑터 테스트만으로 외부 공급자 연결 완료를 주장하지 않는다.
+- 공급자별 유료 실키 성공 호출은 선택 검증이며 Phase 완료의 필수 조건이 아니다. 실키를 검증하지 않은 공급자는 관리자 화면에서 사용자가 유효한 키를 등록할 때까지 `UNVERIFIED_EXTERNAL`로 표시한다.
 - 교사가 확정하지 않은 AI 출력은 참고 초안이며 학생용 출력에 포함하지 않는다.
 - 금지 필드나 금지 역할이 감지되면 초안 생성을 실패시키고 결정론적 상담 결과는 그대로 유지한다.
 
@@ -101,5 +102,5 @@ make check
 - [x] OpenAI·Gemini·Anthropic 실제 HTTP 어댑터
 - [x] 고정 HTTPS 엔드포인트·구조화 출력·크기·timeout·무자동재시도 계약
 - [x] OpenAI 운영 자격증명 성공 smoke test(비식별 합성 payload)
-- [ ] Gemini·Anthropic 운영 자격증명 성공 smoke test(키 미제공)
-- [ ] Phase 9 최종 게이트 판정
+- [x] Gemini·Anthropic 유료 실키 smoke를 완료 조건에서 제외하고 합성 HTTP 계약 검증으로 한정
+- [x] Phase 9 최종 게이트 `PASS`(OpenAI 실호출·세 공급자 합성 계약·BYOK 보안·교사 확정 경계)
