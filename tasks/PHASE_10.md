@@ -68,6 +68,19 @@
 
 내부 베타 인수는 총 Playwright 11건 실패·skip 0으로 `PASS`다. 실제 서비스 전환은 reverse proxy·TLS, 운영 secret manager, 보유기간·백업·복구 정책, 최종 모집요강 사람 승인과 운영 변경창이 확인될 때까지 별도 보류한다.
 
+## 실제 서비스 시작 차단 계약
+
+- [x] 운영 모드의 개발용·짧은 `SECRET_KEY` 거부
+- [x] PostgreSQL 외 `DATABASE_URL` 거부
+- [x] 관리자 ID와 유효한 Werkzeug scrypt 해시 검증
+- [x] Fernet `BYOK_MASTER_KEY` 검증
+- [x] HTTPS `PUBLIC_BASE_URL`과 정확한 `TRUSTED_HOSTS` 검증
+- [x] 신뢰 reverse proxy 한 단계만 허용
+- [x] secure·HTTP-only·SameSite session cookie와 `ProxyFix` 적용
+- [x] 비밀값을 출력하지 않는 `make production-preflight`
+
+위 검사는 안전하지 않은 구성으로 운영 프로세스가 시작되는 것을 차단한다. reverse proxy·TLS 인증서·secret manager·정책·공식 자료 승인이 실제 환경에서 확인되기 전에는 외부 배포를 수행하지 않는다.
+
 ## 게이트
 
 Phase 9에서 OpenAI smoke는 통과했으나 Gemini·Anthropic 키가 없어 전체 게이트는 `BLOCKED_SOURCE`다. 사용자가 Phase 10 시작을 승인했으므로 Phase 10의 문서·로컬 운영 기반 작업을 먼저 진행하며, 외부 키가 필요한 Phase 9 항목은 병렬 보류한다.

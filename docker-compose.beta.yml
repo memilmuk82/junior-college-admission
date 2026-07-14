@@ -18,6 +18,7 @@ services:
         --error-logfile=-
         wsgi:app
     environment:
+      APP_ENV: beta
       SECRET_KEY: "${BETA_SECRET_KEY:?BETA_SECRET_KEY must be set}"
       DATABASE_URL: "${BETA_DATABASE_URL:?BETA_DATABASE_URL must be set}"
       TEMP_UPLOAD_ROOT: /var/lib/admission/uploads

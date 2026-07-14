@@ -32,6 +32,8 @@ docker compose up --build
 
 내부 베타는 Gunicorn WSGI와 별도 PostgreSQL을 사용하는 `docker-compose.beta.yml`로 다시 격리합니다. 알파 게이트 통과 후에만 [내부 베타 컨테이너](docs/BETA_ENVIRONMENT.md)의 절차를 수행합니다.
 
+실제 서비스 프로세스는 [운영 전환 사전 게이트](docs/PRODUCTION_READINESS.md)의 필수 구성이 모두 유효할 때만 시작할 수 있습니다. `make production-preflight`는 값 대신 오류 변수명만 보고합니다.
+
 ## 검증
 
 ```bash
