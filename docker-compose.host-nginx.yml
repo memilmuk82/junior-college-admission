@@ -1,3 +1,5 @@
+name: junior-college-admission-live
+
 services:
   proxy-production:
     profiles: ["container-tls"]

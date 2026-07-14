@@ -9,14 +9,14 @@ PRODUCTION_ENV_FILE ?= .env.production
 PRODUCTION_URL ?=
 PRODUCTION_CA_CERT ?=
 
-.PHONY: setup test-unit test-integration test-e2e lint validate-rules check-sensitive-data check production-preflight production-up production-check production-e2e production-status production-logs production-down production-origin-up production-origin-check production-origin-status production-origin-logs production-origin-down alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
+.PHONY: setup test-unit test-integration test-e2e lint validate-rules check-sensitive-data check production-bootstrap production-preflight production-up production-check production-e2e production-status production-logs production-down production-origin-up production-origin-check production-origin-status production-origin-logs production-origin-down alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
 
 setup:
 	uv sync --frozen
 	npm ci
 
 test-unit:
-	$(PYTHON) pytest tests/test_admin_auth.py tests/test_admission_results.py tests/test_ai_http_providers.py tests/test_ai_payloads.py tests/test_ai_security.py tests/test_rule_admin.py tests/test_score_rule_csv_preview.py tests/test_app.py tests/test_application_policies.py tests/test_consultation_forms.py tests/test_eligibility.py tests/test_image_imports.py tests/test_pilot_candidates.py tests/test_pilot_golden_candidates.py tests/test_production_config.py tests/test_review_forms.py tests/test_review_state.py tests/test_scanned_pdf_imports.py tests/test_score_calculation.py tests/test_score_components.py tests/test_score_conversion.py tests/test_score_golden.py tests/test_score_inputs.py tests/test_score_properties.py tests/test_score_rule_schema.py tests/test_score_selection.py tests/test_structured_imports.py tests/test_temporary_uploads.py tests/test_text_pdf_imports.py tests/test_validate_rules.py
+	$(PYTHON) pytest tests/test_admin_auth.py tests/test_admission_results.py tests/test_ai_http_providers.py tests/test_ai_payloads.py tests/test_ai_security.py tests/test_rule_admin.py tests/test_score_rule_csv_preview.py tests/test_app.py tests/test_application_policies.py tests/test_consultation_forms.py tests/test_eligibility.py tests/test_image_imports.py tests/test_pilot_candidates.py tests/test_pilot_golden_candidates.py tests/test_production_bootstrap.py tests/test_production_config.py tests/test_review_forms.py tests/test_review_state.py tests/test_scanned_pdf_imports.py tests/test_score_calculation.py tests/test_score_components.py tests/test_score_conversion.py tests/test_score_golden.py tests/test_score_inputs.py tests/test_score_properties.py tests/test_score_rule_schema.py tests/test_score_selection.py tests/test_structured_imports.py tests/test_temporary_uploads.py tests/test_text_pdf_imports.py tests/test_validate_rules.py
 
 test-integration:
 	$(COMPOSE_TEST_ENV) docker compose --profile test rm -f -s -v db-test
@@ -40,6 +40,10 @@ check-sensitive-data:
 	$(PYTHON) python scripts/check_sensitive_data.py
 
 check: lint test-unit test-integration validate-rules check-sensitive-data
+
+production-bootstrap:
+	test -n "$(PRODUCTION_HOST)"
+	UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.bootstrap_production --public-host "$(PRODUCTION_HOST)"
 
 production-preflight:
 	UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.check_production_readiness

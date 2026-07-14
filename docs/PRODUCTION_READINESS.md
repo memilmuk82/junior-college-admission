@@ -72,3 +72,13 @@ make production-origin-check
 ```
 
 호스트 Nginx는 정확히 한 단계의 신뢰 proxy로 `Host`, `X-Forwarded-For`, `X-Forwarded-Proto`, `X-Forwarded-Host`, `X-Forwarded-Port`를 설정해야 한다. production 앱도 HSTS·nosniff·referrer·frame 헤더를 반환한다. 8000번 원본은 `127.0.0.1` 외 주소에 바인딩하면 안 된다.
+
+### 초기 secret 부트스트랩
+
+실제 값은 명령 출력이나 Git에 남기지 않는다. 아래 명령은 기존 `.env.production` 또는 `secrets/production`이 있으면 덮어쓰지 않고 실패하며, 신규 live 프로젝트 전용 secret과 최초 관리자 비밀번호 파일을 권한 `0600`으로 생성한다.
+
+```bash
+PRODUCTION_HOST=service.example.org make production-bootstrap
+```
+
+최초 관리자 비밀번호는 `secrets/production/initial_admin_password`에서 운영 담당자만 확인한다. 채팅·로그·티켓에 복사하지 않으며 별도 승인된 비밀 저장소로 옮긴 뒤 원문 파일의 처리 정책을 확정한다. host Nginx override의 Compose 프로젝트명은 `junior-college-admission-live`로 고정해 기존 합성 production volume을 재사용하지 않는다.

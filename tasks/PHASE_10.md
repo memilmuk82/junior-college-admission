@@ -93,7 +93,7 @@
 - [x] 합성 OCR 업로드 검수 데스크톱·모바일·무JavaScript Playwright 3건 통과
 - [x] 호스트 Nginx 원본 포트를 `127.0.0.1:8000`으로 제한하고 컨테이너 수신 포트와 일치
 - [x] 호스트 Nginx용 Gunicorn production override와 앱 보안 헤더 계약
-- [x] 전체 정적·단위 236건·PostgreSQL 통합 53건·규칙·민감자료 검사 통과
+- [x] 전체 정적·단위 241건·PostgreSQL 통합 53건·규칙·민감자료 검사 통과
 
 위 리허설은 `/tmp`의 합성 secret·단기 인증서·익명 데이터만 사용했다. 실제 도메인·공인 TLS·secret manager·운영 DB·외부 Cloudflare 설정·공식 모집요강 게시 상태는 변경하지 않았으며 별도 운영 게이트로 남긴다.
 

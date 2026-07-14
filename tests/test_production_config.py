@@ -178,5 +178,6 @@ def test_default_compose_origin_port_is_loopback_only() -> None:
 def test_host_nginx_production_override_exposes_only_gunicorn_on_loopback() -> None:
     compose = Path("docker-compose.host-nginx.yml").read_text(encoding="utf-8")
 
+    assert "name: junior-college-admission-live" in compose
     assert '"127.0.0.1:${PRODUCTION_ORIGIN_PORT:-8000}:5000"' in compose
     assert 'profiles: ["container-tls"]' in compose
