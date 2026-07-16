@@ -193,6 +193,16 @@
 - 백업 스크립트에 `umask 077`, 임시파일 원자적 이동, 비어 있는 dump 차단, 실패 시 임시파일 정리를 추가했다.
 - 백업·복구 런북과 대학 5곳 배치·성능·보안·현장 파일럿 게이트를 문서화했다.
 
+## 2026-07-16 · Phase 11
+
+- 내부 교직원·운영 사용자의 로컬 가입과 Google OIDC 가입을 모두 `MEMBER/PENDING_APPROVAL`로 고정하고, 승인 전 상담·검수·계산 접근을 차단했다.
+- `ADMIN`은 전체 회원 상태·역할을 관리하고 `ASSISTANT_ADMIN`은 승인 대기 일반 회원만 승인하도록 역할 경계를 적용했다.
+- 마지막 활성 관리자 보호, 상태·역할·비밀번호 변경 뒤 세션 무효화, 동시 승인·bootstrap row lock과 감사 기록을 검증했다.
+- Google Discovery/JWKS, state, nonce, PKCE S256과 검증된 이메일을 요구하고, 두 허용 issuer 표기를 canonical HTTPS issuer로 저장해 동일 subject 로그인을 멱등 처리한다.
+- OAuth code·token·query와 SQL bind 값의 로그·DB·세션 저장을 차단하고, Google callback·호환 관리자 로그인을 포함한 컨테이너 Nginx 공개 인증 rate limit과 복원 확인·구버전 bootstrap 생략 기반 `--no-build` 롤백 게이트를 추가했다.
+- 정적 검사·mypy·단위 273건·PostgreSQL 통합 112건·무JavaScript Playwright 2건과 합성 백업·격리 복원을 통과해 `PASS_NONPROD_PHASE_11`로 판정했다.
+- live DB·앱에는 적용하지 않았으며, 호스트 Nginx query 로그·공개 인증 rate limit, 실제 Google Web client와 별도 변경창을 운영 전제조건으로 남겼다.
+
 ## 확정 기술 결정
 
 - uv로 Python 환경과 잠금 파일을 관리한다.

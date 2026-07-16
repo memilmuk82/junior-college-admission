@@ -19,13 +19,15 @@ from flask import (
 )
 from sqlalchemy.orm import Session
 
+from app.auth import actor_ref, member_required, session_user
+from app.auth import csrf_token as auth_csrf_token
 from app.database import db
 from app.services.confirmed_imports import (
     ConfirmationValidationError,
     confirm_structured_import,
 )
 from app.services.review_forms import parse_review_submission, preview_values
-from app.services.review_state import ReviewState, ReviewStateStore
+from app.services.review_state import ReviewState, ReviewStateError, ReviewStateStore
 from app.services.temporary_uploads import TemporaryUploadStore
 
 bp = Blueprint("main", __name__)
@@ -48,9 +50,12 @@ def _upload_store() -> TemporaryUploadStore:
 
 def _review_state(review_session_id: str) -> ReviewState:
     try:
-        return ReviewStateStore(_upload_store()).load(review_session_id)
-    except (FileNotFoundError, ValueError):
+        state = ReviewStateStore(_upload_store()).load(review_session_id)
+    except (FileNotFoundError, ReviewStateError, ValueError):
         abort(404)
+    if state.owner_actor_ref != actor_ref():
+        abort(404)
+    return state
 
 
 def _csrf_token() -> str:
@@ -110,8 +115,14 @@ def _render_review(
 
 
 @bp.get("/")
-def index() -> str:
-    return render_template("index.html")
+def index() -> Response:
+    return _private_response(
+        render_template(
+            "index.html",
+            current_user=session_user(),
+            csrf_token=auth_csrf_token(),
+        )
+    )
 
 
 @bp.get("/health")
@@ -120,6 +131,7 @@ def health():
 
 
 @bp.route("/input/review/<review_session_id>", methods=["GET", "POST"])
+@member_required
 def review_input(review_session_id: str):
     state = _review_state(review_session_id)
     if request.method == "GET":
@@ -170,6 +182,7 @@ def review_input(review_session_id: str):
 
 
 @bp.post("/input/review/<review_session_id>/discard")
+@member_required
 def discard_review(review_session_id: str):
     _require_csrf()
     _review_state(review_session_id)

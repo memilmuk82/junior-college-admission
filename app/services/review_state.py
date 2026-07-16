@@ -29,6 +29,7 @@ class ReviewState:
     preview: StructuredImportPreview
     student_id: str
     record_source: str
+    owner_actor_ref: str
 
 
 def _json_value(value: object) -> object:
@@ -117,10 +118,13 @@ class ReviewStateStore:
         *,
         student_id: str,
         record_source: str,
+        owner_actor_ref: str,
     ) -> None:
         session_path = self.upload_store.session_path(review_session_id)
         if not session_path.is_dir():
             raise FileNotFoundError("검수 세션이 존재하지 않습니다.")
+        if not owner_actor_ref or owner_actor_ref != owner_actor_ref.strip():
+            raise ReviewStateError("검수 세션 소유자 식별자가 유효하지 않습니다.")
         payload = {
             "source_hash": preview.source_hash,
             "source_format": preview.source_format,
@@ -129,6 +133,7 @@ class ReviewStateStore:
             "ignored_headers": list(preview.ignored_headers),
             "student_id": student_id,
             "record_source": record_source,
+            "owner_actor_ref": owner_actor_ref,
         }
         encoded = json.dumps(
             payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True
@@ -185,10 +190,14 @@ class ReviewStateStore:
                 issues=issues,
                 ignored_headers=tuple(str(item) for item in payload["ignored_headers"]),
             )
+            owner_actor_ref = str(payload["owner_actor_ref"])
+            if not owner_actor_ref or owner_actor_ref != owner_actor_ref.strip():
+                raise ValueError("검수 세션 소유자가 유효하지 않습니다.")
             return ReviewState(
                 preview=preview,
                 student_id=str(payload["student_id"]),
                 record_source=str(payload["record_source"]),
+                owner_actor_ref=owner_actor_ref,
             )
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             raise ReviewStateError("검수 상태를 읽을 수 없습니다.") from error

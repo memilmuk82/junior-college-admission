@@ -42,7 +42,7 @@ def test_admin_login_requires_csrf_and_valid_hashed_password() -> None:
         data={"csrf_token": token, "username": "synthetic-admin", "password": "wrong"},
     )
     assert invalid.status_code == 401
-    assert "관리자 인증 정보를 확인하세요" in invalid.get_data(as_text=True)
+    assert "로그인 정보를 확인하세요" in invalid.get_data(as_text=True)
 
     token = _csrf(invalid.get_data(as_text=True))
     valid = client.post(

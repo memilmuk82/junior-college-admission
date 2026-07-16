@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>가입 신청 접수 · 2027 전문대 입시 상담</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="auth-page">
+    <header class="auth-header">
+      <a class="brand-link" href="{{ url_for('main.index') }}">2027 전문대 입시 상담</a>
+      <a href="{{ url_for('auth.login') }}">로그인</a>
+    </header>
+
+    <main class="auth-shell auth-status-card" id="main-content">
+      <div class="auth-status-mark" aria-hidden="true">✓</div>
+      <p class="admin-eyebrow">REGISTRATION RECEIVED</p>
+      <h1>가입 신청 접수</h1>
+      <p class="auth-lead">입력한 정보의 기존 등록 여부와 관계없이 같은 안내를 제공합니다. 신규 신청은 관리자 승인 후 로그인하여 사용할 수 있습니다.</p>
+      <div class="auth-alert auth-alert--info" role="status">
+        <strong>승인 전에는 보호 기능이 열리지 않습니다.</strong>
+        <p>승인 여부는 내부 운영 담당자에게 확인하고, 승인된 뒤 로그인하세요.</p>
+      </div>
+      <nav class="auth-links" aria-label="계정 이동">
+        <a href="{{ url_for('auth.login') }}">로그인 화면으로</a>
+        <a href="{{ url_for('main.index') }}">처음 화면으로</a>
+      </nav>
+    </main>
+  </body>
+</html>

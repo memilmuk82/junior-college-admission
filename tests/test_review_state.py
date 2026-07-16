@@ -31,6 +31,7 @@ def test_review_state_round_trip_preserves_only_normalized_preview(tmp_path: Pat
         preview,
         student_id="synthetic-review-student",
         record_source="HOME_SCHOOL_RECORD",
+        owner_actor_ref="synthetic-admin",
     )
     loaded = state_store.load(review_session_id)
 
@@ -38,4 +39,5 @@ def test_review_state_round_trip_preserves_only_normalized_preview(tmp_path: Pat
     assert loaded.preview.rows[0].credits == Decimal("3")
     assert loaded.preview.rows[0].raw_score == "P"
     assert loaded.student_id == "synthetic-review-student"
+    assert loaded.owner_actor_ref == "synthetic-admin"
     assert list(upload_store.session_path(review_session_id).rglob("*review-state.json"))

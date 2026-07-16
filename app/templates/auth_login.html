@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>교직원 로그인 · 2027 전문대 입시 상담</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="auth-page">
+    <header class="auth-header">
+      <a class="brand-link" href="{{ url_for('main.index') }}">2027 전문대 입시 상담</a>
+      <span>내부 교직원용</span>
+    </header>
+
+    <main class="auth-shell" id="main-content">
+      <p class="admin-eyebrow">STAFF SIGN IN</p>
+      <h1>교직원 로그인</h1>
+      <p class="auth-lead">관리자 승인이 완료된 내부 교직원 계정만 상담 기능을 사용할 수 있습니다.</p>
+
+      {% if error %}
+        <div class="auth-alert auth-alert--error" role="alert" tabindex="-1">
+          <strong>로그인할 수 없습니다.</strong>
+          <p>{{ error }}</p>
+        </div>
+      {% endif %}
+
+      <form class="auth-form" method="post" action="{{ url_for('auth.login') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+
+        <label for="login-name">아이디 <span class="field-note">관리자 ID 또는 회원 아이디</span></label>
+        <input
+          id="login-name"
+          name="username"
+          value="{{ login_name|default('') }}"
+          minlength="4"
+          maxlength="80"
+          autocomplete="username"
+          autocapitalize="none"
+          spellcheck="false"
+          required
+        >
+
+        <label for="login-password">비밀번호</label>
+        <input
+          id="login-password"
+          name="password"
+          type="password"
+          maxlength="128"
+          autocomplete="current-password"
+          required
+        >
+
+        <button class="primary-button auth-submit" type="submit">
+          로그인<span class="sr-only"> 후 검수 화면으로 이동</span>
+        </button>
+      </form>
+
+      {% if google_enabled %}
+        <div class="auth-divider" aria-hidden="true"><span>또는</span></div>
+        <a class="auth-provider-button" href="{{ url_for('auth.google_start') }}">
+          Google 계정으로 로그인
+        </a>
+        <p class="auth-provider-note">Google 계정으로 처음 로그인한 경우에도 관리자 승인 후 사용할 수 있습니다.</p>
+      {% endif %}
+
+      <nav class="auth-links" aria-label="계정 도움말">
+        <a href="{{ url_for('auth.register') }}">내부 교직원 회원가입</a>
+        <a href="{{ url_for('main.index') }}">처음 화면으로</a>
+      </nav>
+    </main>
+  </body>
+</html>

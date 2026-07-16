@@ -8,6 +8,7 @@ services:
       - -c
       - >-
         uv run --no-sync flask --app wsgi db upgrade &&
+        uv run --no-sync flask --app wsgi auth bootstrap-admin &&
         exec gunicorn
         --bind=0.0.0.0:5000
         --workers=${BETA_WEB_WORKERS:-2}
@@ -15,6 +16,7 @@ services:
         --timeout=30
         --graceful-timeout=30
         --access-logfile=-
+        --access-logformat='%(t)s "%(m)s %(U)s %(H)s" %(s)s %(b)s'
         --error-logfile=-
         wsgi:app
     environment:
@@ -25,6 +27,10 @@ services:
       ADMIN_USERNAME: "${BETA_ADMIN_USERNAME:?BETA_ADMIN_USERNAME must be set}"
       ADMIN_PASSWORD_HASH: "${BETA_ADMIN_PASSWORD_HASH:?BETA_ADMIN_PASSWORD_HASH must be set}"
       BYOK_MASTER_KEY: "${BETA_BYOK_MASTER_KEY:?BETA_BYOK_MASTER_KEY must be set}"
+      GOOGLE_OIDC_ENABLED: "${BETA_GOOGLE_OIDC_ENABLED:-false}"
+      GOOGLE_OIDC_CLIENT_ID: "${BETA_GOOGLE_OIDC_CLIENT_ID:-}"
+      GOOGLE_OIDC_CLIENT_SECRET: "${BETA_GOOGLE_OIDC_CLIENT_SECRET:-}"
+      GOOGLE_REDIRECT_URI: "${BETA_GOOGLE_REDIRECT_URI:-}"
     ports:
       - "127.0.0.1:${BETA_WEB_PORT:-5002}:5000"
     depends_on:

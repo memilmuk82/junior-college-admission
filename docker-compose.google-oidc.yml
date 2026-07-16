@@ -1,0 +1,16 @@
+services:
+  web-production:
+    # 호스트 Nginx/Cloudflare도 query 없는 access log를 적용한 뒤에만 이 override를 사용한다.
+    environment:
+      GOOGLE_OIDC_ENABLED: "true"
+      GOOGLE_OIDC_CLIENT_ID_FILE: /run/secrets/google_oidc_client_id
+      GOOGLE_OIDC_CLIENT_SECRET_FILE: /run/secrets/google_oidc_client_secret
+    secrets:
+      - google_oidc_client_id
+      - google_oidc_client_secret
+
+secrets:
+  google_oidc_client_id:
+    file: "${PRODUCTION_SECRETS_DIR:?PRODUCTION_SECRETS_DIR must be set}/google_oidc_client_id"
+  google_oidc_client_secret:
+    file: "${PRODUCTION_SECRETS_DIR:?PRODUCTION_SECRETS_DIR must be set}/google_oidc_client_secret"

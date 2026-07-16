@@ -1,10 +1,10 @@
 # 프로젝트 상태
 
-- 기준일: 2026-07-15
-- 현재 단계: Phase 10 게시 전 canonical 규칙·골든 테스트 증거 게이트
-- 단계 판정: `PASS_NONPROD_CANONICAL_GATE` — 정적·단위·PostgreSQL 통합·migration drift·격리 복원·합성 알파 브라우저 회귀 통과
-- 현재 작업: canonical 대학·캠퍼스 code와 검증된 골든 artifact·계약 버전의 DB/서비스/관리자 fail-closed 결속 완료
-- 다음 게이트: 기존 legacy 참조 0건 사전 확인, trusted runner attestation과 공식 canonical registry·사람 승인 후 실제 규칙 게시 별도 진행
+- 기준일: 2026-07-16
+- 현재 단계: Phase 11 내부 사용자 승인·권한·Google OIDC
+- 단계 판정: `PASS_NONPROD_PHASE_11` — 회원 DB 계약·동시성·SSR·PostgreSQL migration·운영 백업 복제 migration·합성 Docker Playwright 통과
+- 현재 작업: 로컬/Google 가입을 `MEMBER/PENDING_APPROVAL`로 고정하고 관리자·보조관리자 승인 및 역할 경계를 구현
+- 다음 게이트: live DB 변경창·직전 백업 복원 검증, 호스트 Nginx OAuth query 로그 차단·auth rate limit, 실제 Google Web client 등록 후 별도 배포 승인
 
 ## 저장소 인벤토리
 
@@ -218,6 +218,28 @@
 - [x] 관리자 TESTED 자유 입력 제거 및 유효한 PASSED artifact 선택
 - [x] legacy 임의 참조 upgrade·증거 포함 downgrade의 데이터 손실 차단
 
-직전 배포 기준선은 정적 검사·단위 248건·PostgreSQL 통합 53건·규칙·민감자료 검사와 실제 공인 HTTPS 관리자 smoke 3건을 통과했다. live DB와 기존 백업의 migration은 `e51f0b24c8aa`이며, 현재 작업 트리의 신규 head `0d9f4a7c2b11`과 규칙 검수 코드는 아직 배포하지 않았다.
+## Phase 11 완료 항목
 
-현재 작업 트리는 최종 `make check`에서 정적 검사·mypy·단위 254건·PostgreSQL 통합 78건·규칙·민감자료 검사와 UUID sentinel custom-format 백업·network-none 격리 복원을 통과했다. 합성 secret과 독립 port·network·volume만 사용한 일회성 알파 image도 migration head `0d9f4a7c2b11`로 기동해 관리자 SSR·모바일·무JavaScript Playwright 3건을 통과했으며 컨테이너·network·volume과 임시 env를 제거했다. 기존 검수 digest·계약 버전과 임의 `golden_test_ref`는 자동 보정하지 않고 migration/실행 모두 fail-closed로 처리한다. 현재 변경은 `PASS_NONPROD_CANONICAL_GATE`이며 live DB와 기존 배포에는 적용하지 않았다. 실제 artifact 생산자는 아직 서명된 CI attestation 또는 허용 suite registry로 인증되지 않았으므로 실제 대학 규칙 게시 전 별도 게이트로 남긴다. 이전 live archive는 새 manifest 계약 이전 형식이므로 보존하되 새 검증 통과 증거로 재사용하지 않는다. 공식 대학 규칙 게시 수는 계속 0건이며 AI는 `HUMAN_APPROVED` 또는 게시 상태를 설정하지 않는다.
+- [x] live PostgreSQL custom-format 백업·checksum·archive·network-none/tmpfs 복원 재확인
+- [x] 기존 8개 규칙 테이블 `golden_test_ref` 합계 0건 확인
+- [x] 운영 백업 복제본에서 `e51f0b24c8aa → f76a91c3d2e8 → 0d9f4a7c2b11 → 6c1a2e9f4b73` migration 통과
+- [x] 기존 live 이미지 불변 ID와 `rollback-pre-0d9-0cc429511fca` Docker 태그 확보
+- [x] 로컬 교직원 가입과 기존 계정 존재 여부를 노출하지 않는 동일 접수 응답
+- [x] 모든 신규 로컬·Google 계정의 `MEMBER/PENDING_APPROVAL` 강제
+- [x] `ADMIN` 전체 회원·설정 관리, `ASSISTANT_ADMIN` 대기 일반 회원 승인 전용 관리 권한
+- [x] 마지막 활성 관리자 강등·정지 차단과 역할·상태 변경 감사 기록
+- [x] stale ORM identity 재적재, 일관된 row-lock 순서, 동시 승인·관리자 bootstrap 검증
+- [x] 기존 환경변수 관리자 username 기반 `actor_ref`와 과거 검수·AI 소유권 호환
+- [x] 상태·비밀번호 변경 세션 무효화와 SQLAlchemy parameter 비노출 503 처리
+- [x] Google Discovery/JWKS·state·nonce·PKCE S256·검증 이메일·canonical issuer/sub 식별
+- [x] OAuth token/code 미저장과 query 없는 앱·컨테이너 Nginx/Gunicorn 로그 계약
+- [x] 컨테이너 Nginx의 callback 포함 모든 공개 인증 진입점 rate limit과 DB 복원·image ID·구버전 bootstrap 생략·`--no-build` 롤백 게이트
+- [x] 승인 전 상담·검수·계산 차단과 검수 세션 소유자 경계
+- [x] 외부 Tailwind 실행 제거와 로컬 CSS·비공개 캐시·CSP 적용
+- [x] 정적·단위·PostgreSQL 통합·migration drift·규칙·민감자료 검사 통과
+- [x] 합성 alpha 최종 이미지 health·migration head와 무JavaScript Playwright 2건 통과
+- [x] Phase 11 최종 게이트 `PASS_NONPROD_PHASE_11`
+
+직전 배포 기준선은 정적 검사·단위 248건·PostgreSQL 통합 53건·규칙·민감자료 검사와 실제 공인 HTTPS 관리자 smoke 3건을 통과했다. live DB와 기존 백업의 migration은 `e51f0b24c8aa`이며, 현재 작업 트리의 신규 head `6c1a2e9f4b73`과 회원 승인 코드는 아직 배포하지 않았다.
+
+현재 작업 트리는 정적 검사·mypy·단위 273건·PostgreSQL 통합 112건·규칙·민감자료 검사와 합성 PostgreSQL 백업·격리 복원을 통과했다. 기존 관리자 username을 불변 `actor_ref`로 유지해 과거 검수·AI 소유권을 보존하고, 신규 계정은 UUID namespace를 사용한다. 합성 secret과 고유 port·network·volume만 사용한 최종 알파 image는 migration head `6c1a2e9f4b73`, health, 무JavaScript 회원가입→승인→로그인과 보조관리자 403 Playwright 2건을 통과했고 합성 자원을 제거했다. live 백업 복제본에서도 전체 신규 migration 체인과 `golden_test_ref=0` 유지가 확인됐다. 현재 변경은 `PASS_NONPROD_PHASE_11`이며 live DB·배포에는 적용하지 않았다. Google OIDC는 기본 비활성화 상태로, 실제 활성화 전 호스트 Nginx callback query 로그와 공개 로그인·가입 rate limit을 별도 운영 게이트로 처리한다. 공식 대학 규칙 게시 수는 계속 0건이며 AI는 `HUMAN_APPROVED` 또는 게시 상태를 설정하지 않는다.

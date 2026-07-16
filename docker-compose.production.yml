@@ -72,6 +72,11 @@ services:
       - -c
       - >-
         flask --app wsgi db upgrade &&
+        case "${PRODUCTION_BOOTSTRAP_ADMIN_ON_STARTUP:-1}" in
+        1) flask --app wsgi auth bootstrap-admin ;;
+        0) true ;;
+        *) exit 1 ;;
+        esac &&
         exec gunicorn
         --bind=0.0.0.0:5000
         --workers=${PRODUCTION_WEB_WORKERS:-2}
@@ -79,6 +84,7 @@ services:
         --timeout=30
         --graceful-timeout=30
         --access-logfile=-
+        --access-logformat='%(t)s "%(m)s %(U)s %(H)s" %(s)s %(b)s'
         --error-logfile=-
         wsgi:app
     environment:
@@ -88,6 +94,8 @@ services:
       ADMIN_USERNAME_FILE: /run/secrets/admin_username
       ADMIN_PASSWORD_HASH_FILE: /run/secrets/admin_password_hash
       BYOK_MASTER_KEY_FILE: /run/secrets/byok_master_key
+      GOOGLE_OIDC_ENABLED: "${GOOGLE_OIDC_ENABLED:-false}"
+      GOOGLE_REDIRECT_URI: "${GOOGLE_REDIRECT_URI:-}"
       PUBLIC_BASE_URL: "${PRODUCTION_PUBLIC_BASE_URL:?PRODUCTION_PUBLIC_BASE_URL must be set}"
       TRUSTED_HOSTS: "${PRODUCTION_TRUSTED_HOSTS:?PRODUCTION_TRUSTED_HOSTS must be set}"
       HEALTHCHECK_HOST: "${PRODUCTION_HEALTHCHECK_HOST:?PRODUCTION_HEALTHCHECK_HOST must be set}"

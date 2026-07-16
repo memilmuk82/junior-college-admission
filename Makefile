@@ -10,20 +10,23 @@ PRODUCTION_URL ?=
 PRODUCTION_CA_CERT ?=
 PRODUCTION_BACKUP_DIR ?= backups/production
 BACKUP_FILE ?=
+ROLLBACK_APP_IMAGE ?=
+ROLLBACK_APP_IMAGE_ID ?=
+ROLLBACK_DATABASE_RESTORE_CONFIRMED ?=
 
-.PHONY: setup test-unit test-integration test-e2e lint validate-rules check-sensitive-data check production-bootstrap production-preflight production-up production-check production-e2e production-status production-logs production-down production-origin-up production-origin-check production-origin-status production-origin-logs production-origin-down production-origin-backup production-origin-backup-verify production-origin-restore-verify production-origin-metrics alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
+.PHONY: setup test-unit test-integration test-e2e lint validate-rules check-sensitive-data check production-bootstrap production-preflight production-up production-check production-e2e production-status production-logs production-down production-origin-up production-origin-check production-origin-status production-origin-logs production-origin-down production-origin-rollback-app production-origin-backup production-origin-backup-verify production-origin-restore-verify production-origin-metrics alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
 
 setup:
 	uv sync --frozen
 	npm ci
 
 test-unit:
-	$(PYTHON) pytest tests/test_admin_auth.py tests/test_admission_results.py tests/test_ai_http_providers.py tests/test_ai_payloads.py tests/test_ai_security.py tests/test_rule_admin.py tests/test_score_rule_csv_preview.py tests/test_app.py tests/test_application_policies.py tests/test_consultation_forms.py tests/test_eligibility.py tests/test_image_imports.py tests/test_pilot_candidates.py tests/test_pilot_golden_candidates.py tests/test_postgres_operations.py tests/test_production_bootstrap.py tests/test_production_config.py tests/test_review_forms.py tests/test_review_state.py tests/test_scanned_pdf_imports.py tests/test_score_calculation.py tests/test_score_components.py tests/test_score_conversion.py tests/test_score_golden.py tests/test_score_inputs.py tests/test_score_properties.py tests/test_score_rule_schema.py tests/test_score_selection.py tests/test_structured_imports.py tests/test_temporary_uploads.py tests/test_text_pdf_imports.py tests/test_validate_rules.py
+	$(PYTHON) pytest tests/test_admin_auth.py tests/test_authentication.py tests/test_admission_results.py tests/test_ai_http_providers.py tests/test_ai_payloads.py tests/test_ai_security.py tests/test_rule_admin.py tests/test_score_rule_csv_preview.py tests/test_app.py tests/test_application_policies.py tests/test_consultation_forms.py tests/test_eligibility.py tests/test_image_imports.py tests/test_pilot_candidates.py tests/test_pilot_golden_candidates.py tests/test_postgres_operations.py tests/test_production_bootstrap.py tests/test_production_config.py tests/test_review_forms.py tests/test_review_state.py tests/test_scanned_pdf_imports.py tests/test_score_calculation.py tests/test_score_components.py tests/test_score_conversion.py tests/test_score_golden.py tests/test_score_inputs.py tests/test_score_properties.py tests/test_score_rule_schema.py tests/test_score_selection.py tests/test_structured_imports.py tests/test_temporary_uploads.py tests/test_text_pdf_imports.py tests/test_validate_rules.py
 
 test-integration:
 	$(COMPOSE_TEST_ENV) docker compose --profile test rm -f -s -v db-test
 	$(COMPOSE_TEST_ENV) docker compose --profile test up -d --wait db-test
-	@status=0; TEST_DATABASE_URL=$(TEST_DATABASE_URL) $(PYTHON) pytest tests/test_admin_rule_routes.py tests/test_score_rule_csv_drafts.py tests/test_admission_result_models.py tests/test_ai_credentials.py tests/test_ai_routes.py tests/test_rule_admin_models.py tests/test_confirmed_imports.py tests/test_consultations.py tests/test_consultation_routes.py tests/test_database.py tests/test_migrations.py tests/test_models.py tests/test_published_rules.py tests/test_review_routes.py || status=$$?; \
+	@status=0; TEST_DATABASE_URL=$(TEST_DATABASE_URL) $(PYTHON) pytest tests/test_admin_rule_routes.py tests/test_auth_routes.py tests/test_membership.py tests/test_score_rule_csv_drafts.py tests/test_admission_result_models.py tests/test_ai_credentials.py tests/test_ai_routes.py tests/test_rule_admin_models.py tests/test_confirmed_imports.py tests/test_consultations.py tests/test_consultation_routes.py tests/test_database.py tests/test_migrations.py tests/test_models.py tests/test_published_rules.py tests/test_review_routes.py || status=$$?; \
 		if [ $$status -eq 0 ]; then $(COMPOSE_TEST_ENV) COMPOSE_FILE=docker-compose.yml DB_SERVICE=db-test ./scripts/collect_postgres_metrics.sh > /dev/null || status=$$?; fi; \
 		if [ $$status -eq 0 ]; then $(COMPOSE_TEST_ENV) COMPOSE_FILE=docker-compose.yml DB_SERVICE=db-test ./scripts/check_postgres_backup_restore.sh || status=$$?; fi; \
 		$(COMPOSE_TEST_ENV) docker compose --profile test rm -f -s -v db-test; \
@@ -94,6 +97,16 @@ production-origin-logs:
 
 production-origin-down:
 	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml --env-file $(PRODUCTION_ENV_FILE) stop web-production db-production
+
+# Image-only rollback is forbidden after a schema change. This target is usable only
+# after the approved pre-change DB backup has been restored and verified separately.
+production-origin-rollback-app:
+	test "$(ROLLBACK_DATABASE_RESTORE_CONFIRMED)" = "RESTORED_AND_VERIFIED"
+	test -n "$(ROLLBACK_APP_IMAGE)"
+	test -n "$(ROLLBACK_APP_IMAGE_ID)"
+	@actual_id=$$(docker image inspect --format '{{.Id}}' "$(ROLLBACK_APP_IMAGE)"); \
+		test "$$actual_id" = "$(ROLLBACK_APP_IMAGE_ID)"
+	PRODUCTION_BOOTSTRAP_ADMIN_ON_STARTUP=0 PRODUCTION_APP_IMAGE="$(ROLLBACK_APP_IMAGE)" docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml --env-file $(PRODUCTION_ENV_FILE) up -d --no-build --no-deps --wait web-production
 
 production-origin-backup:
 	COMPOSE_FILE=docker-compose.production.yml COMPOSE_OVERRIDE_FILE=docker-compose.host-nginx.yml COMPOSE_ENV_FILE="$(PRODUCTION_ENV_FILE)" DB_SERVICE=db-production BACKUP_DIR="$(PRODUCTION_BACKUP_DIR)" ./scripts/backup_postgres.sh

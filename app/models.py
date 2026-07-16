@@ -927,6 +927,144 @@ class VocationalCourseStatistic(TimestampMixin, Base):
     enrollment_count: Mapped[int | None] = mapped_column(Integer)
 
 
+class UserAccount(TimestampMixin, Base):
+    __tablename__ = "user_accounts"
+    __table_args__ = (
+        UniqueConstraint("login_name"),
+        UniqueConstraint("email"),
+        UniqueConstraint("actor_ref"),
+        CheckConstraint(
+            "role IN ('ADMIN', 'ASSISTANT_ADMIN', 'MEMBER')",
+            name="role_valid",
+        ),
+        CheckConstraint(
+            "status IN ('PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'SUSPENDED')",
+            name="status_valid",
+        ),
+        CheckConstraint("auth_version > 0", name="auth_version_positive"),
+        CheckConstraint(
+            "email = btrim(lower(email)) AND char_length(email) BETWEEN 3 AND 320",
+            name="email_normalized",
+        ),
+        CheckConstraint(
+            "display_name = btrim(display_name) AND char_length(display_name) BETWEEN 1 AND 120",
+            name="display_name_valid",
+        ),
+        CheckConstraint(
+            "actor_ref = btrim(actor_ref) AND char_length(actor_ref) BETWEEN 1 AND 120",
+            name="actor_ref_valid",
+        ),
+        CheckConstraint(
+            "(login_name IS NULL AND password_hash IS NULL) OR "
+            "(login_name IS NOT NULL AND password_hash IS NOT NULL AND "
+            "login_name = btrim(lower(login_name)) AND char_length(login_name) BETWEEN 4 AND 80 "
+            "AND char_length(password_hash) > 0)",
+            name="local_credentials_complete",
+        ),
+        CheckConstraint(
+            "status NOT IN ('PENDING_APPROVAL', 'REJECTED') OR role = 'MEMBER'",
+            name="pending_role_member",
+        ),
+        CheckConstraint(
+            "(status IN ('PENDING_APPROVAL', 'REJECTED') AND approved_at IS NULL "
+            "AND approved_by_user_id IS NULL) OR "
+            "(status IN ('ACTIVE', 'SUSPENDED') AND approved_at IS NOT NULL "
+            "AND approved_by_user_id IS NOT NULL)",
+            name="approval_state_consistent",
+        ),
+        Index("ix_user_accounts_status_role", "status", "role"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    actor_ref: Mapped[str] = mapped_column(String(120), nullable=False)
+    login_name: Mapped[str | None] = mapped_column(String(80))
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    password_hash: Mapped[str | None] = mapped_column(Text)
+    role: Mapped[str] = mapped_column(String(30), nullable=False, default="MEMBER")
+    status: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="PENDING_APPROVAL", index=True
+    )
+    auth_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    approved_by_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ExternalIdentity(TimestampMixin, Base):
+    __tablename__ = "external_identities"
+    __table_args__ = (
+        UniqueConstraint("provider", "issuer", "provider_subject"),
+        UniqueConstraint("user_account_id", "provider"),
+        CheckConstraint("provider = 'GOOGLE'", name="provider_valid"),
+        CheckConstraint(
+            "issuer = 'https://accounts.google.com'",
+            name="issuer_valid",
+        ),
+        CheckConstraint(
+            "provider_subject = btrim(provider_subject) "
+            "AND char_length(provider_subject) BETWEEN 1 AND 255",
+            name="provider_subject_valid",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_account_id: Mapped[str] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(30), nullable=False)
+    issuer: Mapped[str] = mapped_column(String(200), nullable=False)
+    provider_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
+class UserAccountAuditEvent(TimestampMixin, Base):
+    __tablename__ = "user_account_audit_events"
+    __table_args__ = (
+        CheckConstraint(
+            "event_type IN ('REGISTERED_LOCAL', 'REGISTERED_GOOGLE', "
+            "'BOOTSTRAPPED_ADMIN', 'APPROVED', 'ROLE_CHANGED', 'STATUS_CHANGED', "
+            "'LOGIN_SUCCEEDED', 'PASSWORD_CHANGED')",
+            name="event_type_valid",
+        ),
+        CheckConstraint(
+            "before_role IS NULL OR before_role IN ('ADMIN', 'ASSISTANT_ADMIN', 'MEMBER')",
+            name="before_role_valid",
+        ),
+        CheckConstraint(
+            "after_role IS NULL OR after_role IN ('ADMIN', 'ASSISTANT_ADMIN', 'MEMBER')",
+            name="after_role_valid",
+        ),
+        CheckConstraint(
+            "before_status IS NULL OR before_status IN "
+            "('PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'SUSPENDED')",
+            name="before_status_valid",
+        ),
+        CheckConstraint(
+            "after_status IS NULL OR after_status IN "
+            "('PENDING_APPROVAL', 'ACTIVE', 'REJECTED', 'SUSPENDED')",
+            name="after_status_valid",
+        ),
+        Index("ix_user_account_audit_events_target_occurred", "target_user_id", "occurred_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    target_user_id: Mapped[str] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    actor_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    before_role: Mapped[str | None] = mapped_column(String(30))
+    after_role: Mapped[str | None] = mapped_column(String(30))
+    before_status: Mapped[str | None] = mapped_column(String(30))
+    after_status: Mapped[str | None] = mapped_column(String(30))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+
 class AiProviderCredential(TimestampMixin, Base):
     __tablename__ = "ai_provider_credentials"
     __table_args__ = (
@@ -994,6 +1132,7 @@ __all__ = [
     "Campus",
     "DisqualificationRule",
     "DocumentRequirement",
+    "ExternalIdentity",
     "GradeSourceScopeRule",
     "ImportBatch",
     "Institution",
@@ -1011,6 +1150,8 @@ __all__ = [
     "StudentAcademicRecord",
     "StudentCourseRecord",
     "TieBreakRule",
+    "UserAccount",
+    "UserAccountAuditEvent",
     "VocationalCourseReport",
     "VocationalCourseStatistic",
     "VocationalStudentResult",

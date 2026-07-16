@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>회원 승인 및 권한 관리 · 2027 전문대 입시 상담</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="admin-page members-page">
+    {% set operator = current_user %}
+    {% set notice_messages = {
+      'approved': '회원 승인이 완료되었습니다.',
+      'role_changed': '회원 역할이 변경되었습니다.',
+      'status_changed': '회원 상태가 변경되었습니다.'
+    } %}
+    <header class="admin-header">
+      <div>
+        <p class="admin-eyebrow">MEMBER GOVERNANCE</p>
+        <a href="{{ url_for('members.index') }}">회원 승인 및 권한 관리</a>
+      </div>
+      <form method="post" action="{{ url_for('auth.logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <span>{{ operator.display_name }} · {{ operator.role }}</span>
+        <button class="text-action" type="submit">로그아웃</button>
+      </form>
+    </header>
+
+    <main class="admin-shell" id="main-content">
+      <div class="admin-heading">
+        <div>
+          <h1>회원 승인 및 권한 관리</h1>
+          {% if operator.role == 'ASSISTANT_ADMIN' %}
+            <p>보조 관리자는 승인 대기 일반 회원만 승인할 수 있습니다.</p>
+          {% else %}
+            <p>신규 회원 승인과 활성 회원의 역할·상태를 관리합니다.</p>
+          {% endif %}
+        </div>
+        <nav class="admin-heading__actions" aria-label="관리 메뉴">
+          <a class="button-link button-link--secondary" href="{{ url_for('admin.new_consultation') }}">상담 시작</a>
+          {% if operator.role == 'ADMIN' %}<a class="button-link" href="{{ url_for('admin.rules') }}">규칙 관리자</a>{% endif %}
+        </nav>
+      </div>
+
+      {% if error %}<div class="admin-alert" role="alert" tabindex="-1">{{ error }}</div>{% endif %}
+      {% if message in notice_messages %}<div class="members-notice" role="status">{{ notice_messages[message] }}</div>{% endif %}
+
+      <section class="admin-section" aria-labelledby="member-list-heading">
+        <div class="admin-section__heading">
+          <h2 id="member-list-heading">회원 목록</h2>
+          <span>{{ members|length }}명</span>
+        </div>
+        <p class="form-help">가입 신청은 항상 일반 회원·승인 대기로 생성됩니다. 보조 관리자의 유일한 관리 권한은 해당 회원의 승인입니다.</p>
+
+        {% if members %}
+          <div class="admin-table-wrap members-table-wrap">
+            <table class="admin-table members-table">
+              <thead>
+                <tr><th>회원</th><th>가입 정보</th><th>역할</th><th>상태</th><th>허용 작업</th></tr>
+              </thead>
+              <tbody>
+                {% for member in members %}
+                  <tr data-member-id="{{ member.id }}">
+                    <td><strong>{{ member.display_name }}</strong><br><span class="member-secondary">{{ member.login_name or 'Google 계정' }}</span></td>
+                    <td><span class="member-email">{{ member.email }}</span><br><span class="member-secondary">{{ member.created_at }}</span></td>
+                    <td><span class="member-role">{{ member.role }}</span></td>
+                    <td><span class="member-status member-status--{{ member.status|lower }}">{{ member.status }}</span></td>
+                    <td>
+                      <div class="member-actions">
+                        {% if member.status == 'PENDING_APPROVAL' and member.role == 'MEMBER' and member.id != operator.id %}
+                          <form method="post" action="{{ url_for('members.approve', user_id=member.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button class="member-action-button member-action-button--approve" type="submit" aria-label="{{ member.login_name or member.display_name }} 회원 승인">회원 승인</button>
+                          </form>
+                        {% endif %}
+
+                        {% if operator.role == 'ADMIN' and member.id != operator.id and member.status in ('ACTIVE', 'SUSPENDED') %}
+                          <form class="member-inline-form" method="post" action="{{ url_for('members.change_role', user_id=member.id) }}">
+                            <label for="role-{{ member.id }}">역할 변경</label>
+                            <select id="role-{{ member.id }}" name="role">
+                              {% for role_code, role_label in [('MEMBER','일반 회원'),('ASSISTANT_ADMIN','보조 관리자'),('ADMIN','관리자')] %}
+                                <option value="{{ role_code }}" {% if member.role == role_code %}selected{% endif %}>{{ role_label }}</option>
+                              {% endfor %}
+                            </select>
+                            <button class="member-action-button" type="submit">역할 저장</button>
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                          </form>
+
+                          <form class="member-inline-form" method="post" action="{{ url_for('members.change_status', user_id=member.id) }}">
+                            <label for="status-{{ member.id }}">상태 변경</label>
+                            <select id="status-{{ member.id }}" name="status">
+                              {% for status_code, status_label in [('ACTIVE','사용 가능'),('SUSPENDED','사용 중지')] %}
+                                <option value="{{ status_code }}" {% if member.status == status_code %}selected{% endif %}>{{ status_label }}</option>
+                              {% endfor %}
+                            </select>
+                            <button class="member-action-button" type="submit">상태 저장</button>
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                          </form>
+                        {% elif operator.role == 'ADMIN' and member.id != operator.id and member.status == 'PENDING_APPROVAL' %}
+                          <form class="member-inline-form" method="post" action="{{ url_for('members.change_status', user_id=member.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="status" value="REJECTED">
+                            <button class="member-action-button member-action-button--danger" type="submit" aria-label="{{ member.login_name or member.display_name }} 가입 요청 거절">가입 요청 거절</button>
+                          </form>
+                        {% elif operator.role == 'ADMIN' and member.id != operator.id and member.status == 'REJECTED' %}
+                          <form class="member-inline-form" method="post" action="{{ url_for('members.change_status', user_id=member.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="status" value="PENDING_APPROVAL">
+                            <button class="member-action-button" type="submit" aria-label="{{ member.login_name or member.display_name }} 승인 대기로 복원">승인 대기로 복원</button>
+                          </form>
+                        {% endif %}
+
+                        {% if member.id == operator.id %}<span class="member-secondary">현재 로그인 계정</span>{% endif %}
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="admin-empty">표시할 회원이 없습니다.</p>
+        {% endif %}
+      </section>
+
+      {% if operator.role == 'ADMIN' %}
+        <aside class="members-warning" aria-label="관리자 안전 규칙">
+          <h2>관리자 안전 규칙</h2>
+          <p>마지막 활성 관리자는 강등하거나 중지할 수 없습니다. 계정·역할·상태 변경은 감사 기록으로 남습니다.</p>
+        </aside>
+      {% endif %}
+    </main>
+  </body>
+</html>

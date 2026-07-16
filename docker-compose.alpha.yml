@@ -8,7 +8,17 @@ services:
       - -c
       - >-
         uv run --no-sync flask --app wsgi db upgrade &&
-        exec uv run --no-sync flask --app wsgi run --host=0.0.0.0 --port=5000
+        uv run --no-sync flask --app wsgi auth bootstrap-admin &&
+        exec uv run --no-sync gunicorn
+        --bind=0.0.0.0:5000
+        --workers=1
+        --threads=2
+        --timeout=30
+        --graceful-timeout=30
+        --access-logfile=-
+        --access-logformat='%(t)s "%(m)s %(U)s %(H)s" %(s)s %(b)s'
+        --error-logfile=-
+        wsgi:app
     environment:
       APP_ENV: alpha
       SECRET_KEY: "${ALPHA_SECRET_KEY:?ALPHA_SECRET_KEY must be set}"
@@ -17,6 +27,10 @@ services:
       ADMIN_USERNAME: "${ALPHA_ADMIN_USERNAME:?ALPHA_ADMIN_USERNAME must be set}"
       ADMIN_PASSWORD_HASH: "${ALPHA_ADMIN_PASSWORD_HASH:?ALPHA_ADMIN_PASSWORD_HASH must be set}"
       BYOK_MASTER_KEY: "${ALPHA_BYOK_MASTER_KEY:?ALPHA_BYOK_MASTER_KEY must be set}"
+      GOOGLE_OIDC_ENABLED: "${ALPHA_GOOGLE_OIDC_ENABLED:-false}"
+      GOOGLE_OIDC_CLIENT_ID: "${ALPHA_GOOGLE_OIDC_CLIENT_ID:-}"
+      GOOGLE_OIDC_CLIENT_SECRET: "${ALPHA_GOOGLE_OIDC_CLIENT_SECRET:-}"
+      GOOGLE_REDIRECT_URI: "${ALPHA_GOOGLE_REDIRECT_URI:-}"
     ports:
       - "127.0.0.1:${ALPHA_WEB_PORT:-5001}:5000"
     depends_on:

@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import hmac
-import secrets
-from collections.abc import Callable
 from datetime import UTC, datetime
-from functools import wraps
 from typing import Any, cast
 
 from flask import (
@@ -22,8 +18,15 @@ from flask import (
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from werkzeug.security import check_password_hash
 
+from app.auth import (
+    actor_ref,
+    admin_required,
+    csrf_token,
+    member_required,
+    require_csrf,
+)
+from app.auth_routes import login_view
 from app.database import db
 from app.models import (
     AdmissionTrack,
@@ -118,18 +121,11 @@ CONSULTATION_DEFAULTS = {field: "" for field in CONSULTATION_FORM_FIELDS} | {
 
 
 def _csrf_token() -> str:
-    token = session.get("admin_csrf_token")
-    if not isinstance(token, str):
-        token = secrets.token_urlsafe(32)
-        session["admin_csrf_token"] = token
-    return token
+    return csrf_token()
 
 
 def _require_csrf() -> None:
-    expected = session.get("admin_csrf_token")
-    supplied = request.form.get("csrf_token", "")
-    if not isinstance(expected, str) or not hmac.compare_digest(expected, supplied):
-        abort(400)
+    require_csrf()
 
 
 def _private(content: str, status: int = 200) -> Response:
@@ -156,10 +152,7 @@ def _private_csv(content: bytes, filename: str) -> Response:
 
 
 def _actor_ref() -> str:
-    actor = session.get("admin_actor_ref")
-    if not isinstance(actor, str) or not actor:
-        abort(401)
-    return actor
+    return actor_ref()
 
 
 def _upload_store() -> TemporaryUploadStore:
@@ -189,46 +182,13 @@ def _csv_preview(review_session_id: str) -> ScoreRuleCsvPreview:
     )
 
 
-def admin_required(view: Callable[..., Any]) -> Callable[..., Any]:
-    @wraps(view)
-    def wrapped(*args: Any, **kwargs: Any) -> Any:
-        actor = session.get("admin_actor_ref")
-        if not isinstance(actor, str) or not actor:
-            return redirect(url_for("admin.login", next=request.path))
-        return view(*args, **kwargs)
-
-    return wrapped
-
-
 @bp.route("/login", methods=["GET", "POST"])
 def login() -> Any:
-    error: str | None = None
-    if request.method == "POST":
-        _require_csrf()
-        configured_user = current_app.config.get("ADMIN_USERNAME")
-        password_hash = current_app.config.get("ADMIN_PASSWORD_HASH")
-        username = request.form.get("username", "")
-        password = request.form.get("password", "")
-        valid = (
-            isinstance(configured_user, str)
-            and isinstance(password_hash, str)
-            and hmac.compare_digest(username, configured_user)
-            and check_password_hash(password_hash, password)
-        )
-        if valid:
-            session.clear()
-            session["admin_actor_ref"] = username
-            session["admin_csrf_token"] = secrets.token_urlsafe(32)
-            return redirect(url_for("admin.rules"))
-        error = "관리자 인증 정보를 확인하세요."
-    return _private(
-        render_template("admin_login.html", csrf_token=_csrf_token(), error=error),
-        401 if error else 200,
-    )
+    return login_view()
 
 
 @bp.post("/logout")
-@admin_required
+@member_required
 def logout() -> Any:
     _require_csrf()
     session.clear()
@@ -311,7 +271,7 @@ def _render_consultation_result(
 
 
 @bp.route("/consultations/new", methods=["GET", "POST"])
-@admin_required
+@member_required
 def new_consultation() -> Response:
     if request.method == "GET":
         return _render_consultation_form(dict(CONSULTATION_DEFAULTS))
@@ -327,7 +287,7 @@ def new_consultation() -> Response:
 
 
 @bp.post("/consultations/ai-draft")
-@admin_required
+@member_required
 def generate_ai_consultation_draft() -> Response | Any:
     _require_csrf()
     parsed = parse_consultation_form(request.form)
@@ -397,13 +357,13 @@ def _render_ai_settings(*, error: str | None = None, status: int = 200) -> Respo
 
 
 @bp.get("/ai/settings")
-@admin_required
+@member_required
 def ai_settings() -> Response:
     return _render_ai_settings()
 
 
 @bp.post("/ai/credentials")
-@admin_required
+@member_required
 def save_ai_credential() -> Response | Any:
     _require_csrf()
     try:
@@ -423,7 +383,7 @@ def save_ai_credential() -> Response | Any:
 
 
 @bp.post("/ai/credentials/<provider>/delete")
-@admin_required
+@member_required
 def delete_ai_credential(provider: str) -> Any:
     _require_csrf()
     try:
@@ -463,13 +423,13 @@ def _render_ai_draft(
 
 
 @bp.get("/ai/drafts/<draft_id>")
-@admin_required
+@member_required
 def ai_draft_detail(draft_id: str) -> Response:
     return _render_ai_draft(_owned_ai_draft(draft_id))
 
 
 @bp.post("/ai/drafts/<draft_id>/confirm")
-@admin_required
+@member_required
 def confirm_ai_draft_route(draft_id: str) -> Response | Any:
     _require_csrf()
     record = _owned_ai_draft(draft_id)
@@ -490,7 +450,7 @@ def confirm_ai_draft_route(draft_id: str) -> Response | Any:
 
 
 @bp.post("/ai/drafts/<draft_id>/reject")
-@admin_required
+@member_required
 def reject_ai_draft_route(draft_id: str) -> Response | Any:
     _require_csrf()
     record = _owned_ai_draft(draft_id)
@@ -509,7 +469,7 @@ def reject_ai_draft_route(draft_id: str) -> Response | Any:
 
 
 @bp.post("/consultations/print/<audience>")
-@admin_required
+@member_required
 def print_consultation(audience: str) -> Response:
     if audience not in {"student", "teacher"}:
         abort(404)

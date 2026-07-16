@@ -188,7 +188,7 @@ def test_consultation_requires_admin_auth_and_renders_separate_print_views(
     client = app.test_client()
     blocked = client.get("/admin/consultations/new")
     assert blocked.status_code == 302
-    assert "/admin/login" in blocked.headers["Location"]
+    assert "/auth/login" in blocked.headers["Location"]
 
     login_page = client.get("/admin/login")
     client.post(

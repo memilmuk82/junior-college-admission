@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 
 from cryptography.fernet import Fernet
 from flask import Flask
+from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 DEVELOPMENT_SECRET_KEY = "development-only-change-me"
@@ -36,6 +37,18 @@ def _environment_hosts(value: str | None) -> list[str]:
     if not value:
         return []
     return [host.strip() for host in value.split(",") if host.strip()]
+
+
+def _environment_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise RuntimeError(f"환경변수 형식이 유효하지 않습니다: {name}")
 
 
 def _valid_fernet_key(value: object) -> bool:
@@ -97,6 +110,28 @@ def _configure_production_security(app: Flask) -> None:
         proxy_hops = 0
     if proxy_hops != 1:
         failures.append("TRUST_PROXY_HOPS")
+    if app.config.get("GOOGLE_OIDC_ENABLED"):
+        if not isinstance(app.config.get("GOOGLE_OIDC_CLIENT_ID"), str) or not app.config.get(
+            "GOOGLE_OIDC_CLIENT_ID"
+        ):
+            failures.append("GOOGLE_OIDC_CLIENT_ID")
+        if not isinstance(app.config.get("GOOGLE_OIDC_CLIENT_SECRET"), str) or not app.config.get(
+            "GOOGLE_OIDC_CLIENT_SECRET"
+        ):
+            failures.append("GOOGLE_OIDC_CLIENT_SECRET")
+        redirect_uri = app.config.get("GOOGLE_REDIRECT_URI")
+        if redirect_uri:
+            parsed_redirect = urlparse(redirect_uri) if isinstance(redirect_uri, str) else None
+            if (
+                parsed_redirect is None
+                or parsed_redirect.scheme != "https"
+                or parsed_redirect.hostname not in (trusted_hosts or [])
+                or parsed_redirect.path != "/auth/google/callback"
+                or parsed_redirect.params
+                or parsed_redirect.query
+                or parsed_redirect.fragment
+            ):
+                failures.append("GOOGLE_REDIRECT_URI")
     if failures:
         raise RuntimeError(
             "운영 시작 조건이 충족되지 않았습니다: " + ", ".join(sorted(set(failures)))
@@ -144,6 +179,13 @@ def create_app(test_config: dict | None = None) -> Flask:
         PUBLIC_BASE_URL=os.environ.get("PUBLIC_BASE_URL"),
         TRUSTED_HOSTS=_environment_hosts(os.environ.get("TRUSTED_HOSTS")),
         TRUST_PROXY_HOPS=os.environ.get("TRUST_PROXY_HOPS", "0"),
+        GOOGLE_OIDC_ENABLED=_environment_bool("GOOGLE_OIDC_ENABLED"),
+        GOOGLE_OIDC_CLIENT_ID=_environment_value("GOOGLE_OIDC_CLIENT_ID"),
+        GOOGLE_OIDC_CLIENT_SECRET=_environment_value("GOOGLE_OIDC_CLIENT_SECRET"),
+        GOOGLE_REDIRECT_URI=os.environ.get("GOOGLE_REDIRECT_URI"),
+        # 환경변수 관리자 로그인은 로컬 개발 호환용이다. alpha/beta/production은
+        # 시작 시 DB 관리자를 부트스트랩하고 DB 인증만 사용한다.
+        ALLOW_LEGACY_ADMIN_LOGIN=os.environ.get("APP_ENV", "development") == "development",
     )
 
     if test_config:
@@ -155,10 +197,46 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     init_database(app)
 
+    @app.errorhandler(SQLAlchemyError)
+    def handle_database_error(_error: SQLAlchemyError):  # type: ignore[no-untyped-def]
+        # SQLAlchemy 예외 문자열에는 statement parameter가 포함될 수 있다.
+        # 회원 이메일·표시명·password hash가 로그에 남지 않도록 예외 객체를
+        # 기록하지 않고, 세션만 안전하게 정리한 뒤 일반화된 응답을 반환한다.
+        from app.database import db
+
+        try:
+            db.session.rollback()
+        except SQLAlchemyError:
+            db.session.remove()
+        app.logger.warning("데이터베이스 요청을 처리할 수 없습니다.")
+        response = app.response_class(
+            "요청을 처리할 수 없습니다. 잠시 후 다시 시도하세요.",
+            status=503,
+            mimetype="text/plain",
+        )
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
+
+    from app.auth import register_auth_cli
+
+    register_auth_cli(app)
+    from app.services.google_oidc import init_google_oidc
+
+    init_google_oidc(app)
+
     from app.routes import bp
 
     app.register_blueprint(bp)
+    from app.auth_routes import bp as auth_bp
+
+    app.register_blueprint(auth_bp)
     from app.admin_routes import bp as admin_bp
 
     app.register_blueprint(admin_bp)
+    from app.member_routes import bp as member_bp
+
+    app.register_blueprint(member_bp)
     return app

@@ -4,57 +4,84 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>2027 전문대 입시 상담</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}" media="print">
   </head>
-  <body class="min-h-screen bg-slate-50 text-slate-950">
-    <header class="border-b border-slate-200 bg-white">
-      <div class="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
-        <a class="font-semibold" href="/">2027 전문대 입시 상담</a>
-        <span class="text-sm text-slate-500">Phase 8 진행 중</span>
+  {% set account = current_user if current_user is defined else none %}
+  <body class="landing-page">
+    <header class="landing-header">
+      <div class="landing-header__inner">
+        <a class="landing-brand" href="/">2027 전문대 입시 상담</a>
+        <nav class="landing-nav" aria-label="사용자 메뉴">
+          {% if account and account.status == 'ACTIVE' %}
+            <span class="landing-account">{{ account.display_name }} · {{ account.role }}</span>
+            <a href="{{ url_for('admin.new_consultation') }}">상담 시작</a>
+            {% if account.role in ('ADMIN', 'ASSISTANT_ADMIN') %}<a href="{{ url_for('members.index') }}">회원 관리</a>{% endif %}
+            {% if account.role == 'ADMIN' %}<a href="{{ url_for('admin.rules') }}">규칙 관리</a>{% endif %}
+            <form method="post" action="{{ url_for('auth.logout') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token|default('') }}">
+              <button type="submit">로그아웃</button>
+            </form>
+          {% elif account %}
+            <a class="landing-nav__warning" href="{{ url_for('auth.pending') }}">계정 상태 확인</a>
+            <form method="post" action="{{ url_for('auth.logout') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token|default('') }}">
+              <button type="submit">로그아웃</button>
+            </form>
+          {% else %}
+            <a href="{{ url_for('auth.login') }}">로그인</a>
+            <a href="{{ url_for('auth.register') }}">교직원 회원가입</a>
+          {% endif %}
+        </nav>
       </div>
     </header>
 
-    <main class="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-16">
-      <section class="max-w-3xl" aria-labelledby="page-title">
-        <h1 id="page-title" class="text-3xl font-bold leading-tight sm:text-4xl">지원자격부터 확인하는 상담 흐름</h1>
-        <p class="mt-5 text-base leading-7 text-slate-600 sm:text-lg">
+    <main class="landing-main">
+      <section class="landing-hero" aria-labelledby="page-title">
+        <h1 id="page-title">지원자격부터 확인하는 상담 흐름</h1>
+        <p>
           검수된 게시 규칙이 있는 전형만 지원자격을 먼저 판정하고, 허용된 경우에만 성적 범위·환산점수·같은 업무키의 과거 입시결과를 확인합니다.
         </p>
-        <a class="mt-7 inline-flex min-h-11 items-center bg-slate-900 px-5 py-3 font-semibold text-white" href="{{ url_for('admin.new_consultation') }}">교직원 상담 시작</a>
+        {% if account and account.status == 'ACTIVE' %}
+          <a class="landing-cta" href="{{ url_for('admin.new_consultation') }}">교직원 상담 시작</a>
+        {% elif account %}
+          <a class="landing-cta landing-cta--pending" href="{{ url_for('auth.pending') }}">승인 상태 확인</a>
+        {% else %}
+          <a class="landing-cta" href="{{ url_for('auth.login', next=url_for('admin.new_consultation')) }}">교직원 상담 시작 · 로그인 필요</a>
+        {% endif %}
+        <p class="landing-hero__note">내부 교직원 계정은 로컬 또는 Google로 가입할 수 있으며, 가입 방식과 관계없이 관리자 승인 후 사용할 수 있습니다.</p>
       </section>
 
-      <section class="mt-12 border-y border-slate-200 bg-white" aria-labelledby="status-title">
-        <div class="grid gap-0 md:grid-cols-3">
-          <div class="border-b border-slate-200 p-6 md:border-b-0 md:border-r">
-            <h2 id="status-title" class="text-sm font-semibold text-slate-500">현재 단계</h2>
-            <p class="mt-2 text-lg font-semibold">상담 UI·A4 출력</p>
+      <section class="landing-status" aria-labelledby="status-title">
+        <div>
+          <div>
+            <h2 id="status-title">현재 단계</h2>
+            <p>승인형 교직원 상담 서비스</p>
           </div>
-          <div class="border-b border-slate-200 p-6 md:border-b-0 md:border-r">
-            <h2 class="text-sm font-semibold text-slate-500">자료 정책</h2>
-            <p class="mt-2 text-lg font-semibold">개인자료 로컬 전용</p>
+          <div>
+            <h2>자료 정책</h2>
+            <p>개인자료 로컬 전용</p>
           </div>
-          <div class="p-6">
-            <h2 class="text-sm font-semibold text-slate-500">공개 데이터</h2>
-            <p class="mt-2 text-lg font-semibold">검수된 정제 자료만 허용</p>
+          <div>
+            <h2>공개 데이터</h2>
+            <p>검수된 정제 자료만 허용</p>
           </div>
         </div>
       </section>
 
-      <section class="mt-10" aria-labelledby="principles-title">
-        <h2 id="principles-title" class="text-xl font-bold">적용 원칙</h2>
-        <ul class="mt-5 grid gap-4 text-sm leading-6 text-slate-700 sm:grid-cols-2">
-          <li class="border-l-4 border-emerald-600 bg-white px-5 py-4">지원자격을 먼저 확인하고 계산합니다.</li>
-          <li class="border-l-4 border-amber-500 bg-white px-5 py-4">근거가 없는 규칙은 추정하지 않습니다.</li>
-          <li class="border-l-4 border-sky-600 bg-white px-5 py-4">원적교 성적과 위탁 성적을 분리합니다.</li>
-          <li class="border-l-4 border-rose-600 bg-white px-5 py-4">학생 개인정보 저장을 최소화합니다.</li>
+      <section class="landing-principles" aria-labelledby="principles-title">
+        <h2 id="principles-title">적용 원칙</h2>
+        <ul>
+          <li>지원자격을 먼저 확인하고 계산합니다.</li>
+          <li>근거가 없는 규칙은 추정하지 않습니다.</li>
+          <li>원적교 성적과 위탁 성적을 분리합니다.</li>
+          <li>학생 개인정보 저장을 최소화합니다.</li>
         </ul>
       </section>
     </main>
 
-    <footer class="border-t border-slate-200 bg-white">
-      <div class="mx-auto max-w-6xl px-5 py-5 text-sm text-slate-500 sm:px-8">
+    <footer class="landing-footer">
+      <div>
         교사용 상담 보조 시스템 · 합격 확률을 제공하지 않습니다.
       </div>
     </footer>

@@ -45,6 +45,7 @@ def _seed_review(tmp_path: Path) -> tuple[str, StructuredImportPreview]:
         preview,
         student_id="synthetic-review-student",
         record_source="HOME_SCHOOL_RECORD",
+        owner_actor_ref="synthetic-admin",
     )
     return review_session_id, preview
 
@@ -53,6 +54,11 @@ def _csrf_token(response_text: str) -> str:
     match = re.search(r'name="csrf_token" value="([^"]+)"', response_text)
     assert match is not None
     return match.group(1)
+
+
+def _authenticate_legacy(client) -> None:  # type: ignore[no-untyped-def]
+    with client.session_transaction() as browser_session:
+        browser_session["admin_actor_ref"] = "synthetic-admin"
 
 
 def _row_form(preview: StructuredImportPreview) -> dict[str, str | list[str]]:
@@ -93,6 +99,7 @@ def test_review_screen_and_no_javascript_confirmation_flow(
         }
     )
     client = app.test_client()
+    _authenticate_legacy(client)
 
     get_response = client.get(f"/input/review/{review_session_id}")
     response_text = get_response.get_data(as_text=True)
@@ -143,6 +150,7 @@ def test_review_rejects_empty_selection_without_deleting_session(
         }
     )
     client = app.test_client()
+    _authenticate_legacy(client)
     get_response = client.get(f"/input/review/{review_session_id}")
     form = _row_form(preview)
     form.pop("confirmed_row_indices")
@@ -168,6 +176,7 @@ def test_discard_requires_post_and_purges_review_session(
         }
     )
     client = app.test_client()
+    _authenticate_legacy(client)
     get_response = client.get(f"/input/review/{review_session_id}")
     csrf_token = _csrf_token(get_response.get_data(as_text=True))
 
@@ -193,6 +202,7 @@ def test_review_rejects_missing_csrf_without_deleting_session(
         }
     )
     client = app.test_client()
+    _authenticate_legacy(client)
 
     response = client.post(f"/input/review/{review_session_id}", data=_row_form(preview))
 

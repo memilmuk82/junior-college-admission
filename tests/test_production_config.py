@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,7 @@ def _production_config() -> dict[str, object]:
         "PUBLIC_BASE_URL": "https://service.example.test",
         "TRUSTED_HOSTS": ["service.example.test"],
         "TRUST_PROXY_HOPS": 1,
+        "GOOGLE_OIDC_ENABLED": False,
         "TESTING": True,
     }
 
@@ -168,6 +170,33 @@ def test_production_requires_exactly_one_trusted_proxy_hop(proxy_hops: object) -
         create_app(config)
 
 
+def test_production_google_oidc_is_opt_in_and_fails_closed_without_credentials() -> None:
+    config = _production_config()
+    config["GOOGLE_OIDC_ENABLED"] = True
+
+    with pytest.raises(RuntimeError) as caught:
+        create_app(config)
+
+    assert "GOOGLE_OIDC_CLIENT_ID" in str(caught.value)
+    assert "GOOGLE_OIDC_CLIENT_SECRET" in str(caught.value)
+
+
+def test_production_google_oidc_requires_exact_trusted_https_callback() -> None:
+    config = _production_config() | {
+        "GOOGLE_OIDC_ENABLED": True,
+        "GOOGLE_OIDC_CLIENT_ID": "synthetic-client-id",
+        "GOOGLE_OIDC_CLIENT_SECRET": "synthetic-client-secret",
+        "GOOGLE_REDIRECT_URI": "https://service.example.test/auth/google/callback",
+    }
+
+    app = create_app(config)
+    assert app.extensions["google_oidc_client"] is not None
+
+    config["GOOGLE_REDIRECT_URI"] = "https://untrusted.example.test/auth/google/callback"
+    with pytest.raises(RuntimeError, match="GOOGLE_REDIRECT_URI"):
+        create_app(config)
+
+
 def test_default_compose_origin_port_is_loopback_only() -> None:
     compose = Path("docker-compose.yml").read_text(encoding="utf-8")
 
@@ -183,6 +212,20 @@ def test_host_nginx_production_override_exposes_only_gunicorn_on_loopback() -> N
     assert 'profiles: ["container-tls"]' in compose
 
 
+def test_origin_rollback_requires_restored_database_and_immutable_image() -> None:
+    makefile = Path("Makefile").read_text(encoding="utf-8")
+    target = makefile.split("production-origin-rollback-app:", 1)[1].split(
+        "\nproduction-origin-backup:", 1
+    )[0]
+
+    assert 'ROLLBACK_DATABASE_RESTORE_CONFIRMED)" = "RESTORED_AND_VERIFIED"' in target
+    assert "docker image inspect --format '{{.Id}}'" in target
+    assert 'test "$$actual_id" = "$(ROLLBACK_APP_IMAGE_ID)"' in target
+    assert "PRODUCTION_BOOTSTRAP_ADMIN_ON_STARTUP=0" in target
+    assert "--no-build --no-deps --wait web-production" in target
+    assert "--build" not in target
+
+
 def test_production_compose_runs_app_as_secret_owner_and_initializes_upload_volume() -> None:
     compose = Path("docker-compose.production.yml").read_text(encoding="utf-8")
 
@@ -192,3 +235,109 @@ def test_production_compose_runs_app_as_secret_owner_and_initializes_upload_volu
     assert "- CHOWN" in compose
     assert "- FOWNER" in compose
     assert "cap_drop:\n      - ALL" in compose
+
+
+def test_runtime_profiles_bootstrap_database_admin_before_serving() -> None:
+    for compose_file in (
+        "docker-compose.alpha.yml",
+        "docker-compose.beta.yml",
+        "docker-compose.production.yml",
+    ):
+        compose = Path(compose_file).read_text(encoding="utf-8")
+        migration = compose.index("flask --app wsgi db upgrade")
+        bootstrap = compose.index("flask --app wsgi auth bootstrap-admin")
+        server = compose.index("gunicorn", bootstrap)
+
+        assert migration < bootstrap < server
+
+    production = Path("docker-compose.production.yml").read_text(encoding="utf-8")
+    assert 'case "${PRODUCTION_BOOTSTRAP_ADMIN_ON_STARTUP:-1}" in' in production
+
+
+def test_runtime_profiles_use_query_free_gunicorn_access_logs() -> None:
+    safe_format = "--access-logformat='%(t)s \"%(m)s %(U)s %(H)s\" %(s)s %(b)s'"
+    for compose_file in (
+        "docker-compose.alpha.yml",
+        "docker-compose.beta.yml",
+        "docker-compose.production.yml",
+    ):
+        compose = Path(compose_file).read_text(encoding="utf-8")
+
+        assert safe_format in compose
+        assert "%(r)s" not in compose
+        assert "%(q)s" not in compose
+        assert "%(f)s" not in compose
+
+    alpha = Path("docker-compose.alpha.yml").read_text(encoding="utf-8")
+    assert "flask --app wsgi run" not in alpha
+
+
+def test_production_nginx_access_log_excludes_query_and_referrer() -> None:
+    nginx = Path("deploy/nginx.production.conf").read_text(encoding="utf-8")
+    match = re.search(r"log_format path_only (?P<format>.*?);", nginx, re.DOTALL)
+
+    assert match is not None
+    access_format = match.group("format")
+    assert "$request_method" in access_format
+    assert "$uri" in access_format
+    assert "$request_uri" not in access_format
+    assert "$args" not in access_format
+    assert "$http_referer" not in access_format
+    assert "$request " not in access_format
+    assert "access_log /dev/stdout path_only;" in nginx
+    assert "access_log /dev/stdout combined;" not in nginx
+    assert "location = /auth/google/callback" in nginx
+    assert "error_log /dev/stderr crit;" in nginx
+
+
+def test_production_nginx_rate_limits_every_public_auth_entrypoint() -> None:
+    nginx = Path("deploy/nginx.production.conf").read_text(encoding="utf-8")
+    callback = re.search(
+        r"location = /auth/google/callback \{(?P<body>.*?)\n        \}",
+        nginx,
+        re.DOTALL,
+    )
+
+    assert "limit_req_zone $binary_remote_addr zone=auth_per_ip:10m rate=20r/m;" in nginx
+    assert "location ~ ^/(auth/(login|register|google/start)|admin/login)$" in nginx
+    assert "limit_req zone=auth_per_ip burst=10 nodelay;" in nginx
+    assert callback is not None
+    assert "limit_req zone=auth_per_ip burst=10 nodelay;" in callback.group("body")
+    assert "limit_req_status 429;" in nginx
+
+
+def test_google_oidc_environment_contract_contains_no_committed_credentials() -> None:
+    example = Path(".env.example").read_text(encoding="utf-8")
+    environment = dict(
+        line.split("=", 1)
+        for line in example.splitlines()
+        if line and not line.startswith("#") and "=" in line
+    )
+
+    assert environment["GOOGLE_OIDC_ENABLED"] == "false"
+    for name in (
+        "GOOGLE_OIDC_CLIENT_ID",
+        "GOOGLE_OIDC_CLIENT_SECRET",
+        "GOOGLE_REDIRECT_URI",
+        "GOOGLE_OIDC_CLIENT_ID_FILE",
+        "GOOGLE_OIDC_CLIENT_SECRET_FILE",
+        "ALPHA_GOOGLE_OIDC_CLIENT_ID",
+        "ALPHA_GOOGLE_OIDC_CLIENT_SECRET",
+        "ALPHA_GOOGLE_REDIRECT_URI",
+        "BETA_GOOGLE_OIDC_CLIENT_ID",
+        "BETA_GOOGLE_OIDC_CLIENT_SECRET",
+        "BETA_GOOGLE_REDIRECT_URI",
+    ):
+        assert environment[name] == ""
+    assert environment["ALPHA_GOOGLE_OIDC_ENABLED"] == "false"
+    assert environment["BETA_GOOGLE_OIDC_ENABLED"] == "false"
+
+    production = Path("docker-compose.production.yml").read_text(encoding="utf-8")
+    assert 'GOOGLE_OIDC_ENABLED: "${GOOGLE_OIDC_ENABLED:-false}"' in production
+
+    oidc_override = Path("docker-compose.google-oidc.yml").read_text(encoding="utf-8")
+    assert 'GOOGLE_OIDC_ENABLED: "true"' in oidc_override
+    assert "GOOGLE_OIDC_CLIENT_ID_FILE: /run/secrets/google_oidc_client_id" in oidc_override
+    assert "GOOGLE_OIDC_CLIENT_SECRET_FILE: /run/secrets/google_oidc_client_secret" in oidc_override
+    assert "GOOGLE_OIDC_CLIENT_ID:" not in oidc_override
+    assert "GOOGLE_OIDC_CLIENT_SECRET:" not in oidc_override

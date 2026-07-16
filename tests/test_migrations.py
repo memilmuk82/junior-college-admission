@@ -17,6 +17,9 @@ from app import create_app
 CANONICAL_GATE_HEAD = "0d9f4a7c2b11"
 CANONICAL_GATE_PARENT = "f76a91c3d2e8"
 TESTED_AUDIT_PARENT = "e51f0b24c8aa"
+MEMBERSHIP_HEAD = "6c1a2e9f4b73"
+MEMBERSHIP_PARENT = CANONICAL_GATE_HEAD
+REPOSITORY_HEAD = MEMBERSHIP_HEAD
 RULE_TABLE_TYPES_WITH_GOLDEN_ARTIFACT = (
     ("admission_eligibility_rules", "ADMISSION_ELIGIBILITY_RULE"),
     ("grade_source_scope_rules", "GRADE_SOURCE_SCOPE_RULE"),
@@ -125,6 +128,7 @@ def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> No
         "campuses",
         "disqualification_rules",
         "document_requirements",
+        "external_identities",
         "grade_source_scope_rules",
         "import_batches",
         "institutions",
@@ -142,6 +146,8 @@ def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> No
         "student_academic_records",
         "student_course_records",
         "tie_break_rules",
+        "user_account_audit_events",
+        "user_accounts",
         "vocational_course_reports",
         "vocational_course_statistics",
         "vocational_student_results",
@@ -332,6 +338,182 @@ def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> No
             and foreign_key["options"].get("ondelete") == "RESTRICT"
             for foreign_key in rule_foreign_keys
         )
+
+
+def test_membership_schema_contract(postgres_engine: Engine) -> None:
+    inspector = inspect(postgres_engine)
+    account_columns = {column["name"]: column for column in inspector.get_columns("user_accounts")}
+    assert {
+        "id",
+        "actor_ref",
+        "login_name",
+        "email",
+        "display_name",
+        "password_hash",
+        "role",
+        "status",
+        "auth_version",
+        "approved_by_user_id",
+        "approved_at",
+        "last_login_at",
+        "created_at",
+        "updated_at",
+    } == account_columns.keys()
+    assert account_columns["login_name"]["nullable"] is True
+    assert account_columns["actor_ref"]["nullable"] is False
+    assert account_columns["password_hash"]["nullable"] is True
+    assert account_columns["email"]["nullable"] is False
+    assert account_columns["role"]["nullable"] is False
+    assert account_columns["status"]["nullable"] is False
+    assert account_columns["auth_version"]["nullable"] is False
+
+    account_checks = {
+        constraint["name"]: constraint["sqltext"]
+        for constraint in inspector.get_check_constraints("user_accounts")
+    }
+    assert {
+        "ck_user_accounts_approval_state_consistent",
+        "ck_user_accounts_auth_version_positive",
+        "ck_user_accounts_actor_ref_valid",
+        "ck_user_accounts_display_name_valid",
+        "ck_user_accounts_email_normalized",
+        "ck_user_accounts_local_credentials_complete",
+        "ck_user_accounts_pending_role_member",
+        "ck_user_accounts_role_valid",
+        "ck_user_accounts_status_valid",
+    } == account_checks.keys()
+    assert "REJECTED" in account_checks["ck_user_accounts_pending_role_member"]
+    assert (
+        "approved_by_user_id IS NOT NULL"
+        in account_checks["ck_user_accounts_approval_state_consistent"]
+    )
+    account_uniques = {
+        constraint["name"]: tuple(constraint["column_names"])
+        for constraint in inspector.get_unique_constraints("user_accounts")
+    }
+    assert account_uniques["uq_user_accounts_email"] == ("email",)
+    assert account_uniques["uq_user_accounts_login_name"] == ("login_name",)
+    assert account_uniques["uq_user_accounts_actor_ref"] == ("actor_ref",)
+    account_foreign_keys = inspector.get_foreign_keys("user_accounts")
+    assert any(
+        tuple(foreign_key["constrained_columns"]) == ("approved_by_user_id",)
+        and foreign_key["referred_table"] == "user_accounts"
+        and tuple(foreign_key["referred_columns"]) == ("id",)
+        and foreign_key["options"].get("ondelete") == "RESTRICT"
+        for foreign_key in account_foreign_keys
+    )
+    account_indexes = {
+        index["name"]: tuple(index["column_names"])
+        for index in inspector.get_indexes("user_accounts")
+    }
+    assert account_indexes["ix_user_accounts_approved_by_user_id"] == ("approved_by_user_id",)
+    assert account_indexes["ix_user_accounts_status"] == ("status",)
+    assert account_indexes["ix_user_accounts_status_role"] == ("status", "role")
+
+    identity_columns = {
+        column["name"]: column for column in inspector.get_columns("external_identities")
+    }
+    assert {
+        "id",
+        "user_account_id",
+        "provider",
+        "issuer",
+        "provider_subject",
+        "created_at",
+        "updated_at",
+    } == identity_columns.keys()
+    assert {
+        "access_token",
+        "refresh_token",
+        "id_token",
+        "authorization_code",
+    }.isdisjoint(identity_columns)
+    identity_checks = {
+        constraint["name"]: constraint["sqltext"]
+        for constraint in inspector.get_check_constraints("external_identities")
+    }
+    assert {
+        "ck_external_identities_issuer_valid",
+        "ck_external_identities_provider_subject_valid",
+        "ck_external_identities_provider_valid",
+    } == identity_checks.keys()
+    assert "https://accounts.google.com" in identity_checks["ck_external_identities_issuer_valid"]
+    identity_uniques = {
+        constraint["name"]: tuple(constraint["column_names"])
+        for constraint in inspector.get_unique_constraints("external_identities")
+    }
+    assert identity_uniques["uq_external_identities_provider"] == (
+        "provider",
+        "issuer",
+        "provider_subject",
+    )
+    assert identity_uniques["uq_external_identities_user_account_id"] == (
+        "user_account_id",
+        "provider",
+    )
+    identity_foreign_keys = inspector.get_foreign_keys("external_identities")
+    assert any(
+        tuple(foreign_key["constrained_columns"]) == ("user_account_id",)
+        and foreign_key["referred_table"] == "user_accounts"
+        and tuple(foreign_key["referred_columns"]) == ("id",)
+        and foreign_key["options"].get("ondelete") == "CASCADE"
+        for foreign_key in identity_foreign_keys
+    )
+
+    audit_columns = {
+        column["name"]: column for column in inspector.get_columns("user_account_audit_events")
+    }
+    assert {
+        "id",
+        "target_user_id",
+        "actor_user_id",
+        "event_type",
+        "before_role",
+        "after_role",
+        "before_status",
+        "after_status",
+        "occurred_at",
+        "details",
+        "created_at",
+        "updated_at",
+    } == audit_columns.keys()
+    assert audit_columns["target_user_id"]["nullable"] is False
+    assert audit_columns["actor_user_id"]["nullable"] is True
+    assert audit_columns["details"]["nullable"] is False
+    audit_checks = {
+        constraint["name"]
+        for constraint in inspector.get_check_constraints("user_account_audit_events")
+    }
+    assert {
+        "ck_user_account_audit_events_after_role_valid",
+        "ck_user_account_audit_events_after_status_valid",
+        "ck_user_account_audit_events_before_role_valid",
+        "ck_user_account_audit_events_before_status_valid",
+        "ck_user_account_audit_events_event_type_valid",
+    } == audit_checks
+    audit_foreign_keys = inspector.get_foreign_keys("user_account_audit_events")
+    assert any(
+        tuple(foreign_key["constrained_columns"]) == ("target_user_id",)
+        and foreign_key["referred_table"] == "user_accounts"
+        and foreign_key["options"].get("ondelete") == "RESTRICT"
+        for foreign_key in audit_foreign_keys
+    )
+    assert any(
+        tuple(foreign_key["constrained_columns"]) == ("actor_user_id",)
+        and foreign_key["referred_table"] == "user_accounts"
+        and foreign_key["options"].get("ondelete") == "SET NULL"
+        for foreign_key in audit_foreign_keys
+    )
+    audit_indexes = {
+        index["name"]: tuple(index["column_names"])
+        for index in inspector.get_indexes("user_account_audit_events")
+    }
+    assert audit_indexes["ix_user_account_audit_events_actor_user_id"] == ("actor_user_id",)
+    assert audit_indexes["ix_user_account_audit_events_target_user_id"] == ("target_user_id",)
+    assert audit_indexes["ix_user_account_audit_events_target_occurred"] == (
+        "target_user_id",
+        "occurred_at",
+    )
 
 
 def test_canonical_code_constraints_are_enforced(postgres_engine: Engine) -> None:
@@ -593,6 +775,71 @@ def test_golden_artifact_constraints_are_enforced(postgres_engine: Engine) -> No
             transaction.rollback()
 
 
+def test_membership_downgrade_is_fail_closed_and_reversible_when_empty(
+    postgres_engine: Engine,
+) -> None:
+    config = Config("alembic.ini")
+    account_id = str(uuid4())
+
+    with postgres_engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO user_accounts (
+                    id, actor_ref, login_name, email, display_name, password_hash,
+                    role, status, auth_version
+                ) VALUES (
+                    :id, :actor_ref, :login_name, :email, '합성 보존 회원',
+                    'synthetic-password-hash', 'MEMBER', 'PENDING_APPROVAL', 1
+                )
+                """
+            ),
+            {
+                "id": account_id,
+                "actor_ref": f"user:{account_id}",
+                "login_name": f"synthetic-{account_id}",
+                "email": f"{account_id}@example.invalid",
+            },
+        )
+
+    try:
+        with pytest.raises(DBAPIError, match="회원 계정.*membership migration"):
+            command.downgrade(config, MEMBERSHIP_PARENT)
+        with postgres_engine.connect() as connection:
+            assert (
+                connection.scalar(text("SELECT version_num FROM alembic_version"))
+                == MEMBERSHIP_HEAD
+            )
+
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM user_accounts WHERE id = :id"),
+                {"id": account_id},
+            )
+        command.downgrade(config, MEMBERSHIP_PARENT)
+        downgraded_tables = set(inspect(postgres_engine).get_table_names())
+        assert {
+            "user_accounts",
+            "external_identities",
+            "user_account_audit_events",
+        }.isdisjoint(downgraded_tables)
+
+        command.upgrade(config, REPOSITORY_HEAD)
+        assert {
+            "user_accounts",
+            "external_identities",
+            "user_account_audit_events",
+        } <= set(inspect(postgres_engine).get_table_names())
+    finally:
+        if "user_accounts" in set(inspect(postgres_engine).get_table_names()):
+            with postgres_engine.begin() as connection:
+                connection.execute(
+                    text("DELETE FROM user_accounts WHERE id = :id"),
+                    {"id": account_id},
+                )
+        command.upgrade(config, REPOSITORY_HEAD)
+
+
 def test_canonical_gate_downgrade_is_fail_closed_and_null_safe(
     postgres_engine: Engine,
 ) -> None:
@@ -641,7 +888,7 @@ def test_canonical_gate_downgrade_is_fail_closed_and_null_safe(
         with postgres_engine.connect() as connection:
             assert (
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == CANONICAL_GATE_HEAD
+                == REPOSITORY_HEAD
             )
 
         with postgres_engine.begin() as connection:
@@ -747,7 +994,7 @@ def test_canonical_gate_downgrade_is_fail_closed_and_null_safe(
                 is None
             )
     finally:
-        command.upgrade(config, CANONICAL_GATE_HEAD)
+        command.upgrade(config, REPOSITORY_HEAD)
         with postgres_engine.begin() as connection:
             connection.execute(
                 text("DELETE FROM admission_eligibility_rules WHERE id = :id"),
@@ -867,7 +1114,7 @@ def test_tested_audit_contract_downgrade_is_fail_closed_and_null_safe(
                 == 1
             )
 
-        command.upgrade(config, CANONICAL_GATE_HEAD)
+        command.upgrade(config, REPOSITORY_HEAD)
         with postgres_engine.connect() as connection:
             restored_contract = connection.execute(
                 text(
@@ -881,7 +1128,7 @@ def test_tested_audit_contract_downgrade_is_fail_closed_and_null_safe(
             ).one()
             assert tuple(restored_contract) == (None, None, None)
     finally:
-        command.upgrade(config, CANONICAL_GATE_HEAD)
+        command.upgrade(config, REPOSITORY_HEAD)
         with postgres_engine.begin() as connection:
             connection.execute(
                 text("DELETE FROM rule_audit_events WHERE id = :id"),
