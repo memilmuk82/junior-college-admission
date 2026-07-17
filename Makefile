@@ -13,15 +13,18 @@ BACKUP_FILE ?=
 ROLLBACK_APP_IMAGE ?=
 ROLLBACK_APP_IMAGE_ID ?=
 ROLLBACK_DATABASE_RESTORE_CONFIRMED ?=
+OIDC_CHANGE_APPROVED ?=
+OIDC_HOST_GATE_CONFIRMED ?=
+OIDC_BACKUP_RESTORE_CONFIRMED ?=
 
-.PHONY: setup test-unit test-integration test-e2e lint validate-rules check-sensitive-data check production-bootstrap production-preflight production-up production-check production-e2e production-status production-logs production-down production-origin-up production-origin-check production-origin-status production-origin-logs production-origin-down production-origin-rollback-app production-origin-backup production-origin-backup-verify production-origin-restore-verify production-origin-metrics alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
+.PHONY: setup test-unit test-integration test-e2e lint validate-rules check-sensitive-data check production-bootstrap production-preflight production-up production-check production-e2e production-status production-logs production-down production-origin-up production-origin-check production-origin-status production-origin-logs production-origin-down production-origin-oidc-up production-origin-oidc-check production-origin-oidc-status production-origin-oidc-disable production-origin-rollback-app production-origin-backup production-origin-backup-verify production-origin-restore-verify production-origin-metrics alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
 
 setup:
 	uv sync --frozen
 	npm ci
 
 test-unit:
-	$(PYTHON) pytest tests/test_admin_auth.py tests/test_authentication.py tests/test_admission_results.py tests/test_ai_http_providers.py tests/test_ai_payloads.py tests/test_ai_security.py tests/test_rule_admin.py tests/test_score_rule_csv_preview.py tests/test_app.py tests/test_application_policies.py tests/test_consultation_forms.py tests/test_eligibility.py tests/test_image_imports.py tests/test_pilot_candidates.py tests/test_pilot_golden_candidates.py tests/test_postgres_operations.py tests/test_production_bootstrap.py tests/test_production_config.py tests/test_review_forms.py tests/test_review_state.py tests/test_scanned_pdf_imports.py tests/test_score_calculation.py tests/test_score_components.py tests/test_score_conversion.py tests/test_score_golden.py tests/test_score_inputs.py tests/test_score_properties.py tests/test_score_rule_schema.py tests/test_score_selection.py tests/test_structured_imports.py tests/test_temporary_uploads.py tests/test_text_pdf_imports.py tests/test_validate_rules.py
+	$(PYTHON) pytest tests/test_admin_auth.py tests/test_authentication.py tests/test_admission_results.py tests/test_ai_http_providers.py tests/test_ai_payloads.py tests/test_ai_security.py tests/test_rule_admin.py tests/test_score_rule_csv_preview.py tests/test_app.py tests/test_application_policies.py tests/test_consultation_forms.py tests/test_eligibility.py tests/test_google_oidc_operations.py tests/test_host_nginx_security.py tests/test_image_imports.py tests/test_pilot_candidates.py tests/test_pilot_golden_candidates.py tests/test_postgres_operations.py tests/test_production_bootstrap.py tests/test_production_config.py tests/test_production_https_operations.py tests/test_review_forms.py tests/test_review_state.py tests/test_scanned_pdf_imports.py tests/test_score_calculation.py tests/test_score_components.py tests/test_score_conversion.py tests/test_score_golden.py tests/test_score_inputs.py tests/test_score_properties.py tests/test_score_rule_schema.py tests/test_score_selection.py tests/test_structured_imports.py tests/test_temporary_uploads.py tests/test_text_pdf_imports.py tests/test_validate_rules.py
 
 test-integration:
 	$(COMPOSE_TEST_ENV) docker compose --profile test rm -f -s -v db-test
@@ -97,6 +100,35 @@ production-origin-logs:
 
 production-origin-down:
 	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml --env-file $(PRODUCTION_ENV_FILE) stop web-production db-production
+
+# Google OIDC remains opt-in. Enabling it can deploy the current image and run
+# migrations, so all three independent change-window attestations are required.
+production-origin-oidc-up:
+	test "$(OIDC_CHANGE_APPROVED)" = "APPROVED"
+	test "$(OIDC_HOST_GATE_CONFIRMED)" = "PASSED"
+	test "$(OIDC_BACKUP_RESTORE_CONFIRMED)" = "VERIFIED"
+	test -f $(PRODUCTION_ENV_FILE)
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml -f docker-compose.google-oidc.yml --env-file $(PRODUCTION_ENV_FILE) config --quiet
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml -f docker-compose.google-oidc.yml --env-file $(PRODUCTION_ENV_FILE) build web-production
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml -f docker-compose.google-oidc.yml --env-file $(PRODUCTION_ENV_FILE) run --rm --no-deps web-production python -c 'from app import create_app; app = create_app(); assert app.config["APP_ENV"] == "production"; assert app.config["GOOGLE_OIDC_ENABLED"] is True'
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml -f docker-compose.google-oidc.yml --env-file $(PRODUCTION_ENV_FILE) up -d --no-build --wait web-production
+
+production-origin-oidc-check:
+	test -n "$(PRODUCTION_URL)" && test -n "$(PRODUCTION_CA_CERT)"
+	PRODUCTION_URL="$(PRODUCTION_URL)" PRODUCTION_CA_CERT="$(PRODUCTION_CA_CERT)" UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.check_production_https
+	PRODUCTION_URL="$(PRODUCTION_URL)" PRODUCTION_CA_CERT="$(PRODUCTION_CA_CERT)" UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.check_google_oidc_https
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml -f docker-compose.google-oidc.yml --env-file $(PRODUCTION_ENV_FILE) exec -T web-production flask --app wsgi db current
+
+production-origin-oidc-status:
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml -f docker-compose.google-oidc.yml --env-file $(PRODUCTION_ENV_FILE) ps
+
+# This is an OIDC emergency stop, not an application or database rollback. It
+# forces the base profile's disabled value and removes the OIDC secret mounts.
+production-origin-oidc-disable:
+	test "$(OIDC_CHANGE_APPROVED)" = "APPROVED"
+	test -f $(PRODUCTION_ENV_FILE)
+	GOOGLE_OIDC_ENABLED=false PRODUCTION_ENV_FILE=$(PRODUCTION_ENV_FILE) UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.check_production_readiness
+	GOOGLE_OIDC_ENABLED=false docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml --env-file $(PRODUCTION_ENV_FILE) up -d --no-build --no-deps --force-recreate --wait web-production
 
 # Image-only rollback is forbidden after a schema change. This target is usable only
 # after the approved pre-change DB backup has been restored and verified separately.

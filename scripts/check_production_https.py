@@ -5,7 +5,10 @@ import os
 import ssl
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
+
+
+OPERATIONS_USER_AGENT = "junior-college-admission-operations/1.0"
 
 
 def main() -> int:
@@ -18,8 +21,13 @@ def main() -> int:
 
     context = ssl.create_default_context(cafile=ca_file)
     health_url = urljoin(base_url.rstrip("/") + "/", "health")
+    request = Request(
+        health_url,
+        headers={"Accept": "application/json", "User-Agent": OPERATIONS_USER_AGENT},
+        method="GET",
+    )
     try:
-        with urlopen(health_url, context=context, timeout=10) as response:  # noqa: S310
+        with urlopen(request, context=context, timeout=10) as response:  # noqa: S310
             payload = json.load(response)
             headers = response.headers
             status = response.status

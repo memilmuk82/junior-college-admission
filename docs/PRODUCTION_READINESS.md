@@ -71,6 +71,10 @@ PRODUCTION_CA_CERT=/approved/path/fullchain.pem \
 make production-origin-check
 ```
 
+Google OIDC는 이 기본 경로에서 계속 비활성화된다. 실제 client와 호스트 보안 게이트,
+변경 직전 DB 백업·격리 복원이 모두 준비된 뒤의 전용 활성화·확인·비활성화 절차는
+[Phase 11 Google OIDC 운영 런북](PHASE_11_OPERATIONS.md)을 따른다.
+
 호스트 Nginx는 정확히 한 단계의 신뢰 proxy로 `Host`, `X-Forwarded-For`, `X-Forwarded-Proto`, `X-Forwarded-Host`, `X-Forwarded-Port`를 설정해야 한다. production 앱도 HSTS·nosniff·referrer·frame 헤더를 반환한다. 8000번 원본은 `127.0.0.1` 외 주소에 바인딩하면 안 된다.
 
 ### 초기 secret 부트스트랩
