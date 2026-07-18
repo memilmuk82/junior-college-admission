@@ -19,7 +19,8 @@ CANONICAL_GATE_PARENT = "f76a91c3d2e8"
 TESTED_AUDIT_PARENT = "e51f0b24c8aa"
 MEMBERSHIP_HEAD = "6c1a2e9f4b73"
 MEMBERSHIP_PARENT = CANONICAL_GATE_HEAD
-REPOSITORY_HEAD = MEMBERSHIP_HEAD
+PHASE14_HEAD = "2f8a4c6e91d3"
+REPOSITORY_HEAD = PHASE14_HEAD
 RULE_TABLE_TYPES_WITH_GOLDEN_ARTIFACT = (
     ("admission_eligibility_rules", "ADMISSION_ELIGIBILITY_RULE"),
     ("grade_source_scope_rules", "GRADE_SOURCE_SCOPE_RULE"),
@@ -118,6 +119,8 @@ def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> No
         "admission_result_raw_pages",
         "admission_result_staging_batches",
         "admission_result_staging_rows",
+        "admission_result_import_datasets",
+        "admission_result_import_rows",
         "admission_results_published",
         "admission_rounds",
         "admission_tracks",
@@ -154,6 +157,11 @@ def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> No
     }
 
     assert required <= tables
+    import_dataset_columns = {
+        column["name"]
+        for column in inspect(postgres_engine).get_columns("admission_result_import_datasets")
+    }
+    assert {"column_mapping", "column_mapping_overrides"} <= import_dataset_columns
     course_checks = {
         constraint["name"]
         for constraint in inspect(postgres_engine).get_check_constraints("student_course_records")
@@ -383,6 +391,8 @@ def test_membership_schema_contract(postgres_engine: Engine) -> None:
         "ck_user_accounts_status_valid",
     } == account_checks.keys()
     assert "REJECTED" in account_checks["ck_user_accounts_pending_role_member"]
+    assert "STUDENT" in account_checks["ck_user_accounts_pending_role_member"]
+    assert "TEACHER" in account_checks["ck_user_accounts_pending_role_member"]
     assert (
         "approved_by_user_id IS NOT NULL"
         in account_checks["ck_user_accounts_approval_state_consistent"]
@@ -808,7 +818,7 @@ def test_membership_downgrade_is_fail_closed_and_reversible_when_empty(
         with postgres_engine.connect() as connection:
             assert (
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == MEMBERSHIP_HEAD
+                == REPOSITORY_HEAD
             )
 
         with postgres_engine.begin() as connection:
@@ -838,6 +848,85 @@ def test_membership_downgrade_is_fail_closed_and_reversible_when_empty(
                     {"id": account_id},
                 )
         command.upgrade(config, REPOSITORY_HEAD)
+
+
+def test_phase14_pending_student_constraint_upgrade_and_downgrade(
+    postgres_engine: Engine,
+) -> None:
+    config = Config("alembic.ini")
+    student_id = str(uuid4())
+    admin_id = str(uuid4())
+
+    try:
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO user_accounts (
+                        id, actor_ref, login_name, email, display_name, password_hash,
+                        role, status, auth_version
+                    ) VALUES (
+                        :id, :actor_ref, :login_name, :email, '합성 대기 학생',
+                        'synthetic-password-hash', 'STUDENT', 'PENDING_APPROVAL', 1
+                    )
+                    """
+                ),
+                {
+                    "id": student_id,
+                    "actor_ref": f"user:{student_id}",
+                    "login_name": f"student-{student_id}",
+                    "email": f"{student_id}@example.invalid",
+                },
+            )
+            with pytest.raises(IntegrityError), connection.begin_nested():
+                connection.execute(
+                    text(
+                        """
+                        INSERT INTO user_accounts (
+                            id, actor_ref, login_name, email, display_name, password_hash,
+                            role, status, auth_version
+                        ) VALUES (
+                            :id, :actor_ref, :login_name, :email, '합성 대기 관리자',
+                            'synthetic-password-hash', 'ADMIN', 'PENDING_APPROVAL', 1
+                        )
+                        """
+                    ),
+                    {
+                        "id": admin_id,
+                        "actor_ref": f"user:{admin_id}",
+                        "login_name": f"admin-{admin_id}",
+                        "email": f"{admin_id}@example.invalid",
+                    },
+                )
+
+        with pytest.raises(DBAPIError, match="STUDENT/TEACHER 역할 데이터"):
+            command.downgrade(config, MEMBERSHIP_HEAD)
+
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM user_accounts WHERE id = :id"),
+                {"id": student_id},
+            )
+        command.downgrade(config, MEMBERSHIP_HEAD)
+        account_checks = {
+            constraint["name"]: constraint["sqltext"]
+            for constraint in inspect(postgres_engine).get_check_constraints("user_accounts")
+        }
+        assert "STUDENT" not in account_checks["ck_user_accounts_pending_role_member"]
+        command.upgrade(config, REPOSITORY_HEAD)
+        upgraded_checks = {
+            constraint["name"]: constraint["sqltext"]
+            for constraint in inspect(postgres_engine).get_check_constraints("user_accounts")
+        }
+        assert "STUDENT" in upgraded_checks["ck_user_accounts_pending_role_member"]
+        assert "TEACHER" in upgraded_checks["ck_user_accounts_pending_role_member"]
+    finally:
+        command.upgrade(config, REPOSITORY_HEAD)
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM user_accounts WHERE id IN (:student_id, :admin_id)"),
+                {"student_id": student_id, "admin_id": admin_id},
+            )
 
 
 def test_canonical_gate_downgrade_is_fail_closed_and_null_safe(

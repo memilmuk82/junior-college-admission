@@ -44,6 +44,10 @@ from app.services.membership import (
 bp = Blueprint("auth", __name__, url_prefix="/auth")
 
 
+def _account_type(value: str | None) -> str:
+    return value if value in {"student", "teacher"} else "teacher"
+
+
 def _private(content: str, status: int = 200) -> Response:
     response = make_response(content, status)
     response.headers["Cache-Control"] = "no-store, max-age=0"
@@ -60,6 +64,7 @@ def _private(content: str, status: int = 200) -> Response:
 def login_view() -> Any:
     error: str | None = None
     requested_next = safe_next(request.values.get("next"))
+    account_type = _account_type(request.values.get("account_type"))
     if request.method == "POST":
         require_csrf()
         username = request.form.get("username", "")
@@ -118,6 +123,7 @@ def login_view() -> Any:
             demo_login_name=None if demo_credentials is None else demo_credentials[0],
             demo_public_password=None if demo_credentials is None else demo_credentials[1],
             next=requested_next or "",
+            account_type=account_type,
         ),
         401 if error else 200,
     )
@@ -131,6 +137,8 @@ def login() -> Any:
 @bp.route("/register", methods=["GET", "POST"])
 def register() -> Any:
     errors: tuple[str, ...] = ()
+    requested_account_type = request.values.get("account_type")
+    account_type = _account_type(requested_account_type)
     if request.method == "POST":
         require_csrf()
         database_session = cast(Session, db.session)
@@ -144,7 +152,9 @@ def register() -> Any:
                 email=request.form.get("email", ""),
                 display_name=request.form.get("display_name", ""),
                 password=password,
-                requested_role=request.form.get("role"),
+                requested_role={"student": "STUDENT", "teacher": "TEACHER"}.get(
+                    requested_account_type or ""
+                ),
                 requested_status=request.form.get("status"),
                 occurred_at=datetime.now(UTC),
                 reserved_login_name=current_app.config.get("DEMO_LOGIN_NAME"),
@@ -166,6 +176,7 @@ def register() -> Any:
             csrf_token=csrf_token(),
             errors=errors,
             google_enabled=bool(current_app.config.get("GOOGLE_OIDC_ENABLED")),
+            account_type=account_type,
         ),
         400 if errors else 200,
     )

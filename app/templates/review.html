@@ -21,14 +21,14 @@
     <main class="review-shell review-main">
       <div class="review-heading">
         <h1>학생 성적 입력 검수</h1>
-        <p>추출 결과를 확인하고 저장할 행만 선택하세요.</p>
+        <p>추출 결과를 확인·수정하고 계산에 사용할 행만 선택하세요.</p>
       </div>
 
       <dl class="review-summary" aria-label="입력 검수 요약">
         <div><dt>입력 형식</dt><dd>{{ source_format_label }}</dd></div>
         <div><dt>추출 행</dt><dd>{{ preview.rows|length }}</dd></div>
         <div><dt>확인 필요</dt><dd>{{ preview.issues|length }}</dd></div>
-        <div><dt>확정 후</dt><dd>원본 자동 삭제</dd></div>
+        <div><dt>확정 후</dt><dd>{% if anonymous_mode %}대학 선택 이동{% else %}원본 자동 삭제{% endif %}</dd></div>
       </dl>
 
       {% if requires_ocr_review %}
@@ -60,7 +60,7 @@
             </label>
             <span>학년도</span><span>학년</span><span>학기</span><span>교과</span>
             <span>과목</span><span>이수단위</span><span>원점수</span><span>평균</span>
-            <span>표준편차</span><span>성취도</span><span>수강자수</span><span>석차등급</span><span>출처</span>
+            <span>표준편차</span><span>성취도</span><span>수강자수</span><span>석차등급</span><span>Z점수 검수</span><span>성적 출처</span><span>위탁학기</span><span>파일 출처</span>
           </div>
 
           {% for row in preview.rows %}
@@ -85,24 +85,34 @@
                 ('standard_deviation', '표준편차', 'text'),
                 ('achievement_level', '성취도', 'text'),
                 ('enrollment_count', '수강자수', 'number'),
-                ('rank_grade', '석차등급', 'text')
+                ('rank_grade', '석차등급', 'text'),
+                ('record_source', '성적 출처', 'select_source'),
+                ('is_vocational_training_semester', '위탁학기', 'select_boolean')
               ] %}
               {% for field, label, input_type in fields %}
                 {% set field_key = 'rows-' ~ index ~ '-' ~ field %}
                 <div class="review-field {% if field_errors.get(field_key) %}review-field--error{% endif %}">
                   <label class="field-label" for="{{ field_key }}">{{ label }}</label>
-                  <input
+                  {% if input_type == 'select_source' %}<select id="{{ field_key }}" name="{{ field_key }}">{% for code, label in [('HOME_SCHOOL_RECORD','학교생활기록부'),('VOCATIONAL_TRAINING_RECORD','직업위탁 성적'),('GED_RECORD','검정고시'),('MANUAL_INPUT','직접 입력')] %}<option value="{{ code }}" {% if values[index][field] == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+                  {% elif input_type == 'select_boolean' %}<select id="{{ field_key }}" name="{{ field_key }}"><option value="FALSE" {% if values[index][field] == 'FALSE' %}selected{% endif %}>아니오</option><option value="TRUE" {% if values[index][field] == 'TRUE' %}selected{% endif %}>예</option></select>
+                  {% else %}<input
                     id="{{ field_key }}"
                     name="{{ field_key }}"
                     type="{{ input_type }}"
                     value="{{ values[index][field] }}"
                     {% if field_errors.get(field_key) %}aria-invalid="true" aria-describedby="{{ field_key }}-error"{% endif %}
-                  >
+                  >{% endif %}
                   {% if field_errors.get(field_key) %}
                     <p class="field-error" id="{{ field_key }}-error">{{ field_errors[field_key] }}</p>
                   {% endif %}
                 </div>
               {% endfor %}
+
+              <div class="z-score-preview z-score-preview--{{ z_score_previews[index].status|lower }}">
+                <span class="field-label">Z점수 검수</span>
+                {% if z_score_previews[index].rounded_z_score is not none %}<strong>{{ z_score_previews[index].rounded_z_score }}</strong><small>원시값 {{ z_score_previews[index].raw_z_score }}</small>{% else %}<strong>{{ z_score_previews[index].status }}</strong>{% endif %}
+                <small>{{ z_score_previews[index].message }}</small>
+              </div>
 
               <div class="source-cell">
                 <span class="field-label">출처</span>
@@ -117,9 +127,9 @@
         <div class="review-actions">
           <div>
             <strong><span id="selected-row-count">{{ selected_indices|length }}</span>개 행 선택</strong>
-            <p>선택된 행만 확정되어 저장됩니다.</p>
+            <p>{% if anonymous_mode %}선택된 행은 현재 1회 계산에만 사용되며 계정 DB에 저장되지 않습니다.{% else %}선택된 행만 확정되어 저장됩니다.{% endif %}</p>
           </div>
-          <button class="primary-button" type="submit">선택한 행 확정</button>
+          <button class="primary-button" type="submit">{% if anonymous_mode %}확인 완료하고 대학 선택{% else %}선택한 행 확정{% endif %}</button>
         </div>
       </form>
 

@@ -56,7 +56,15 @@ ADMISSION_RESULT_KEYS = frozenset(
     }
 )
 EVIDENCE_KEYS = frozenset(
-    {"rule_kind", "rule_version", "document_type", "document_status", "page_number"}
+    {
+        "rule_kind",
+        "rule_version",
+        "source_document_id",
+        "document_type",
+        "document_status",
+        "page_number",
+        "locator",
+    }
 )
 
 
@@ -110,6 +118,27 @@ def validated_payload_copy(payload: AnonymousConsultationPayload) -> dict[str, A
     return parsed
 
 
+def validated_saved_payload_copy(data: object) -> dict[str, Any]:
+    """Return a JSON-only, schema-complete copy suitable for durable SSR snapshots."""
+    if not isinstance(data, dict):
+        raise ValueError("저장 상담 payload는 객체여야 합니다.")
+    _validate_payload_keys(data)
+    if not isinstance(data.get("academic_year"), int):
+        raise ValueError("저장 상담 payload의 학년도가 유효하지 않습니다.")
+    for row in data["results"]:
+        if not isinstance(row["item_status"], str):
+            raise ValueError("저장 상담 결과 상태가 유효하지 않습니다.")
+        if not all(isinstance(value, str) for value in row["warnings"]):
+            raise ValueError("저장 상담 경고는 문자열 배열이어야 합니다.")
+    try:
+        encoded = json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        copied = json.loads(encoded)
+    except (TypeError, ValueError, json.JSONDecodeError) as error:
+        raise ValueError("저장 상담 payload는 JSON으로 직렬화할 수 있어야 합니다.") from error
+    assert isinstance(copied, dict)
+    return copied
+
+
 def _batch_item_payload(item: Any) -> dict[str, Any]:
     if item.result is not None:
         return _consultation_result_payload(item.result)
@@ -152,9 +181,11 @@ def _consultation_result_payload(result: ConsultationResult) -> dict[str, Any]:
             {
                 "rule_kind": item.rule_kind,
                 "rule_version": item.rule_version,
+                "source_document_id": item.source_document_id,
                 "document_type": item.document_type,
                 "document_status": item.document_status,
                 "page_number": item.page_number,
+                "locator": item.locator,
             }
             for item in result.evidence
         ],
@@ -243,5 +274,6 @@ __all__ = [
     "ANONYMOUS_PAYLOAD_SCHEMA_VERSION",
     "AnonymousConsultationPayload",
     "build_anonymous_consultation_payload",
+    "validated_saved_payload_copy",
     "validated_payload_copy",
 ]

@@ -1,6 +1,121 @@
-version: 1
-updated_at: "2026-07-10"
-sources: []
+version: 2
+updated_at: "2026-07-19"
+sources:
+  - source_code: "PROCOLLEGE_REFERENCE_XLSX_2025_RESULTS"
+    source_type: "USER_PROVIDED_PUBLIC_REFERENCE"
+    source_status: "VERIFIED_SOURCE"
+    file_size: 394539
+    sha256: "bde8fe5d513ce2737c08815b0d7e1df366dc8844e6ff7f243eccb63c3bd40606"
+    result_academic_year: 2025
+    target_academic_year: 2027
+    detected_public_result_sheets:
+      - name: "2025 수시(1차) 결과"
+        public_row_count: 1818
+      - name: "2025 수시(2차) 결과"
+        public_row_count: 1652
+    original_public_row_count: 3470
+    import_validation_contract:
+      total_row_count: 3470
+      mapped_valid_row_count: 482
+      review_row_count: 2981
+      error_row_count: 7
+    published_seed_scope:
+      lineage_role: "PRIMARY"
+      mapping_status: "EXPLICIT_PHASE14_PILOT"
+      institutions:
+        - "동양미래대학교"
+        - "명지전문대학"
+        - "인하공업전문대학"
+        - "연성대학교"
+      public_row_count: 482
+      valid_published_row_count: 482
+      catalog_path: "data/seed/phase14_public_admission_catalog.csv"
+      catalog_sha256: "d34f81d8bccab464a49026cec60c916f2f1b5c5786ea96fd853aac92b233ce5f"
+      result_path: "data/seed/phase14_public_admission_results_2025.csv"
+      result_sha256: "bbc542687f299a1655d1ca480a9e67cafb034f7824d6abe78bd06990590604d2"
+      field_level_supplement:
+        competition_rate:
+          source_code: "PROCOLLEGE_ALL_YEARS_2026_CSV"
+          join_contract: "institution_code + program_code + admission_round_code + admission_track_code exact unique match"
+          supplemented_row_count: 482
+          unmatched_or_ambiguous_policy: "보강하지 않고 관리자 REVIEW 대상으로 유지"
+        applicant_count: "원본 XLSX와 보조 CSV 모두 해당 필드가 없어 NULL 유지"
+        admitted_count: "원본 XLSX와 보조 CSV 모두 해당 필드가 없어 NULL 유지"
+    excluded_sheets:
+      - "성적 입력"
+      - "대학별 등급"
+    privacy_assertion: "학생 성적·계산 보조열은 seed에 포함하지 않음"
+    git_policy: "ORIGINAL_EXCLUDED"
+  - source_code: "PROCOLLEGE_ALL_YEARS_2026_CSV"
+    source_type: "USER_PROVIDED_PUBLIC_REFERENCE"
+    source_status: "VERIFIED_SOURCE"
+    file_size: 5671593
+    sha256: "c35d548abb244168dcffd1a582a38368a58f611f2998604a9b1b70f7e5ae6658"
+    included_academic_years: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
+    cross_validation_filter_contract:
+      result_academic_year: 2025
+      target_academic_year: 2027
+      admission_round_names: ["수시1차", "수시2차"]
+      institutions:
+        - "동양미래대학교"
+        - "명지전문대학"
+        - "인하공업전문대학"
+        - "연성대학교"
+      admission_category_school_pairs:
+        - ["특별전형", "일반고"]
+        - ["특별전형", "특성화고"]
+        - ["일반전형", "일반전형"]
+        - ["특별전형", "대학자체"]
+      mapping_status: "EXPLICIT_PHASE14_PILOT"
+    cross_validation_completeness:
+      public_row_count: 484
+      unique_business_key_count: 484
+      capacity_present_count: 484
+      competition_rate_present_count: 484
+      average_score_present_count: 483
+      cutoff_score_present_count: 483
+      original_zero_rank_grade_row_count: 1
+      valid_rank_grade_row_count: 483
+      out_of_range_row_count: 1
+      excluded_error_reason: "SCORE_OUT_OF_RANGE: 원본 평균·최저 석차등급 0을 NULL로 변환하지 않고 게시 제외"
+      publication_policy: "보조 교차검증 전용이며 공개 seed/PUBLISHED dataset lineage로 사용하지 않음"
+    lineage_role: "FIELD_LEVEL_SUPPLEMENT_AND_CROSS_VALIDATION"
+    privacy_assertion: "공개 대학 입시결과 필드만 allowlist로 파생하며 학생 성적 필드는 포함하지 않음"
+    git_policy: "ORIGINAL_EXCLUDED"
+  - source_code: "DONGYANG_MIRAE_2027_FINAL_GUIDE"
+    source_type: "UNIVERSITY_OFFICIAL_PDF"
+    source_status: "VERIFIED_SOURCE"
+    academic_year: 2027
+    institution_code: "DONGYANG-MIRAE"
+    file_size: 2116651
+    sha256: "ed8a1cd6d014780dbbc4bb3ad9be602031fefd75abc177948e9286e2aa62f9f1"
+    git_policy: "ORIGINAL_EXCLUDED"
+  - source_code: "MYONGJI_COLLEGE_2027_FINAL_GUIDE"
+    source_type: "UNIVERSITY_OFFICIAL_PDF"
+    source_status: "VERIFIED_SOURCE"
+    academic_year: 2027
+    institution_code: "MYONGJI-COLLEGE"
+    file_size: 9047997
+    sha256: "a372a6b233d2b5c30b866046393e17945437967fda49274f016f11a57f7952b7"
+    git_policy: "ORIGINAL_EXCLUDED"
+  - source_code: "INHA_TECHNICAL_2027_FINAL_GUIDE"
+    source_type: "UNIVERSITY_OFFICIAL_PDF"
+    source_status: "VERIFIED_SOURCE"
+    academic_year: 2027
+    institution_code: "INHA-TECHNICAL-COLLEGE"
+    file_size: 509576
+    sha256: "ce557638116c50620adc36ab803be97ec86b01e301885546437c8324a7bd2b65"
+    git_policy: "ORIGINAL_EXCLUDED"
+  - source_code: "YEONSUNG_2027_FINAL_GUIDE"
+    source_type: "UNIVERSITY_OFFICIAL_PDF"
+    source_status: "VERIFIED_SOURCE"
+    academic_year: 2027
+    institution_code: "YEONSUNG"
+    file_size: 8210601
+    sha256: "01e6a3ee39ff54c00a79331d78e0312c9c21ceeb6f0fd9694f11434ec8f44aaf"
+    git_policy: "ORIGINAL_EXCLUDED"
 notes:
-  - "Phase 0 현재 공식 입시 원본 자료는 저장소에 없다."
   - "원본 자료는 Git에 커밋하지 않고 별도 로컬 저장소에서 등록한다."
+  - "공개 결과 seed는 기준 XLSX의 결과 시트에서 직접 파생한 4개 파일럿 대학 명시 매핑 482행만 포함한다."
+  - "all-years CSV는 exact unique 업무키 482행의 경쟁률만 field-level 보강하며 각 행 source_reference에 CSV hash·행을 기록한다."
+  - "나머지 공개 결과는 관리자 import에서 canonical 기준정보 미매핑 행을 REVIEW로 보존한다."

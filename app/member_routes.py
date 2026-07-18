@@ -47,7 +47,10 @@ def _render_members(*, error: str | None = None, status: int = 200) -> Response:
     assert current_user is not None
     query = select(UserAccount)
     if current_user.role == "ASSISTANT_ADMIN":
-        query = query.where(UserAccount.role == "MEMBER", UserAccount.status == "PENDING_APPROVAL")
+        query = query.where(
+            UserAccount.role.in_(("MEMBER", "STUDENT", "TEACHER")),
+            UserAccount.status == "PENDING_APPROVAL",
+        )
     rows = tuple(
         cast(Session, db.session).scalars(
             query.order_by(UserAccount.status, UserAccount.created_at, UserAccount.id)

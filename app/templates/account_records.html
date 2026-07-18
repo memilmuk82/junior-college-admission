@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>저장 성적 관리</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body>
+    <main class="page-shell narrow-shell">
+      <header class="page-header">
+        <div>
+          <h1>저장 성적 관리</h1>
+          <p>
+            {% if current_user.role == 'STUDENT' %}
+              본인이 저장한 성적만 표시됩니다.
+            {% elif current_user.role == 'TEACHER' %}
+              담당자로 지정된 학생 성적만 표시됩니다.
+            {% else %}
+              관리자 조회 범위입니다.
+            {% endif %}
+          </p>
+        </div>
+        <a class="secondary-button" href="{{ url_for('main.index') }}">처음으로</a>
+      </header>
+
+      {% if error %}<div class="error-banner" role="alert">{{ error }}</div>{% endif %}
+
+      {% if records %}
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">학년도</th>
+                <th scope="col">학년</th>
+                <th scope="col">학기</th>
+                <th scope="col">성적 출처</th>
+                <th scope="col">관리</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for record in records %}
+                <tr>
+                  <td>{{ record.academic_year }}</td>
+                  <td>{{ record.grade }}</td>
+                  <td>{{ record.semester }}</td>
+                  <td>{{ record.record_source }}</td>
+                  <td>
+                    <details>
+                      <summary>성적 수정</summary>
+                      <form method="post" action="{{ url_for('account.edit_record', record_id=record.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="saved-record-edit">
+                          <label>학년도 <input name="academic_year" value="{{ record.academic_year }}" inputmode="numeric" required></label>
+                          <label>학년 <input name="grade" value="{{ record.grade }}" inputmode="numeric" required></label>
+                          <label>학기 <input name="semester" value="{{ record.semester }}" inputmode="numeric" required></label>
+                          <label>성적 출처
+                            <select name="record_source" required>
+                              {% for value,label in [('HOME_SCHOOL_RECORD','학교생활기록부'),('VOCATIONAL_TRAINING_RECORD','위탁교육 성적'),('GED_RECORD','검정고시'),('MANUAL_INPUT','직접 입력')] %}<option value="{{ value }}"{% if record.record_source == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+                            </select>
+                          </label>
+                          <label>위탁학기
+                            <select name="is_vocational_training_semester" required><option value="FALSE"{% if not record.is_vocational_training_semester %} selected{% endif %}>아니오</option><option value="TRUE"{% if record.is_vocational_training_semester %} selected{% endif %}>예</option></select>
+                          </label>
+                          <label>위탁기관명 <input name="vocational_institution_name" value="{{ record.vocational_institution_name or '' }}" maxlength="200"></label>
+                        </div>
+                        {% for course in courses_by_record.get(record.id, ()) %}
+                          <fieldset class="saved-course-edit">
+                            <legend>{{ loop.index }}번째 과목</legend>
+                            <label>교과 <input name="course-{{ course.id }}-subject_group" value="{{ course.subject_group or '' }}" maxlength="120"></label>
+                            <label>과목명 <input name="course-{{ course.id }}-subject_name" value="{{ course.subject_name }}" maxlength="200" required></label>
+                            <label>이수단위 <input name="course-{{ course.id }}-credits" value="{{ course.credits if course.credits is not none else '' }}" inputmode="decimal" placeholder="빈 값은 미입력"></label>
+                            <label>원점수 또는 P <input name="course-{{ course.id }}-raw_score" value="{{ course.raw_score_label if course.raw_score_label else (course.raw_score if course.raw_score is not none else '') }}" placeholder="0, 85.5, P 또는 빈 값"></label>
+                            <label>과목평균 <input name="course-{{ course.id }}-course_mean" value="{{ course.course_mean if course.course_mean is not none else '' }}" inputmode="decimal"></label>
+                            <label>표준편차 <input name="course-{{ course.id }}-standard_deviation" value="{{ course.standard_deviation if course.standard_deviation is not none else '' }}" inputmode="decimal"></label>
+                            <label>성취도 <input name="course-{{ course.id }}-achievement_level" value="{{ course.achievement_level or '' }}" maxlength="20"></label>
+                            <label>수강자수 <input name="course-{{ course.id }}-enrollment_count" value="{{ course.enrollment_count if course.enrollment_count is not none else '' }}" inputmode="numeric"></label>
+                            <label>석차등급 <input name="course-{{ course.id }}-rank_grade" value="{{ course.rank_grade if course.rank_grade is not none else '' }}" inputmode="decimal"></label>
+                          </fieldset>
+                        {% endfor %}
+                        <button type="submit">수정 저장</button>
+                      </form>
+                    </details>
+                    <form method="post" action="{{ url_for('account.delete_record', record_id=record.id) }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <button class="danger-link" type="submit">삭제</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="empty-state">저장된 성적이 없습니다. 1회 계산은 로그인 없이 사용할 수 있습니다.</p>
+      {% endif %}
+
+      <section class="admin-section" aria-labelledby="saved-consultations-heading">
+        <div class="admin-section__heading"><h2 id="saved-consultations-heading">저장 상담·관심 대학</h2><span>{{ consultations|length }}건</span></div>
+        {% for consultation in consultations %}
+          <article class="saved-consultation-card" data-consultation-id="{{ consultation.id }}">
+            <header><h3>{{ consultation.academic_year }}학년도 상담</h3><p>{{ consultation.student_reference }}</p></header>
+            <h4>선택 대학·학과</h4>
+            <ul>{% for target in consultation.selected_targets %}<li>{{ target.institution_name }} · {{ target.campus_name }} · {{ target.program_name }}</li>{% endfor %}</ul>
+            <h4>저장 계산 결과</h4>
+            {% for row in consultation.result_snapshot.results %}
+              {% set target = row.get('target', {}) %}{% set eligibility = row.get('eligibility') %}{% set average_grade = row.get('average_grade') %}{% set admission_result = row.get('admission_result', {}) %}
+              <p><strong>{{ target.get('institution_name', '대학 정보 없음') }} · {{ target.get('program_name', '학과 정보 없음') }}</strong> · 지원자격 {{ eligibility.get('status', '검토 필요') if eligibility else '검토 필요' }} · 반영등급 {{ average_grade.get('display_average_grade', '계산하지 않음') if average_grade else '계산하지 않음' }} · 비교연도 {{ admission_result.get('academic_year', '없음') }}</p>
+            {% endfor %}
+            <details><summary>저장 출력 스냅샷</summary><p>학생용 {{ consultation.student_print_snapshot.audience }} · 교사용 {{ consultation.teacher_print_snapshot.audience }} · 저장 당시 결과 {{ consultation.result_snapshot.results|length }}건</p><p><a href="{{ url_for('account.print_saved_consultation', consultation_id=consultation.id, audience='student') }}">학생용 A4 다시 열기</a> · <a href="{{ url_for('account.print_saved_consultation', consultation_id=consultation.id, audience='teacher') }}">교사용 A4 다시 열기</a></p></details>
+            {% if current_user.role == 'TEACHER' %}
+              <form method="post" action="{{ url_for('account.edit_consultation_note', consultation_id=consultation.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label>상담 메모 <textarea name="counselor_note" maxlength="2000">{{ consultation.counselor_note or '' }}</textarea></label>
+                <button type="submit">메모 저장</button>
+              </form>
+            {% elif consultation.counselor_note %}<p class="preserve-lines">{{ consultation.counselor_note }}</p>{% endif %}
+            <form method="post" action="{{ url_for('account.delete_consultation', consultation_id=consultation.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="danger-link" type="submit">상담 이력 삭제</button>
+            </form>
+          </article>
+        {% else %}<p class="empty-state">저장된 상담 결과가 없습니다.</p>{% endfor %}
+      </section>
+    </main>
+  </body>
+</html>

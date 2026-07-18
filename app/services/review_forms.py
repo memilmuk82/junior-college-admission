@@ -24,6 +24,8 @@ EDITABLE_FIELDS = (
     "achievement_level",
     "enrollment_count",
     "rank_grade",
+    "record_source",
+    "is_vocational_training_semester",
 )
 
 
@@ -46,7 +48,10 @@ def preview_values(preview: StructuredImportPreview) -> tuple[dict[str, str], ..
         row_values: dict[str, str] = {}
         for field in EDITABLE_FIELDS:
             value = getattr(row, field)
-            row_values[field] = "" if value is None else str(value)
+            if isinstance(value, bool):
+                row_values[field] = "TRUE" if value else "FALSE"
+            else:
+                row_values[field] = "" if value is None else str(value)
         values.append(row_values)
     return tuple(values)
 
@@ -71,10 +76,14 @@ def _decimal(value: str, field_key: str, errors: dict[str, str]) -> Decimal | No
     if not cleaned:
         return None
     try:
-        return Decimal(cleaned)
+        parsed = Decimal(cleaned)
     except InvalidOperation:
         errors[field_key] = "숫자를 확인하세요."
         return None
+    if not parsed.is_finite():
+        errors[field_key] = "유한한 숫자를 입력하세요."
+        return None
+    return parsed
 
 
 def _score(value: str, field_key: str, errors: dict[str, str]) -> ScoreValue:
@@ -84,6 +93,18 @@ def _score(value: str, field_key: str, errors: dict[str, str]) -> ScoreValue:
     if cleaned == "P":
         return "P"
     return _decimal(cleaned, field_key, errors)
+
+
+def _boolean(value: str, field_key: str, errors: dict[str, str]) -> bool | None:
+    cleaned = value.strip().upper()
+    if not cleaned:
+        return None
+    if cleaned == "TRUE":
+        return True
+    if cleaned == "FALSE":
+        return False
+    errors[field_key] = "예/아니오를 확인하세요."
+    return None
 
 
 def parse_review_submission(
@@ -147,11 +168,35 @@ def parse_review_submission(
             source_sheet=original_row.source_sheet,
             source_row_number=original_row.source_row_number,
             source_page=original_row.source_page,
+            record_source=row_values["record_source"].strip() or None,
+            is_vocational_training_semester=_boolean(
+                row_values["is_vocational_training_semester"],
+                f"rows-{index}-is_vocational_training_semester",
+                field_errors,
+            ),
         )
         if row.grade is not None and row.grade not in {1, 2, 3}:
             field_errors[f"rows-{index}-grade"] = "학년은 1~3만 입력할 수 있습니다."
         if row.semester is not None and row.semester not in {1, 2}:
             field_errors[f"rows-{index}-semester"] = "학기는 1~2만 입력할 수 있습니다."
+        if row.academic_year is not None and not 2000 <= row.academic_year <= 2100:
+            field_errors[f"rows-{index}-academic_year"] = "학년도는 2000~2100으로 입력하세요."
+        if row.credits is not None and not Decimal("0") < row.credits <= Decimal("999.99"):
+            field_errors[f"rows-{index}-credits"] = "이수단위는 0보다 커야 합니다."
+        if isinstance(row.raw_score, Decimal) and not Decimal("0") <= row.raw_score <= Decimal(
+            "100"
+        ):
+            field_errors[f"rows-{index}-raw_score"] = "원점수는 0~100으로 입력하세요."
+        if row.course_mean is not None and not Decimal("0") <= row.course_mean <= Decimal("100"):
+            field_errors[f"rows-{index}-course_mean"] = "과목평균은 0~100으로 입력하세요."
+        if row.standard_deviation is not None and row.standard_deviation <= 0:
+            field_errors[f"rows-{index}-standard_deviation"] = (
+                "표준편차는 0보다 커야 하며 임의 값으로 대체하지 않습니다."
+            )
+        if row.enrollment_count is not None and not 1 <= row.enrollment_count <= 1_000_000:
+            field_errors[f"rows-{index}-enrollment_count"] = "수강자수는 1 이상이어야 합니다."
+        if row.rank_grade is not None and not Decimal("1") <= row.rank_grade <= Decimal("9"):
+            field_errors[f"rows-{index}-rank_grade"] = "석차등급은 1~9로 입력하세요."
         if index in selected_indices:
             required = {
                 "academic_year": row.academic_year,

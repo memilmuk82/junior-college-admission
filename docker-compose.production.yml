@@ -67,26 +67,7 @@ services:
     image: "${PRODUCTION_APP_IMAGE:-junior-college-admission-production-app:local}"
     build: .
     user: "${PRODUCTION_APP_UID:?PRODUCTION_APP_UID must be set}:${PRODUCTION_APP_GID:?PRODUCTION_APP_GID must be set}"
-    command:
-      - sh
-      - -c
-      - >-
-        flask --app wsgi db upgrade &&
-        case "${PRODUCTION_BOOTSTRAP_ADMIN_ON_STARTUP:-1}" in
-        1) flask --app wsgi auth bootstrap-admin && flask --app wsgi auth bootstrap-demo ;;
-        0) true ;;
-        *) exit 1 ;;
-        esac &&
-        exec gunicorn
-        --bind=0.0.0.0:5000
-        --workers=${PRODUCTION_WEB_WORKERS:-2}
-        --threads=${PRODUCTION_WEB_THREADS:-2}
-        --timeout=30
-        --graceful-timeout=30
-        --access-logfile=-
-        --access-logformat='%(t)s "%(m)s %(U)s %(H)s" %(s)s %(b)s'
-        --error-logfile=-
-        wsgi:app
+    command: ["./scripts/run_production_web.sh"]
     environment:
       APP_ENV: production
       SECRET_KEY_FILE: /run/secrets/app_secret_key

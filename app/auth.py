@@ -54,6 +54,8 @@ def safe_next(value: str | None) -> str | None:
 
 
 def start_user_session(user: UserAccount) -> None:
+    anonymous_owner = session.get("anonymous_calculation_owner")
+    anonymous_id = session.get("anonymous_calculation_id")
     session.clear()
     token = secrets.token_urlsafe(32)
     session.update(
@@ -63,6 +65,9 @@ def start_user_session(user: UserAccount) -> None:
         csrf_token=token,
         admin_csrf_token=token,
     )
+    if isinstance(anonymous_owner, str) and isinstance(anonymous_id, str):
+        session["anonymous_calculation_owner"] = anonymous_owner
+        session["anonymous_calculation_id"] = anonymous_id
 
 
 def _legacy_admin_allowed() -> bool:
@@ -131,7 +136,9 @@ def roles_required(
     return decorate
 
 
-member_required = roles_required("ADMIN", "ASSISTANT_ADMIN", "MEMBER")
+member_required = roles_required("ADMIN", "ASSISTANT_ADMIN", "MEMBER", "TEACHER")
+student_required = roles_required("STUDENT", allow_legacy=False)
+teacher_required = roles_required("ADMIN", "MEMBER", "TEACHER", allow_legacy=False)
 admin_required = roles_required("ADMIN")
 approval_required = roles_required("ADMIN", "ASSISTANT_ADMIN", allow_legacy=False)
 
@@ -155,8 +162,12 @@ def post_login_destination(user: UserAccount, requested_next: str | None = None)
     candidate = safe_next(requested_next)
     if candidate:
         return candidate
+    if user.actor_ref == DEMO_ACTOR_REF:
+        return url_for("main.public_calculation_input", example="1")
     if user.actor_ref != DEMO_ACTOR_REF and user.role == "ADMIN":
         return url_for("admin.rules")
+    if user.role == "STUDENT":
+        return url_for("account.records")
     return url_for("admin.new_consultation")
 
 

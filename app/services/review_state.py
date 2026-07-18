@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -18,6 +19,7 @@ from app.services.temporary_uploads import TemporaryUploadStore
 
 REVIEW_STATE_FILENAME = "review-state.json"
 MAX_REVIEW_STATE_BYTES = 2 * 1024 * 1024
+MAX_REVIEW_AGE_SECONDS = 30 * 60
 
 
 class ReviewStateError(RuntimeError):
@@ -30,6 +32,7 @@ class ReviewState:
     student_id: str
     record_source: str
     owner_actor_ref: str
+    is_vocational_training_semester: bool = False
 
 
 def _json_value(value: object) -> object:
@@ -55,6 +58,8 @@ def _row_payload(row: NormalizedCourseRow) -> dict[str, object]:
         "source_sheet": row.source_sheet,
         "source_row_number": row.source_row_number,
         "source_page": row.source_page,
+        "record_source": row.record_source,
+        "is_vocational_training_semester": row.is_vocational_training_semester,
     }
 
 
@@ -101,6 +106,12 @@ def _row_from_payload(payload: dict[str, Any]) -> NormalizedCourseRow:
         source_sheet=_optional_string(payload.get("source_sheet")),
         source_row_number=_optional_integer(payload.get("source_row_number")),
         source_page=_optional_integer(payload.get("source_page")),
+        record_source=_optional_string(payload.get("record_source")),
+        is_vocational_training_semester=(
+            bool(payload["is_vocational_training_semester"])
+            if payload.get("is_vocational_training_semester") is not None
+            else None
+        ),
     )
 
 
@@ -119,6 +130,7 @@ class ReviewStateStore:
         student_id: str,
         record_source: str,
         owner_actor_ref: str,
+        is_vocational_training_semester: bool = False,
     ) -> None:
         session_path = self.upload_store.session_path(review_session_id)
         if not session_path.is_dir():
@@ -134,6 +146,7 @@ class ReviewStateStore:
             "student_id": student_id,
             "record_source": record_source,
             "owner_actor_ref": owner_actor_ref,
+            "is_vocational_training_semester": is_vocational_training_semester,
         }
         encoded = json.dumps(
             payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True
@@ -156,6 +169,9 @@ class ReviewStateStore:
         state_path = self._path(review_session_id)
         if not state_path.is_file():
             raise FileNotFoundError("검수 상태가 존재하지 않습니다.")
+        if time.time() - state_path.stat().st_mtime > MAX_REVIEW_AGE_SECONDS:
+            self.upload_store.purge_session(review_session_id)
+            raise FileNotFoundError("검수 상태가 만료되었습니다.")
         if state_path.stat().st_size > MAX_REVIEW_STATE_BYTES:
             raise ReviewStateError("검수 상태 크기 제한을 초과했습니다.")
         try:
@@ -198,6 +214,9 @@ class ReviewStateStore:
                 student_id=str(payload["student_id"]),
                 record_source=str(payload["record_source"]),
                 owner_actor_ref=owner_actor_ref,
+                is_vocational_training_semester=bool(
+                    payload.get("is_vocational_training_semester", False)
+                ),
             )
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             raise ReviewStateError("검수 상태를 읽을 수 없습니다.") from error

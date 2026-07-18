@@ -12,7 +12,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.models import ExternalIdentity, UserAccount, UserAccountAuditEvent, new_id
 
-USER_ROLES = frozenset({"ADMIN", "ASSISTANT_ADMIN", "MEMBER"})
+USER_ROLES = frozenset({"ADMIN", "ASSISTANT_ADMIN", "MEMBER", "STUDENT", "TEACHER"})
 USER_STATUSES = frozenset({"PENDING_APPROVAL", "ACTIVE", "REJECTED", "SUSPENDED"})
 CANONICAL_GOOGLE_ISSUER = "https://accounts.google.com"
 GOOGLE_ISSUERS = frozenset({CANONICAL_GOOGLE_ISSUER, "accounts.google.com"})
@@ -142,7 +142,7 @@ def register_local_member(
     requested_status: str | None = None,
     reserved_login_name: str | None = None,
 ) -> UserAccount:
-    del requested_role, requested_status
+    del requested_status
     _aware(occurred_at)
     _validate_password(password)
     normalized_login_name = _normalize_login_name(login_name)
@@ -152,6 +152,7 @@ def register_local_member(
     if normalized_email == DEMO_EMAIL:
         raise RegistrationConflict("예약된 계정 정보입니다.")
     account_id = new_id()
+    role = requested_role if requested_role in {"STUDENT", "TEACHER"} else "MEMBER"
     member = UserAccount(
         id=account_id,
         actor_ref=f"user:{account_id}",
@@ -159,7 +160,7 @@ def register_local_member(
         email=normalized_email,
         display_name=_normalize_display_name(display_name),
         password_hash=generate_password_hash(password),
-        role="MEMBER",
+        role=role,
         status="PENDING_APPROVAL",
         auth_version=1,
     )
@@ -623,8 +624,8 @@ def approve_pending_member(
         raise MembershipError("승인 대상 회원을 찾을 수 없습니다.")
     if locked.id == locked_actor.id:
         raise MembershipError("자기 자신을 승인할 수 없습니다.")
-    if locked.role != "MEMBER" or locked.status != "PENDING_APPROVAL":
-        raise MembershipError("승인 대기 일반 회원만 승인할 수 있습니다.")
+    if locked.role not in {"MEMBER", "STUDENT", "TEACHER"} or locked.status != "PENDING_APPROVAL":
+        raise MembershipError("승인 대기 일반 회원·학생·교사만 승인할 수 있습니다.")
     before_status = locked.status
     locked.status = "ACTIVE"
     locked.approved_by_user_id = locked_actor.id

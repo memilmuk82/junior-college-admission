@@ -138,9 +138,7 @@ def test_google_oidc_https_check_never_prints_redirect_query_values(
         def __init__(self, *_args: object, **_kwargs: object) -> None:
             pass
 
-        def request(
-            self, method: str, target: str, headers: dict[str, str]
-        ) -> None:
+        def request(self, method: str, target: str, headers: dict[str, str]) -> None:
             assert method == "GET"
             assert target == "/auth/google/start"
             assert headers == {

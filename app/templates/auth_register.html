@@ -3,19 +3,19 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>교직원 회원가입 · 2027 전문대 입시 상담</title>
+    <title>{{ '학생' if account_type == 'student' else '교사' }} 회원가입 · 2027 전문대 입시 상담</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   </head>
   <body class="auth-page">
     <header class="auth-header">
       <a class="brand-link" href="{{ url_for('main.index') }}">2027 전문대 입시 상담</a>
-      <a href="{{ url_for('auth.login') }}">로그인</a>
+      <a href="{{ url_for('auth.login', account_type=account_type) }}">로그인</a>
     </header>
 
     <main class="auth-shell auth-shell--wide" id="main-content">
-      <p class="admin-eyebrow">STAFF REGISTRATION</p>
-      <h1>교직원 회원가입</h1>
-      <p class="auth-lead">학생 공개 회원가입이 아닙니다. 내부 교직원·운영 사용자만 신청할 수 있으며 가입 후 관리자 승인이 필요합니다.</p>
+      <p class="admin-eyebrow">{{ 'STUDENT' if account_type == 'student' else 'TEACHER' }} REGISTRATION</p>
+      <h1>{{ '학생' if account_type == 'student' else '교사' }} 회원가입</h1>
+      <p class="auth-lead">{{ '본인 성적과 계산 결과를 저장할 학생 계정을 신청합니다.' if account_type == 'student' else '학생 상담자료를 관리할 교사 계정을 신청합니다.' }} 가입 후 관리자 승인이 필요합니다.</p>
 
       {% if errors %}
         <div class="auth-alert auth-alert--error" role="alert" tabindex="-1">
@@ -31,6 +31,7 @@
 
       <form class="auth-form" method="post" action="{{ url_for('auth.register') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="account_type" value="{{ account_type }}">
 
         <label for="register-display-name">표시 이름</label>
         <input
@@ -97,7 +98,7 @@
         <div class="auth-consent">
           <p><strong>가입 신청 시 적용되는 원칙</strong></p>
           <ul>
-            <li>계정은 일반 회원·승인 대기 상태로만 생성됩니다.</li>
+            <li>계정은 {{ '학생' if account_type == 'student' else '교사' }}·승인 대기 상태로만 생성됩니다.</li>
             <li>승인 전에는 상담·성적 검수·관리 기능을 사용할 수 없습니다.</li>
             <li>실제 학생 이름·학번을 계정 정보에 입력하지 않습니다.</li>
           </ul>
@@ -106,14 +107,8 @@
         <button class="primary-button auth-submit" type="submit">가입 승인 요청</button>
       </form>
 
-      {% if google_enabled %}
-        <div class="auth-divider" aria-hidden="true"><span>또는</span></div>
-        <a class="auth-provider-button" href="{{ url_for('auth.google_start') }}">Google 계정으로 가입</a>
-        <p class="auth-provider-note">Google 가입도 자동 승인되지 않으며, 검증된 이메일 외의 토큰은 보관하지 않습니다.</p>
-      {% endif %}
-
       <nav class="auth-links" aria-label="계정 이동">
-        <a href="{{ url_for('auth.login') }}">이미 계정이 있으면 로그인</a>
+        <a href="{{ url_for('auth.login', account_type=account_type) }}">이미 계정이 있으면 로그인</a>
         <a href="{{ url_for('main.index') }}">처음 화면으로</a>
       </nav>
     </main>

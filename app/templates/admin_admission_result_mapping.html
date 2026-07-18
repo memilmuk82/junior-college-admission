@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>입시결과 열 mapping 확인</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body>
+    <main class="page-shell stack">
+      <p><a href="{{ url_for('admission_result_imports.index') }}">가져오기 취소</a></p>
+      <h1>자동 열 mapping 확인</h1>
+      <p>탐지 결과를 확인하고 필요한 canonical 열만 원본 열로 바꾸세요. 확정 후 행 미리보기를 다시 계산합니다.</p>
+      {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+      <dl>
+        <dt>탐지 시트</dt><dd>{{ preview.detected_sheets|join(', ') }}</dd>
+        <dt>자동 preview 행</dt><dd>{{ preview.total_row_count }} / VALID {{ preview.valid_row_count }} / REVIEW {{ preview.review_row_count }} / ERROR {{ preview.error_row_count }}</dd>
+      </dl>
+      <form method="post" action="{{ url_for('admission_result_imports.confirm_mapping') }}" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="temporary_session_id" value="{{ temporary_session_id }}">
+        <table>
+          <thead><tr><th>canonical 열</th><th>자동 탐지 source 열</th><th>관리자 override</th></tr></thead>
+          <tbody>
+            {% for canonical, label in column_labels.items() %}
+              <tr>
+                <td><code>{{ canonical }}</code><br>{{ label }}</td>
+                <td>{{ automatic_mapping.get(canonical, '미탐지') }}</td>
+                <td>
+                  <label class="sr-only" for="mapping-{{ canonical }}">{{ label }} source 열</label>
+                  <select id="mapping-{{ canonical }}" name="mapping__{{ canonical }}">
+                    <option value="">자동 탐지 유지</option>
+                    {% for source_column in available_source_columns %}
+                      <option value="{{ source_column }}" {% if selected_overrides.get(canonical) == source_column %}selected{% endif %}>{{ source_column }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <button type="submit">열 mapping 확정하고 행 미리보기</button>
+      </form>
+    </main>
+  </body>
+</html>

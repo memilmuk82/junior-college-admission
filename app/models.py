@@ -783,6 +783,159 @@ class AdmissionResultPublished(TimestampMixin, Base):
     score_rule_academic_year: Mapped[int | None] = mapped_column(Integer)
 
 
+class AdmissionResultImportDataset(TimestampMixin, Base):
+    __tablename__ = "admission_result_import_datasets"
+    __table_args__ = (
+        UniqueConstraint("source_hash"),
+        CheckConstraint("char_length(source_hash) = 64", name="source_hash_length"),
+        CheckConstraint("result_academic_year >= 2000", name="result_year_valid"),
+        CheckConstraint("target_academic_year >= 2000", name="target_year_valid"),
+        CheckConstraint("source_format IN ('CSV', 'XLSX')", name="source_format_valid"),
+        CheckConstraint(
+            "lifecycle_status IN ('STAGED', 'READY', 'PUBLISHED', 'SUPERSEDED', 'BLOCKED')",
+            name="lifecycle_status_valid",
+        ),
+        CheckConstraint("original_row_count > 0", name="original_row_count_positive"),
+        CheckConstraint("valid_row_count >= 0", name="valid_row_count_nonnegative"),
+        CheckConstraint("review_row_count >= 0", name="review_row_count_nonnegative"),
+        CheckConstraint("error_row_count >= 0", name="error_row_count_nonnegative"),
+        CheckConstraint("published_row_count >= 0", name="published_row_count_nonnegative"),
+        CheckConstraint(
+            "original_row_count = valid_row_count + review_row_count + error_row_count",
+            name="preview_row_counts_consistent",
+        ),
+        CheckConstraint("published_row_count <= valid_row_count", name="published_not_above_valid"),
+        CheckConstraint(
+            "lifecycle_status != 'PUBLISHED' OR "
+            "(published_at IS NOT NULL AND published_by IS NOT NULL "
+            "AND published_row_count > 0)",
+            name="published_metadata_present",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    source_code: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    source_dataset_version: Mapped[str] = mapped_column(String(120), nullable=False)
+    source_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    source_format: Mapped[str] = mapped_column(String(10), nullable=False)
+    result_academic_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    target_academic_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    lifecycle_status: Mapped[str] = mapped_column(String(30), nullable=False, default="STAGED")
+    original_row_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    valid_row_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    review_row_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    error_row_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    published_row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    detected_sheets: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    column_mapping: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False, default=dict)
+    column_mapping_overrides: Mapped[dict[str, str]] = mapped_column(
+        JSON, nullable=False, default=dict
+    )
+    source_reference: Mapped[str] = mapped_column(String(500), nullable=False)
+    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    published_by: Mapped[str | None] = mapped_column(String(120))
+    supersedes_id: Mapped[str | None] = mapped_column(
+        ForeignKey("admission_result_import_datasets.id", ondelete="RESTRICT")
+    )
+
+
+class AdmissionResultImportRow(TimestampMixin, Base):
+    __tablename__ = "admission_result_import_rows"
+    __table_args__ = (
+        UniqueConstraint("dataset_id", "source_sheet", "source_row_number"),
+        CheckConstraint("source_row_number > 0", name="source_row_number_positive"),
+        CheckConstraint("result_academic_year >= 2000", name="result_year_valid"),
+        CheckConstraint("target_academic_year >= 2000", name="target_year_valid"),
+        CheckConstraint(
+            "validation_status IN ('VALID', 'REVIEW', 'ERROR')", name="validation_status_valid"
+        ),
+        CheckConstraint(
+            "publication_status IN ('STAGED', 'PUBLISHED', 'SUPERSEDED', 'EXCLUDED')",
+            name="publication_status_valid",
+        ),
+        CheckConstraint("capacity IS NULL OR capacity >= 0", name="capacity_valid"),
+        CheckConstraint("applicant_count IS NULL OR applicant_count >= 0", name="applicants_valid"),
+        CheckConstraint("admitted_count IS NULL OR admitted_count >= 0", name="admitted_valid"),
+        CheckConstraint(
+            "competition_rate IS NULL OR competition_rate >= 0", name="competition_valid"
+        ),
+        CheckConstraint("best_score IS NULL OR best_score >= 0", name="best_score_valid"),
+        CheckConstraint("average_score IS NULL OR average_score >= 0", name="average_score_valid"),
+        CheckConstraint("cutoff_score IS NULL OR cutoff_score >= 0", name="cutoff_score_valid"),
+        CheckConstraint(
+            "validation_status != 'VALID' OR "
+            "(institution_code IS NOT NULL AND campus_code IS NOT NULL "
+            "AND program_code IS NOT NULL AND admission_round_code IS NOT NULL "
+            "AND admission_track_code IS NOT NULL)",
+            name="valid_row_has_business_key",
+        ),
+        CheckConstraint(
+            "publication_status != 'PUBLISHED' OR "
+            "(score_basis = 'RANK_GRADE' AND score_direction = 'LOWER_IS_BETTER' "
+            "AND (best_score IS NULL OR best_score BETWEEN 1 AND 9) "
+            "AND (average_score IS NULL OR average_score BETWEEN 1 AND 9) "
+            "AND (cutoff_score IS NULL OR cutoff_score BETWEEN 1 AND 9))",
+            name="published_rank_grade_scale_valid",
+        ),
+        Index(
+            "uq_admission_result_import_rows_published_business_key",
+            "target_academic_year",
+            "result_academic_year",
+            "institution_code",
+            "campus_code",
+            "program_code",
+            "admission_round_code",
+            "admission_track_code",
+            "score_basis",
+            unique=True,
+            postgresql_where=text("publication_status = 'PUBLISHED'"),
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    dataset_id: Mapped[str] = mapped_column(
+        ForeignKey("admission_result_import_datasets.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    source_row_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_sheet: Mapped[str] = mapped_column(String(200), nullable=False)
+    result_academic_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    target_academic_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    region: Mapped[str | None] = mapped_column(String(80))
+    institution_code: Mapped[str | None] = mapped_column(String(80))
+    institution_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    campus_code: Mapped[str | None] = mapped_column(String(80))
+    campus_name: Mapped[str | None] = mapped_column(String(200))
+    program_code: Mapped[str | None] = mapped_column(String(120))
+    program_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    admission_round_code: Mapped[str | None] = mapped_column(String(80))
+    admission_round_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    day_night: Mapped[str | None] = mapped_column(String(40))
+    admission_category: Mapped[str | None] = mapped_column(String(120))
+    admission_track_code: Mapped[str | None] = mapped_column(String(80))
+    admission_track_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    capacity: Mapped[int | None] = mapped_column(Integer)
+    applicant_count: Mapped[int | None] = mapped_column(Integer)
+    admitted_count: Mapped[int | None] = mapped_column(Integer)
+    competition_rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
+    best_score: Mapped[Decimal | None] = mapped_column(Numeric(14, 4))
+    average_score: Mapped[Decimal | None] = mapped_column(Numeric(14, 4))
+    cutoff_score: Mapped[Decimal | None] = mapped_column(Numeric(14, 4))
+    score_basis: Mapped[str] = mapped_column(String(80), nullable=False)
+    score_direction: Mapped[str] = mapped_column(String(40), nullable=False)
+    historical_score_rule_id: Mapped[str | None] = mapped_column(String(36))
+    historical_score_rule_version: Mapped[str | None] = mapped_column(String(120))
+    historical_score_rule_year: Mapped[int | None] = mapped_column(Integer)
+    source_reference: Mapped[str] = mapped_column(String(500), nullable=False)
+    validation_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    validation_issues: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+    publication_status: Mapped[str] = mapped_column(String(20), nullable=False, default="STAGED")
+
+
 class ImportBatch(TimestampMixin, Base):
     __tablename__ = "import_batches"
     __table_args__ = (
@@ -826,6 +979,12 @@ class StudentAcademicRecord(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     student_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    owner_user_account_id: Mapped[str | None] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    managed_by_user_account_id: Mapped[str | None] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     academic_year: Mapped[int] = mapped_column(Integer, nullable=False)
     grade: Mapped[int] = mapped_column(Integer, nullable=False)
     semester: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -873,6 +1032,55 @@ class StudentCourseRecord(TimestampMixin, Base):
     extraction_method: Mapped[str] = mapped_column(String(40), nullable=False)
     extraction_confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
     user_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class SavedConsultation(TimestampMixin, Base):
+    __tablename__ = "saved_consultations"
+    __table_args__ = (
+        UniqueConstraint("calculation_id"),
+        CheckConstraint(
+            "(owner_user_account_id IS NOT NULL AND managed_by_user_account_id IS NULL) OR "
+            "(owner_user_account_id IS NULL AND managed_by_user_account_id IS NOT NULL)",
+            name="exactly_one_account_owner",
+        ),
+        CheckConstraint(
+            "academic_year BETWEEN 2000 AND 2100",
+            name="academic_year_valid",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    calculation_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    student_reference: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    owner_user_account_id: Mapped[str | None] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    managed_by_user_account_id: Mapped[str | None] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    academic_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    selected_targets: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    result_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    student_print_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    teacher_print_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    counselor_note: Mapped[str | None] = mapped_column(Text)
+
+
+class VerifiedSourceRuleConfirmation(TimestampMixin, Base):
+    __tablename__ = "verified_source_rule_confirmations"
+    __table_args__ = (
+        UniqueConstraint("rule_id", "rule_version"),
+        CheckConstraint("char_length(source_digest) = 64", name="source_digest_length"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    rule_id: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    rule_version: Mapped[str] = mapped_column(String(120), nullable=False)
+    source_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    confirmed_by_user_account_id: Mapped[str] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class VocationalCourseReport(TimestampMixin, Base):
@@ -934,7 +1142,7 @@ class UserAccount(TimestampMixin, Base):
         UniqueConstraint("email"),
         UniqueConstraint("actor_ref"),
         CheckConstraint(
-            "role IN ('ADMIN', 'ASSISTANT_ADMIN', 'MEMBER')",
+            "role IN ('ADMIN', 'ASSISTANT_ADMIN', 'MEMBER', 'STUDENT', 'TEACHER')",
             name="role_valid",
         ),
         CheckConstraint(
@@ -962,7 +1170,8 @@ class UserAccount(TimestampMixin, Base):
             name="local_credentials_complete",
         ),
         CheckConstraint(
-            "status NOT IN ('PENDING_APPROVAL', 'REJECTED') OR role = 'MEMBER'",
+            "status NOT IN ('PENDING_APPROVAL', 'REJECTED') "
+            "OR role IN ('MEMBER', 'STUDENT', 'TEACHER')",
             name="pending_role_member",
         ),
         CheckConstraint(
@@ -1029,11 +1238,13 @@ class UserAccountAuditEvent(TimestampMixin, Base):
             name="event_type_valid",
         ),
         CheckConstraint(
-            "before_role IS NULL OR before_role IN ('ADMIN', 'ASSISTANT_ADMIN', 'MEMBER')",
+            "before_role IS NULL OR before_role IN "
+            "('ADMIN', 'ASSISTANT_ADMIN', 'MEMBER', 'STUDENT', 'TEACHER')",
             name="before_role_valid",
         ),
         CheckConstraint(
-            "after_role IS NULL OR after_role IN ('ADMIN', 'ASSISTANT_ADMIN', 'MEMBER')",
+            "after_role IS NULL OR after_role IN "
+            "('ADMIN', 'ASSISTANT_ADMIN', 'MEMBER', 'STUDENT', 'TEACHER')",
             name="after_role_valid",
         ),
         CheckConstraint(
@@ -1144,6 +1355,8 @@ __all__ = [
     "RuleVersionLineage",
     "ScoreAdjustmentRule",
     "ScoreRule",
+    "SavedConsultation",
+    "VerifiedSourceRuleConfirmation",
     "SourceCitation",
     "SourceDocument",
     "SourceDocumentPage",

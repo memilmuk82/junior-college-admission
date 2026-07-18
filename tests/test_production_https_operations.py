@@ -37,14 +37,10 @@ def test_https_check_uses_an_explicit_operations_user_agent(
         def read(self, _size: int = -1) -> bytes:
             return b'{"service":"junior-college-admission","status":"ok"}'
 
-    def synthetic_urlopen(
-        request: Request, *, context: object, timeout: int
-    ) -> SyntheticResponse:
+    def synthetic_urlopen(request: Request, *, context: object, timeout: int) -> SyntheticResponse:
         assert request.full_url == "https://service.example.test/health"
         assert request.get_method() == "GET"
-        assert request.get_header("User-agent") == (
-            "junior-college-admission-operations/1.0"
-        )
+        assert request.get_header("User-agent") == ("junior-college-admission-operations/1.0")
         assert request.get_header("Accept") == "application/json"
         assert context is not None
         assert timeout == 10

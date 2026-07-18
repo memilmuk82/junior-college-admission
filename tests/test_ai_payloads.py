@@ -8,7 +8,10 @@ import pytest
 
 from app.services.admission_result_analysis import AdmissionResultAnalysisInput
 from app.services.admission_results import AdmissionResultKey, HistoricalRuleReference
-from app.services.ai_payloads import build_anonymous_consultation_payload
+from app.services.ai_payloads import (
+    build_anonymous_consultation_payload,
+    validated_saved_payload_copy,
+)
 from app.services.ai_providers import (
     NarrativeDraft,
     NarrativeProviderError,
@@ -172,6 +175,19 @@ def test_anonymous_payload_has_a_fixed_allowlist_and_preserves_zero() -> None:
     assert "track-internal-id" not in payload.canonical_json
     assert "student" not in payload.canonical_json.lower()
     assert len(payload.digest) == 64
+
+
+def test_saved_payload_serializer_rejects_missing_nested_keys_and_returns_json_copy() -> None:
+    payload = build_anonymous_consultation_payload(_result())
+
+    copied = validated_saved_payload_copy(payload.data)
+
+    assert copied == payload.data
+    assert copied is not payload.data
+    malformed = json.loads(payload.canonical_json)
+    del malformed["results"][0]["target"]["program_name"]
+    with pytest.raises(ValueError, match="target"):
+        validated_saved_payload_copy(malformed)
 
 
 def test_anonymous_payload_digest_distinguishes_zero_from_missing() -> None:

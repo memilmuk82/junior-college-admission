@@ -1,0 +1,25 @@
+{
+  "schema": "phase14_admission_result_column_aliases",
+  "version": 1,
+  "aliases": {
+    "result_academic_year": ["결과학년도", "입시결과학년도", "모집학년도", "학년도"],
+    "region": ["지역", "지역명"],
+    "institution_name": ["대학명", "대학", "학교명"],
+    "campus_name": ["캠퍼스명", "캠퍼스"],
+    "admission_round_name": ["모집시기", "모집차수", "전형시기"],
+    "program_name": ["전공명", "학과명", "모집단위", "전공", "학과"],
+    "day_night": ["주야", "주간야간", "주야구분"],
+    "admission_category": ["전형구분1", "전형구분", "전형대분류"],
+    "admission_track_name": ["전형구분2", "전형명", "전형", "전형세부분류", "출신교"],
+    "capacity": ["모집시기별입학정원", "모집인원", "입학정원", "정원"],
+    "applicant_count": ["지원자수", "지원인원", "지원자"],
+    "admitted_count": ["합격자수", "합격인원", "합격자"],
+    "competition_rate": ["경쟁률"],
+    "best_score": ["합격자최고", "최고등급", "최고점"],
+    "average_score": ["합격자평균", "평균등급", "평균점수", "평균학생부", "평균_학생부", "평균"],
+    "cutoff_score": ["합격자최저", "최저등급", "컷등급", "최저학생부", "최저_학생부", "최저점"],
+    "score_basis": ["점수기준", "성적기준", "scorebasis"],
+    "score_direction": ["점수방향", "scoredirection"],
+    "source_reference": ["출처", "출처참조", "sourcereference"]
+  }
+}

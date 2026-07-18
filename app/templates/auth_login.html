@@ -3,19 +3,19 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>교직원 로그인 · 2027 전문대 입시 상담</title>
+    <title>{{ '학생' if account_type == 'student' else '교사' }} 로그인 · 2027 전문대 입시 상담</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   </head>
   <body class="auth-page">
     <header class="auth-header">
       <a class="brand-link" href="{{ url_for('main.index') }}">2027 전문대 입시 상담</a>
-      <span>내부 교직원용</span>
+      <span>{{ '학생용' if account_type == 'student' else '교사용' }}</span>
     </header>
 
     <main class="auth-shell" id="main-content">
-      <p class="admin-eyebrow">STAFF SIGN IN</p>
-      <h1>교직원 로그인</h1>
-      <p class="auth-lead">관리자 승인이 완료된 내부 교직원 계정만 상담 기능을 사용할 수 있습니다.</p>
+      <p class="admin-eyebrow">{{ 'STUDENT' if account_type == 'student' else 'TEACHER' }} SIGN IN</p>
+      <h1>{{ '학생' if account_type == 'student' else '교사' }} 로그인</h1>
+      <p class="auth-lead">{{ '본인 성적과 이전 계산을 저장·조회하려면 학생 계정으로 로그인하세요.' if account_type == 'student' else '학생 상담자료와 메모를 관리하려면 승인된 교사 계정으로 로그인하세요.' }}</p>
 
       {% if demo_login_name and demo_public_password %}
         <section class="demo-credentials" aria-labelledby="demo-account-title">
@@ -34,6 +34,7 @@
 
       <form class="auth-form" method="post" action="{{ url_for('auth.login') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="account_type" value="{{ account_type }}">
         {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
 
         <label for="login-name">아이디 <span class="field-note">관리자 ID 또는 회원 아이디</span></label>
@@ -69,11 +70,11 @@
         <a class="auth-provider-button" href="{{ url_for('auth.google_start') }}">
           Google 계정으로 로그인
         </a>
-        <p class="auth-provider-note">Google 계정으로 처음 로그인한 경우에도 관리자 승인 후 사용할 수 있습니다.</p>
+        <p class="auth-provider-note">Google은 기존 승인 계정 로그인용입니다. 학생·교사 역할 신규 신청은 위 로컬 회원가입을 사용하세요.</p>
       {% endif %}
 
       <nav class="auth-links" aria-label="계정 도움말">
-        <a href="{{ url_for('auth.register') }}">내부 교직원 회원가입</a>
+        <a href="{{ url_for('auth.register', account_type=account_type) }}">{{ '학생' if account_type == 'student' else '교사' }} 회원가입</a>
         <a href="{{ url_for('main.index') }}">처음 화면으로</a>
       </nav>
     </main>

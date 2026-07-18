@@ -4,6 +4,7 @@ import hashlib
 import os
 import re
 import shutil
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
@@ -34,6 +35,29 @@ class TemporaryUploadStore:
         session_id = uuid4().hex
         self.session_path(session_id).mkdir(mode=0o700)
         return session_id
+
+    def purge_expired_sessions(
+        self, *, max_age_seconds: int = 30 * 60, now: float | None = None
+    ) -> int:
+        if max_age_seconds <= 0:
+            raise ValueError("임시 세션 만료시간은 양수여야 합니다.")
+        cutoff = (time.time() if now is None else now) - max_age_seconds
+        purged = 0
+        for candidate in self.root.iterdir():
+            if not candidate.is_dir() or not SESSION_ID_PATTERN.fullmatch(candidate.name):
+                continue
+            state_paths = (
+                candidate / "derived" / "review-state.json",
+                candidate / "derived" / "anonymous-calculation.json",
+            )
+            modified_at = max(
+                [candidate.stat().st_mtime]
+                + [path.stat().st_mtime for path in state_paths if path.is_file()]
+            )
+            if modified_at <= cutoff:
+                self.purge_session(candidate.name)
+                purged += 1
+        return purged
 
     def session_path(self, session_id: str) -> Path:
         if not SESSION_ID_PATTERN.fullmatch(session_id):

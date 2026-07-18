@@ -45,6 +45,26 @@ def _client(postgres_engine: Engine, master_key: str):  # type: ignore[no-untype
     return client
 
 
+def _register_consultation_cleanup(
+    request: pytest.FixtureRequest, postgres_engine: Engine, track_id: str
+) -> None:
+    def cleanup() -> None:
+        with Session(postgres_engine) as database_session:
+            database_session.execute(
+                delete(AiConsultationDraft).where(
+                    AiConsultationDraft.actor_ref == "synthetic-admin"
+                )
+            )
+            database_session.execute(
+                delete(AiProviderCredential).where(
+                    AiProviderCredential.actor_ref == "synthetic-admin"
+                )
+            )
+            _cleanup(database_session, track_id)
+
+    request.addfinalizer(cleanup)
+
+
 def test_admin_can_store_mask_and_delete_provider_key(postgres_engine: Engine) -> None:
     client = _client(postgres_engine, Fernet.generate_key().decode("ascii"))
     page = client.get("/admin/ai/settings")
@@ -189,9 +209,11 @@ def test_missing_master_key_disables_key_write_without_breaking_settings(
 def test_admin_generates_reviewable_draft_from_consultation_result(
     postgres_engine: Engine,
     monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
 ) -> None:
     with Session(postgres_engine) as database_session:
         track_id = _seed(database_session)
+    _register_consultation_cleanup(request, postgres_engine, track_id)
     master_key = Fernet.generate_key().decode("ascii")
     client = _client(postgres_engine, master_key)
     settings = client.get("/admin/ai/settings")
@@ -244,19 +266,15 @@ def test_admin_generates_reviewable_draft_from_consultation_result(
         assert draft is not None
         assert draft.provider == "OPENAI"
         assert draft.model_name == "synthetic-model"
-        database_session.delete(draft)
-        database_session.execute(
-            delete(AiProviderCredential).where(AiProviderCredential.actor_ref == "synthetic-admin")
-        )
-        database_session.commit()
-        _cleanup(database_session, track_id)
 
 
 def test_ai_generation_without_owned_key_keeps_deterministic_result_available(
     postgres_engine: Engine,
+    request: pytest.FixtureRequest,
 ) -> None:
     with Session(postgres_engine) as database_session:
         track_id = _seed(database_session)
+    _register_consultation_cleanup(request, postgres_engine, track_id)
     client = _client(postgres_engine, Fernet.generate_key().decode("ascii"))
     consultation = client.get("/admin/consultations/new")
 
@@ -276,4 +294,3 @@ def test_ai_generation_without_owned_key_keeps_deterministic_result_available(
     assert "2.00" in body
     with Session(postgres_engine) as database_session:
         assert database_session.scalar(select(AiConsultationDraft)) is None
-        _cleanup(database_session, track_id)

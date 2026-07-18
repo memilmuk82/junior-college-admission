@@ -12,9 +12,9 @@ class AppTestCase(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         body = response.get_data(as_text=True)
-        self.assertIn("지원자격부터 확인하는 상담 흐름", body)
-        self.assertIn("교직원 상담 시작", body)
-        self.assertIn("허용된 경우에만 성적 범위·환산점수", body)
+        self.assertIn("로그인 없이 성적 계산하기", body)
+        self.assertIn("예시 성적으로 체험하기", body)
+        self.assertIn("실제 대학·학과의 지원자격", body)
         self.assertIn('media="print"', body)
 
     def test_health_endpoint(self):

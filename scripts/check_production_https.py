@@ -7,7 +7,6 @@ from pathlib import Path
 from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 
-
 OPERATIONS_USER_AGENT = "junior-college-admission-operations/1.0"
 
 

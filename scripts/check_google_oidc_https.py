@@ -6,7 +6,6 @@ from http.client import HTTPException, HTTPSConnection
 from pathlib import Path
 from urllib.parse import parse_qs, urljoin, urlparse
 
-
 OPERATIONS_USER_AGENT = "junior-college-admission-operations/1.0"
 
 

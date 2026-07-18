@@ -28,6 +28,8 @@ from app.auth import (
     member_required,
     non_demo_required,
     require_csrf,
+    roles_required,
+    session_user,
 )
 from app.auth_routes import login_view
 from app.database import db
@@ -45,6 +47,8 @@ from app.models import (
     RuleVersionLineage,
     ScoreRule,
     SourceCitation,
+    StudentAcademicRecord,
+    UserAccount,
 )
 from app.services.ai_credentials import (
     ByokCredentialCipher,
@@ -77,18 +81,10 @@ from app.services.consultations import (
     ConsultationError,
     ConsultationItemStatus,
     ConsultationProgram,
-    ConsultationRequest,
     ConsultationResult,
     list_consultation_programs,
     run_batch_consultation,
     run_consultation,
-)
-from app.services.demo_consultations import (
-    DEMO_CONSULTATION_DEFAULTS,
-    DEMO_DEFAULT_PROGRAM_IDS,
-    demo_consultation_programs,
-    run_demo_batch_consultation,
-    run_demo_consultation,
 )
 from app.services.rule_admin import (
     RULE_CONTRACT_SCHEMA_VERSION,
@@ -108,6 +104,7 @@ from app.services.rule_admin import (
     rule_payload_digest,
     verify_extracted_rule,
 )
+from app.services.score_inputs import load_academic_record_inputs
 from app.services.score_rule_csv_drafts import (
     ScoreRuleDraftPersistenceError,
     load_managed_score_rules,
@@ -129,6 +126,12 @@ from app.services.score_rule_schema import (
     write_score_rule_csv,
 )
 from app.services.temporary_uploads import TemporaryUploadStore
+from app.services.verified_source_rules import (
+    VerifiedSourceRuleError,
+    confirm_verified_source_rule,
+    confirmed_verified_source_rule,
+    load_verified_source_rules,
+)
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -251,19 +254,13 @@ def _render_consultation_form(
     errors: tuple[str, ...] = (),
     status: int = 200,
 ) -> Response:
-    demo_mode = is_demo_user()
+    demo_mode = False
     try:
         academic_year = int(values.get("academic_year") or "2027")
     except ValueError:
         academic_year = 2027
-    programs = (
-        demo_consultation_programs()
-        if demo_mode
-        else list_consultation_programs(cast(Session, db.session), academic_year)
-    )
+    programs = list_consultation_programs(cast(Session, db.session), academic_year)
     selected_program_ids = tuple(item for item in values.get("program_ids", "").split(",") if item)
-    if demo_mode and not selected_program_ids and not errors:
-        selected_program_ids = DEMO_DEFAULT_PROGRAM_IDS
     return _private(
         render_template(
             "admin_consultation_form.html",
@@ -284,15 +281,40 @@ def _evaluate_consultation_form(
 ) -> ConsultationResult | BatchConsultationResult:
     if parsed.request is None:
         raise ConsultationError("상담 입력을 확인하세요.")
-    if is_demo_user() and isinstance(parsed.request, BatchConsultationRequest):
-        return run_demo_batch_consultation(parsed.request)
-    if is_demo_user():
-        if not isinstance(parsed.request, ConsultationRequest):
-            raise ConsultationError("공개 데모 상담 요청 형식을 확인하세요.")
-        return run_demo_consultation(parsed.request)
+    records_loader = _authorized_records_loader(parsed.request.student_id)
     if isinstance(parsed.request, BatchConsultationRequest):
-        return run_batch_consultation(cast(Session, db.session), parsed.request)
-    return run_consultation(cast(Session, db.session), parsed.request)
+        return run_batch_consultation(
+            cast(Session, db.session), parsed.request, records_loader=records_loader
+        )
+    return run_consultation(
+        cast(Session, db.session), parsed.request, records_loader=records_loader
+    )
+
+
+def _authorized_records_loader(student_id: str) -> Callable[[], tuple]:
+    user = session_user()
+    database_session = cast(Session, db.session)
+    if user is None:
+        # 이 helper를 호출하는 route의 member_required가 검증한 기존 구성 관리자다.
+        return lambda: load_academic_record_inputs(database_session, student_id)
+    if user.status != "ACTIVE":
+        raise ConsultationError("활성 계정의 상담 성적만 조회할 수 있습니다.")
+    records = tuple(
+        database_session.scalars(
+            select(StudentAcademicRecord).where(StudentAcademicRecord.student_id == student_id)
+        )
+    )
+    if user.role == "STUDENT":
+        if student_id != f"account:{user.id}" or any(
+            record.owner_user_account_id != user.id for record in records
+        ):
+            raise ConsultationError("본인 소유 성적만 상담에 사용할 수 있습니다.")
+    elif user.role == "TEACHER":
+        if not records or any(record.managed_by_user_account_id != user.id for record in records):
+            raise ConsultationError("담당자로 지정된 학생 성적만 상담에 사용할 수 있습니다.")
+    elif user.role != "ADMIN":
+        raise ConsultationError("기존 일반 회원은 저장 성적 DB 상담을 사용할 수 없습니다.")
+    return lambda: load_academic_record_inputs(database_session, student_id)
 
 
 def _batch_result(result: ConsultationResult | BatchConsultationResult) -> BatchConsultationResult:
@@ -357,11 +379,12 @@ def _render_consultation_result(
 
 
 @bp.route("/consultations/new", methods=["GET", "POST"])
-@member_required
+@roles_required("ADMIN", "ASSISTANT_ADMIN", "MEMBER", "TEACHER", "STUDENT")
 def new_consultation() -> Response:
+    if is_demo_user():
+        return cast(Response, redirect(url_for("main.public_calculation_input", example="1")))
     if request.method == "GET":
-        defaults = DEMO_CONSULTATION_DEFAULTS if is_demo_user() else CONSULTATION_DEFAULTS
-        return _render_consultation_form(dict(defaults))
+        return _render_consultation_form(dict(CONSULTATION_DEFAULTS))
     _require_csrf()
     parsed = parse_consultation_form(request.form)
     if parsed.program_ids:
@@ -373,6 +396,55 @@ def new_consultation() -> Response:
     except ValueError as error:
         return _render_consultation_form(parsed.values, errors=(str(error),), status=400)
     return _render_consultation_result(parsed, result)
+
+
+@bp.get("/verified-source-rules")
+@admin_required
+def verified_source_rule_reviews() -> Response:
+    database_session = cast(Session, db.session)
+    rules = load_verified_source_rules()
+    confirmations = {
+        (rule.rule_id, rule.version): confirmed_verified_source_rule(database_session, rule)
+        for rule in rules
+    }
+    return _private(
+        render_template(
+            "admin_verified_source_rules.html",
+            rules=rules,
+            confirmations=confirmations,
+            csrf_token=_csrf_token(),
+        )
+    )
+
+
+@bp.post("/verified-source-rules/<rule_id>/<rule_version>/confirm")
+@admin_required
+def confirm_verified_source_rule_review(rule_id: str, rule_version: str) -> Response:
+    _require_csrf()
+    rule = next(
+        (
+            item
+            for item in load_verified_source_rules()
+            if item.rule_id == rule_id and item.version == rule_version
+        ),
+        None,
+    )
+    if rule is None:
+        abort(404)
+    user = session_user()
+    if user is None:
+        user = cast(Session, db.session).scalar(
+            select(UserAccount).where(UserAccount.actor_ref == _actor_ref())
+        )
+    if user is None:
+        abort(409)
+    try:
+        confirm_verified_source_rule(cast(Session, db.session), rule=rule, actor=user)
+        db.session.commit()
+    except VerifiedSourceRuleError as error:
+        db.session.rollback()
+        return _private(str(error), 403)
+    return cast(Response, redirect(url_for("admin.verified_source_rule_reviews")))
 
 
 @bp.post("/consultations/ai-draft")

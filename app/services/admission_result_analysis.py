@@ -30,6 +30,7 @@ class AdmissionResultAnalysisInput:
     lowest_score: Decimal | None
     score_basis: str | None
     historical_rule: HistoricalRuleReference | None
+    capacity: int | None = None
 
 
 def load_published_admission_result_for_analysis(

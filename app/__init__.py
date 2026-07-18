@@ -225,6 +225,9 @@ def create_app(test_config: dict | None = None) -> Flask:
     from app.auth import register_auth_cli
 
     register_auth_cli(app)
+    from app.phase14_cli import register_phase14_cli
+
+    register_phase14_cli(app)
     from app.services.google_oidc import init_google_oidc
 
     init_google_oidc(app)
@@ -238,6 +241,12 @@ def create_app(test_config: dict | None = None) -> Flask:
     from app.admin_routes import bp as admin_bp
 
     app.register_blueprint(admin_bp)
+    from app.admission_result_import_routes import bp as admission_result_import_bp
+
+    app.register_blueprint(admission_result_import_bp)
+    from app.account_routes import bp as account_bp
+
+    app.register_blueprint(account_bp)
     from app.member_routes import bp as member_bp
 
     app.register_blueprint(member_bp)

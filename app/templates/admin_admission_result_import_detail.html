@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>입시결과 데이터셋 검수</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body>
+    <main class="page-shell stack">
+      <p><a href="{{ url_for('admission_result_imports.index') }}">연도별 가져오기</a></p>
+      <h1>{{ dataset.source_code }} / {{ dataset.source_dataset_version }}</h1>
+      {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+      <dl>
+        <dt>결과 학년도</dt><dd>{{ dataset.result_academic_year }}</dd>
+        <dt>상담 대상 학년도</dt><dd>{{ dataset.target_academic_year }}</dd>
+        <dt>상태</dt><dd>{{ dataset.lifecycle_status }}</dd>
+        <dt>탐지 공개 결과 시트</dt><dd>{{ dataset.detected_sheets|join(', ') }}</dd>
+        <dt>확정 열 mapping</dt>
+        <dd>{% for canonical, source in dataset.column_mapping.items() %}<code>{{ canonical }}</code> ← {{ source }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>
+        <dt>관리자 override</dt>
+        <dd>{% if dataset.column_mapping_overrides %}{% for canonical, source in dataset.column_mapping_overrides.items() %}<code>{{ canonical }}</code> ← {{ source }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}없음{% endif %}</dd>
+        <dt>원본/유효/검토/오류/게시 행</dt>
+        <dd>{{ dataset.original_row_count }} / {{ dataset.valid_row_count }} / {{ dataset.review_row_count }} / {{ dataset.error_row_count }} / {{ dataset.published_row_count }}</dd>
+        <dt>출처</dt><dd>{{ dataset.source_reference }}</dd>
+        <dt>상담 조회 가능 결과연도</dt><dd>{% if published_result_years %}{{ published_result_years|join(', ') }}{% else %}게시 전{% endif %}</dd>
+      </dl>
+      {% if dataset.lifecycle_status not in ('PUBLISHED', 'SUPERSEDED') %}
+        <form method="post" action="{{ url_for('admission_result_imports.retarget', dataset_id=dataset.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>상담 대상 학년도 확인·수정
+            <input type="number" name="target_academic_year" min="2000" max="2100" value="{{ dataset.target_academic_year }}" required>
+          </label>
+          <button type="submit">대상연도와 업무키 다시 매핑</button>
+        </form>
+        <form method="post" action="{{ url_for('admission_result_imports.publish', dataset_id=dataset.id) }}" class="stack">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          {% if dataset.review_row_count or dataset.error_row_count %}
+            <label><input type="checkbox" name="partial_policy" value="CONFIRM_PARTIAL"> 검토·오류 행을 제외하고 유효 행만 게시하는 부분 게시 정책을 확인했습니다.</label>
+          {% endif %}
+          <button type="submit">유효 행 게시</button>
+        </form>
+      {% endif %}
+      <h2>행 미리보기</h2>
+      <form method="get">
+        <label>검수 상태
+          <select name="status">
+            {% for code in ('ALL', 'VALID', 'REVIEW', 'ERROR') %}
+              <option value="{{ code }}" {% if status_filter == code %}selected{% endif %}>{{ code }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit">상태 필터 적용</button>
+      </form>
+      <p>{{ page }} / {{ page_count }} 페이지 · 한 페이지 최대 100행</p>
+      <table>
+        <thead><tr><th>시트/행</th><th>상태</th><th>대학·캠퍼스</th><th>학과</th><th>모집시기·전형</th><th>평균/컷</th><th>검수 사유</th></tr></thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td>{{ row.source_sheet }} / {{ row.source_row_number }}</td>
+              <td>{{ row.validation_status }} / {{ row.publication_status }}</td>
+              <td>{{ row.institution_name }} / {{ row.campus_name or '미매핑' }}</td>
+              <td>{{ row.program_name }}</td>
+              <td>{{ row.admission_round_name }} / {{ row.admission_track_name }}</td>
+              <td>{{ row.average_score if row.average_score is not none else 'NULL' }} / {{ row.cutoff_score if row.cutoff_score is not none else 'NULL' }}</td>
+              <td>{% for issue in row.validation_issues %}{{ issue.code }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <nav aria-label="입시결과 행 페이지">
+        {% if page > 1 %}<a href="{{ url_for('admission_result_imports.detail', dataset_id=dataset.id, status=status_filter, page=page-1) }}">이전 100행</a>{% endif %}
+        {% if page < page_count %}<a href="{{ url_for('admission_result_imports.detail', dataset_id=dataset.id, status=status_filter, page=page+1) }}">다음 100행</a>{% endif %}
+      </nav>
+    </main>
+  </body>
+</html>

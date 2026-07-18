@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>연도별 입시결과 가져오기</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body>
+    <main class="page-shell stack">
+      <p><a href="{{ url_for('admin.catalog') }}">기준정보 관리</a></p>
+      <h1>연도별 입시결과 가져오기</h1>
+      <p>원본 파일은 요청 메모리에서만 읽고 저장하지 않습니다. 결과 학년도와 상담 대상 학년도를 따로 확인하세요.</p>
+      {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+      <form method="post" enctype="multipart/form-data" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>CSV/XLSX 파일 <input type="file" name="result_file" accept=".csv,.xlsx" required></label>
+        <label>출처 코드 <input name="source_code" required placeholder="PROCOLLEGE_2027_RESULTS"></label>
+        <label>데이터셋 버전 <input name="source_dataset_version" required placeholder="2027-V1"></label>
+        <label>결과 학년도 <input name="result_academic_year" type="number" min="2000" max="2100" required value="2027"></label>
+        <label>상담 대상 학년도 <input name="target_academic_year" type="number" min="2000" max="2100" placeholder="비우면 결과연도 + 1"></label>
+        <label>공개 출처 설명 <input name="source_reference" required placeholder="공개 URL 또는 내부 source manifest ID"></label>
+        <button type="submit">미리보기 만들기</button>
+      </form>
+
+      <h2>데이터셋 이력</h2>
+      <table>
+        <thead><tr><th>출처/버전</th><th>결과→상담 연도</th><th>상태</th><th>행 수</th><th>열기</th></tr></thead>
+        <tbody>
+          {% for dataset in datasets %}
+            <tr>
+              <td>{{ dataset.source_code }} / {{ dataset.source_dataset_version }}</td>
+              <td>{{ dataset.result_academic_year }} → {{ dataset.target_academic_year }}</td>
+              <td>{{ dataset.lifecycle_status }}</td>
+              <td>{{ dataset.original_row_count }}</td>
+              <td><a href="{{ url_for('admission_result_imports.detail', dataset_id=dataset.id) }}">검수</a></td>
+            </tr>
+          {% else %}<tr><td colspan="5">등록된 데이터셋이 없습니다.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </main>
+  </body>
+</html>

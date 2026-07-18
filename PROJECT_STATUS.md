@@ -1,10 +1,10 @@
 # 프로젝트 상태
 
-- 기준일: 2026-07-18
-- 현재 단계: Phase 12 사이트 기능 완성·공개 데모
-- 단계 판정: `LIVE_VERIFIED_NO_OFFICIAL_CONTENT` — Phase 12 코드·Git·백업·migration·운영 이미지·공인 HTTPS 검증 완료, 공식 게시 규칙은 0건
-- 현재 작업: Phase 12 운영 안정성 관찰과 공식 모집요강·사람 승인 자료 대기
-- 다음 게이트: 공식 근거의 사람 승인·게시, Phase 12 범위 밖 import 정렬 2건 해소 후 저장소 전체 lint 재검증
+- 기준일: 2026-07-19
+- 현재 단계: Phase 14 엑셀 업무 흐름 중심 재구축
+- 단계 판정: `PASS_NONPROD_PHASE_14` — 공개 계산·실제 공개 데이터·연도 import·계정 저장 경계와 독립 브라우저 검증 완료, 운영 배포 확인 전
+- 현재 작업: Phase 14 전체 diff·민감자료 검토와 운영 백업·migration·웹 재배포
+- 다음 게이트: 커밋·원격 push 후 기존 PostgreSQL 보존 배포, 공인 HTTPS 공개 흐름 smoke
 
 ## 저장소 인벤토리
 
@@ -12,9 +12,9 @@
 |---|---|---|
 | 실행 개발 문서 v2 | `REFERENCE_ONLY` | 변경 금지 기준 문서 |
 | Codex 마스터 프롬프트 v3 | `REFERENCE_ONLY` | 변경 금지 실행 지침 |
-| 공식 모집요강·시행계획 원본 | `PENDING_ANALYSIS` | 저장소에 없음 |
+| 공식 모집요강·시행계획 원본 | `REFERENCE_ONLY` | Git 제외 `tmp/codex-reference/pdfs/`에서 읽기 전용 검증 |
 | 학생 개인정보·업로드 원본 | `BLOCKED_SOURCE` | 저장소 반입 금지, 현재 미발견 |
-| 공개 정제 전형 데이터 | `PENDING_ANALYSIS` | `data/seed/`에 아직 없음 |
+| 공개 정제 전형 데이터 | `VERIFIED_SOURCE` | 4개 대학 기준정보·2025 결과 482행·출처 manifest |
 
 ## Phase 0 완료 항목
 
@@ -263,3 +263,39 @@ Phase 12 회귀는 단위 290건, PostgreSQL 통합 127건과 합성 백업·격
 신규 이미지 `sha256:5106fec82bbe9f703cd615312bde5671fd38855b50acab19884a95048cc0d6c2`로 web을 교체하고 live DB를 `e51f0b24c8aa → 6c1a2e9f4b73`으로 적용했다. Docker health, `127.0.0.1:8000` loopback, origin/public health, Cloudflare HTTPS, HTTP redirect, TLS, CSP·HSTS·nosniff·frame·referrer 헤더, host Nginx 설정과 active 상태를 확인했다. 운영 Playwright 3건과 Phase 12 비파괴 smoke에서 관리자 catalog 5개 SSR 폼·친화적 400 오류·모바일·무JavaScript, 비로그인 redirect, 데모 MEMBER 합성 상담·catalog 403, console/page error 0건을 확인했다. 최근 web·전용 Nginx 로그의 5xx·fatal·query·비밀값·학생 PII 패턴은 0건이다.
 
 합성 기준정보를 live DB에 남기거나 삭제하지 않기 위해 운영에서는 성공 등록을 수행하지 않았다. 실제 5단계 저장은 격리 PostgreSQL E2E로, live에서는 동일 이미지·migration의 조회와 비파괴 오류 경로로 검증했다. live catalog 5종과 공식 게시 규칙은 모두 0건이며 Google OIDC는 비활성 상태다.
+
+## Phase 14 완료 항목
+
+- [x] 로그인 없는 빈 성적표·수정 가능한 합성 예시·표 붙여넣기·CSV/XLSX 입력 시작점
+- [x] 5개 기본 학기 그리드, 행별 성적 출처·위탁학기, `0`·빈 값·`P` 분리와 Z점수 fail-closed
+- [x] 원본 삭제 후 수정 가능한 검수 화면, 대학 선택·결과에서 같은 임시 입력으로 되돌아가기
+- [x] 실제 4개 대학·캠퍼스·학과·모집시기·전형 기준정보와 공개 2025 결과 482행
+- [x] 전형별 지원자격 우선 판정, 지원 가능한 `VERIFIED_SOURCE` 전형만 계산
+- [x] 동양미래대·인하공전·연성대 실행 규칙, 명지전문대 비위탁 범위 실행·위탁 `NEEDS_REVIEW`
+- [x] 인하공전 공식 Z점수 경계·등급 환산 trace와 누락·표준편차 0 fail-closed
+- [x] 관리자별 `VERIFIED_SOURCE` 규칙 최종확인과 규칙 digest 변경 시 확인 무효화
+- [x] 선택 학기·과목·이수단위·중간값·가중치·반올림·제외 이유·근거 페이지 trace
+- [x] 학생용·교사용 별도 A4와 저장 시점 학생·교사 로그인 경계
+- [x] 학생 자기 자료, 교사 관리 자료의 소유권 기반 저장·전체 필드 수정·조회·삭제
+- [x] 관심 대학·학과, 계산 결과, 학생용·교사용 출력 snapshot, 교사 메모·상담 이력 저장
+- [x] CSV/XLSX 시트·머리글 자동 탐지, canonical 정규화, 오류·중복·미매핑 미리보기
+- [x] 결과연도와 상담연도 분리, 2027 결과→2028 기본 제안·관리자 수정·게시
+- [x] 데이터셋 `STAGED`·`READY`·`PUBLISHED`·`SUPERSEDED`·`BLOCKED`와 해시 중복 식별
+- [x] 기준 XLSX 1,818+1,652=3,470행 import 대조, 학생 성적 시트·계산 보조열 제외
+- [x] 기준 XLSX 지원 수식 대표 11종 일치, `J18`·`J20` 공식 자동 게시 차단
+- [x] 비파괴 migration과 기존 사용자·상담·PostgreSQL volume 보존 계약
+- [x] 독립 Chromium 검증: 공개 흐름 3건, 관리자 import 2건, 무JavaScript·390px·A4·오류 0건
+- [x] 단위 337건, PostgreSQL 통합 140건·격리 백업/복원, lint·mypy·규칙·민감자료 검사
+
+### 기준 XLSX 대응
+
+| XLSX 시트 | Phase 14 화면·서비스 |
+|---|---|
+| `성적 입력` | 공개 성적 그리드·붙여넣기·업로드·검수 임시 세션 |
+| `대학별 등급` | 출처 버전이 있는 제한형 실행 규칙과 계산 trace |
+| `2025 수시(1차) 결과` | canonical import 1,818행과 상담 비교 자료 |
+| `2025 수시(2차) 결과` | canonical import 1,652행과 상담 비교 자료 |
+
+동양미래대학교 호텔관광학과 대표 흐름에서 합성 예시의 첫 성적을 수정한 결과는 1.71등급이었고, `영어Ⅰ` 석차등급을 1에서 9로 바꾸면 2.00등급으로 변경됐다. 같은 화면에 2025 평균 5.7000, 최저 6.3000, 경쟁률 8.4000, 모집인원 47과 계산 trace가 표시됐다. 공식 범위가 확인되지 않은 전형은 가상 산식 대신 `계산 기준 준비 중` 또는 `NEEDS_REVIEW`로 표시한다.
+
+익명 입력은 계정 학생 성적 테이블에 저장하지 않고 새 계산·완료 시 즉시 삭제하며 production 앱의 5분 주기 정리 loop가 30분 만료 자료를 트래픽 없이도 삭제한다. 학생은 본인 소유 자료만, 교사는 자신이 관리하는 자료만 다루며 관리자는 회원 승인·공개 데이터 import·규칙 최종확인을 담당한다. 운영 이미지·migration·공인 URL 결과는 배포 뒤 이 절에 추가한다.

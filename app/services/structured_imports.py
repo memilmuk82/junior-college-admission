@@ -56,6 +56,11 @@ HEADER_ALIASES = {
     "enrollment_count": "enrollment_count",
     "석차등급": "rank_grade",
     "rank_grade": "rank_grade",
+    "성적 출처": "record_source",
+    "record_source": "record_source",
+    "위탁학기": "is_vocational_training_semester",
+    "위탁학기 여부": "is_vocational_training_semester",
+    "is_vocational_training_semester": "is_vocational_training_semester",
 }
 STUDENT_REFERENCE_HEADERS = {
     "학생식별자",
@@ -91,6 +96,8 @@ class NormalizedCourseRow:
     source_sheet: str | None = None
     source_row_number: int | None = None
     source_page: int | None = None
+    record_source: str | None = None
+    is_vocational_training_semester: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,6 +158,26 @@ def _parse_integer(
         issues.append(NormalizationIssue("INVALID_INTEGER", field, row_number, sheet_name))
         return None
     return int(parsed)
+
+
+def _parse_boolean(
+    value: str | None,
+    *,
+    field: str,
+    row_number: int,
+    issues: list[NormalizationIssue],
+    sheet_name: str | None = None,
+) -> bool | None:
+    cleaned = _clean_text(value)
+    if cleaned is None:
+        return None
+    normalized = cleaned.upper()
+    if normalized in {"TRUE", "1", "Y", "YES", "예"}:
+        return True
+    if normalized in {"FALSE", "0", "N", "NO", "아니오"}:
+        return False
+    issues.append(NormalizationIssue("INVALID_BOOLEAN", field, row_number, sheet_name))
+    return None
 
 
 def _delimiter_for(source: str, source_format: TextSourceFormat) -> str:
@@ -262,6 +289,14 @@ def _normalize_course_row(
         ),
         source_sheet=sheet_name,
         source_row_number=row_number,
+        record_source=_clean_text(row.get("record_source")),
+        is_vocational_training_semester=_parse_boolean(
+            row.get("is_vocational_training_semester"),
+            field="is_vocational_training_semester",
+            row_number=row_number,
+            issues=issues,
+            sheet_name=sheet_name,
+        ),
     )
 
 

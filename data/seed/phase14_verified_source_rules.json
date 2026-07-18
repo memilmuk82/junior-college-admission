@@ -1,0 +1,304 @@
+{
+  "schema_version": 1,
+  "rules": [
+    {
+      "academic_year": 2027,
+      "institution_code": "DONGYANG-MIRAE",
+      "campus_code": "MAIN",
+      "admission_round_code": "SUSI-1",
+      "admission_track_code": "SPECIAL-GENERAL-HS",
+      "rule_id": "dongyang-mirae-2027-susi1-special-general-grade",
+      "version": "verified-source-v1",
+      "execution_status": "VERIFIED_SOURCE",
+      "evidence": {
+        "eligibility": {"document_name": "동양미래_1. 2027학년도 수시 모집요강.pdf", "academic_year": 2027, "page_number": 8, "locator": "일반고 졸업(예정)자 지원자격 표(8~9쪽)", "source_status": "FINAL_GUIDE"},
+        "grade_source": {"document_name": "동양미래_1. 2027학년도 수시 모집요강.pdf", "academic_year": 2027, "page_number": 18, "locator": "직업·대안위탁교육 성적 반영학기 제외 표", "source_status": "FINAL_GUIDE"},
+        "score": {"document_name": "동양미래_1. 2027학년도 수시 모집요강.pdf", "academic_year": 2027, "page_number": 18, "locator": "전 학년 중 우수 2개 학기 이수단위 가중 반영 표", "source_status": "FINAL_GUIDE"}
+      },
+      "eligibility_payload": {
+        "schema_version": 1,
+        "cases": [
+          {
+            "case_id": "general_expected_or_graduated",
+            "when": {
+              "all": [
+                {"fact": "final_school_type", "op": "eq", "value": "GENERAL"},
+                {"fact": "graduation_status", "op": "in", "value": ["EXPECTED", "GRADUATED"]}
+              ]
+            },
+            "status": "ELIGIBLE",
+            "reason_code": "GENERAL_HIGH_SCHOOL_ELIGIBLE"
+          }
+        ],
+        "default": {"status": "INELIGIBLE", "reason_code": "GENERAL_HIGH_SCHOOL_REQUIREMENT_NOT_MET"}
+      },
+      "grade_source_payload": {"schema_version": 1, "policy": "EXCLUDE_VOCATIONAL_SEMESTER"},
+      "score_rule_payload": {
+        "schema_version": 1,
+        "evidence_level": "UNIVERSITY_OFFICIAL",
+        "source_inclusion": {"home_grade_1": true, "home_grade_2": true, "home_grade_3_semester_1": true, "home_grade_3_semester_2": false, "vocational_grade": false, "vocational_semester_1": false, "vocational_semester_2": false},
+        "value_direction": "LOWER_IS_BETTER",
+        "semester_selection": {"method": "BEST_N", "scope": "GLOBAL", "best_count": 2},
+        "subject_selection": {"method": "ALL", "best_count": null, "scope": "ALL", "credit_weighted": true, "minimum_semester_credits": null},
+        "semester_rounding": {"mode": "ROUND_HALF_UP", "scale": 6},
+        "grade_rounding": {"mode": null, "scale": null},
+        "grade_weights": {"grade_1": null, "grade_2": null, "grade_3": null},
+        "semester_weights": {"grade_1_semester_1": null, "grade_1_semester_2": null, "grade_2_semester_1": null, "grade_2_semester_2": null, "grade_3_semester_1": null, "grade_3_semester_2": null},
+        "weighting_mode": "EQUAL",
+        "achievement": {"handling": "EXCLUDE", "table_code": null, "source": null, "formula_version": null, "distribution_scale": null, "career_subject_included": false},
+        "z_score": {"policy": "NOT_USED", "source": null, "table_code": null, "formula_version": null, "rounding_mode": null, "rounding_scale": null, "clip_min": null, "clip_max": null},
+        "attendance": {"attendance_included": false, "table_code": null, "source": null, "minor_event_conversion_unit": null},
+        "non_predictive_components": {"interview_ratio": null, "practical_ratio": null},
+        "rounding": {"mode": "ROUND_HALF_UP", "stage": "FINAL", "scale": 2, "display_scale": 2},
+        "score_transform": {"mode": "IDENTITY", "base": null, "multiplier": null},
+        "maximum_score": "9"
+      }
+    },
+    {
+      "academic_year": 2027,
+      "institution_code": "DONGYANG-MIRAE",
+      "campus_code": "MAIN",
+      "admission_round_code": "SUSI-1",
+      "admission_track_code": "SPECIAL-VOCATIONAL-HS",
+      "rule_id": "dongyang-mirae-2027-susi1-special-vocational-grade",
+      "version": "verified-source-v1",
+      "execution_status": "VERIFIED_SOURCE",
+      "evidence": {
+        "eligibility": {"document_name": "동양미래_1. 2027학년도 수시 모집요강.pdf", "academic_year": 2027, "page_number": 9, "locator": "특성화고 및 직업위탁교육 이수자 지원자격 표", "source_status": "FINAL_GUIDE"},
+        "grade_source": {"document_name": "동양미래_1. 2027학년도 수시 모집요강.pdf", "academic_year": 2027, "page_number": 18, "locator": "특성화고 전형 위탁교육 성적 반영학기 표", "source_status": "FINAL_GUIDE"},
+        "score": {"document_name": "동양미래_1. 2027학년도 수시 모집요강.pdf", "academic_year": 2027, "page_number": 18, "locator": "전 학년 중 우수 2개 학기 이수단위 가중 반영 표", "source_status": "FINAL_GUIDE"}
+      },
+      "eligibility_payload": {
+        "schema_version": 1,
+        "cases": [
+          {
+            "case_id": "vocational_training_two_semesters",
+            "when": {
+              "all": [
+                {"fact": "final_school_type", "op": "eq", "value": "GENERAL"},
+                {"fact": "graduation_status", "op": "in", "value": ["EXPECTED", "GRADUATED"]},
+                {"fact": "vocational_training_status", "op": "in", "value": ["PARTICIPATING", "EXPECTED_COMPLETION", "COMPLETED"]},
+                {"fact": "vocational_training_semesters", "op": "gte", "value": 2}
+              ]
+            },
+            "status": "ELIGIBLE",
+            "reason_code": "VOCATIONAL_TRAINING_REQUIREMENT_MET"
+          }
+        ],
+        "default": {"status": "INELIGIBLE", "reason_code": "VOCATIONAL_TRAINING_REQUIREMENT_NOT_MET"}
+      },
+      "grade_source_payload": {"schema_version": 1, "policy": "VOCATIONAL_INCLUDED"},
+      "score_rule_payload": {
+        "schema_version": 1,
+        "evidence_level": "UNIVERSITY_OFFICIAL",
+        "source_inclusion": {"home_grade_1": true, "home_grade_2": true, "home_grade_3_semester_1": true, "home_grade_3_semester_2": false, "vocational_grade": true, "vocational_semester_1": true, "vocational_semester_2": false},
+        "value_direction": "LOWER_IS_BETTER",
+        "semester_selection": {"method": "BEST_N", "scope": "GLOBAL", "best_count": 2},
+        "subject_selection": {"method": "ALL", "best_count": null, "scope": "ALL", "credit_weighted": true, "minimum_semester_credits": null},
+        "semester_rounding": {"mode": "ROUND_HALF_UP", "scale": 6},
+        "grade_rounding": {"mode": null, "scale": null},
+        "grade_weights": {"grade_1": null, "grade_2": null, "grade_3": null},
+        "semester_weights": {"grade_1_semester_1": null, "grade_1_semester_2": null, "grade_2_semester_1": null, "grade_2_semester_2": null, "grade_3_semester_1": null, "grade_3_semester_2": null},
+        "weighting_mode": "EQUAL",
+        "achievement": {"handling": "EXCLUDE", "table_code": null, "source": null, "formula_version": null, "distribution_scale": null, "career_subject_included": false},
+        "z_score": {"policy": "NOT_USED", "source": null, "table_code": null, "formula_version": null, "rounding_mode": null, "rounding_scale": null, "clip_min": null, "clip_max": null},
+        "attendance": {"attendance_included": false, "table_code": null, "source": null, "minor_event_conversion_unit": null},
+        "non_predictive_components": {"interview_ratio": null, "practical_ratio": null},
+        "rounding": {"mode": "ROUND_HALF_UP", "stage": "FINAL", "scale": 2, "display_scale": 2},
+        "score_transform": {"mode": "IDENTITY", "base": null, "multiplier": null},
+        "maximum_score": "9"
+      }
+    },
+    {
+      "academic_year": 2027,
+      "institution_code": "INHA-TECHNICAL-COLLEGE",
+      "campus_code": "MAIN",
+      "admission_round_code": "SUSI-1",
+      "admission_track_code": "SPECIAL-GENERAL-HS",
+      "rule_id": "inha-technical-2027-susi1-special-general-grade",
+      "version": "verified-source-v1",
+      "execution_status": "VERIFIED_SOURCE",
+      "evidence": {
+        "eligibility": {"document_name": "2027 인하공전 신입생 모집요강(출력용).pdf", "academic_year": 2027, "page_number": 6, "locator": "일반고 전형 직업위탁교육 이수자 지원자격 표", "source_status": "FINAL_GUIDE"},
+        "grade_source": {"document_name": "2027 인하공전 신입생 모집요강(출력용).pdf", "academic_year": 2027, "page_number": 9, "locator": "직업위탁교육 이수학기 성적 제외 표(9~10쪽)", "source_status": "FINAL_GUIDE"},
+        "score": {"document_name": "2027 인하공전 신입생 모집요강(출력용).pdf", "academic_year": 2027, "page_number": 10, "locator": "1학년 1학기~3학년 1학기 중 우수 1개 학기 및 학교생활기록부 등급산출 방법 2) 등급 환산표", "source_status": "FINAL_GUIDE"}
+      },
+      "z_score_table": {
+        "table_code": "INHA_TECH_2027_Z_GRADE",
+        "version": "final-guide-2027-page-10-v1",
+        "evidence_document_id": "2027 인하공전 신입생 모집요강(출력용).pdf",
+        "evidence_page": 10,
+        "evidence_location": "학교생활기록부 등급산출 방법 2) 등급 환산표",
+        "source_status": "FINAL_GUIDE",
+        "rows": [
+          {"z_min": "1.76", "z_min_inclusive": true, "z_max": null, "z_max_inclusive": false, "converted_value": "1"},
+          {"z_min": "1.23", "z_min_inclusive": true, "z_max": "1.76", "z_max_inclusive": false, "converted_value": "2"},
+          {"z_min": "0.74", "z_min_inclusive": true, "z_max": "1.23", "z_max_inclusive": false, "converted_value": "3"},
+          {"z_min": "0.26", "z_min_inclusive": true, "z_max": "0.74", "z_max_inclusive": false, "converted_value": "4"},
+          {"z_min": "-0.26", "z_min_inclusive": false, "z_max": "0.26", "z_max_inclusive": false, "converted_value": "5"},
+          {"z_min": "-0.74", "z_min_inclusive": false, "z_max": "-0.26", "z_max_inclusive": true, "converted_value": "6"},
+          {"z_min": "-1.23", "z_min_inclusive": false, "z_max": "-0.74", "z_max_inclusive": true, "converted_value": "7"},
+          {"z_min": "-1.76", "z_min_inclusive": false, "z_max": "-1.23", "z_max_inclusive": true, "converted_value": "8"},
+          {"z_min": null, "z_min_inclusive": false, "z_max": "-1.76", "z_max_inclusive": true, "converted_value": "9"}
+        ]
+      },
+      "eligibility_payload": {
+        "schema_version": 1,
+        "cases": [
+          {
+            "case_id": "general_school_with_external_condition",
+            "when": {
+              "all": [
+                {"fact": "final_school_type", "op": "eq", "value": "GENERAL"},
+                {"fact": "graduation_status", "op": "in", "value": ["EXPECTED", "GRADUATED"]}
+              ]
+            },
+            "status": "CONDITIONALLY_ELIGIBLE",
+            "reason_code": "SCHOOL_VIOLENCE_FACT_REQUIRES_CONFIRMATION"
+          }
+        ],
+        "default": {"status": "INELIGIBLE", "reason_code": "GENERAL_HIGH_SCHOOL_REQUIREMENT_NOT_MET"}
+      },
+      "grade_source_payload": {"schema_version": 1, "policy": "EXCLUDE_VOCATIONAL_SEMESTER"},
+      "score_rule_payload": {
+        "schema_version": 1,
+        "evidence_level": "UNIVERSITY_OFFICIAL",
+        "source_inclusion": {"home_grade_1": true, "home_grade_2": true, "home_grade_3_semester_1": true, "home_grade_3_semester_2": false, "vocational_grade": false, "vocational_semester_1": false, "vocational_semester_2": false},
+        "value_direction": "LOWER_IS_BETTER",
+        "semester_selection": {"method": "BEST_N", "scope": "GLOBAL", "best_count": 1},
+        "subject_selection": {"method": "ALL", "best_count": null, "scope": "ALL", "credit_weighted": true, "minimum_semester_credits": null},
+        "semester_rounding": {"mode": "ROUND_HALF_UP", "scale": 6},
+        "grade_rounding": {"mode": null, "scale": null},
+        "grade_weights": {"grade_1": null, "grade_2": null, "grade_3": null},
+        "semester_weights": {"grade_1_semester_1": null, "grade_1_semester_2": null, "grade_2_semester_1": null, "grade_2_semester_2": null, "grade_3_semester_1": null, "grade_3_semester_2": null},
+        "weighting_mode": "EQUAL",
+        "achievement": {"handling": "EXCLUDE", "table_code": null, "source": null, "formula_version": null, "distribution_scale": null, "career_subject_included": false},
+        "z_score": {"policy": "TABLE_LOOKUP", "source": "UNIVERSITY_OFFICIAL", "table_code": "INHA_TECH_2027_Z_GRADE", "formula_version": "STANDARD_Z_V1", "rounding_mode": "ROUND_HALF_UP", "rounding_scale": 2, "clip_min": null, "clip_max": null},
+        "attendance": {"attendance_included": false, "table_code": null, "source": null, "minor_event_conversion_unit": null},
+        "non_predictive_components": {"interview_ratio": null, "practical_ratio": null},
+        "rounding": {"mode": "ROUND_HALF_UP", "stage": "FINAL", "scale": 2, "display_scale": 2},
+        "score_transform": {"mode": "IDENTITY", "base": null, "multiplier": null},
+        "maximum_score": "9"
+      }
+    },
+    {
+      "academic_year": 2027,
+      "institution_code": "YEONSUNG",
+      "campus_code": "MAIN",
+      "admission_round_code": "SUSI-1",
+      "admission_track_code": "SPECIAL-GENERAL-HS",
+      "rule_id": "yeonsung-2027-susi1-special-general-grade",
+      "version": "verified-source-v1",
+      "execution_status": "VERIFIED_SOURCE",
+      "evidence": {
+        "eligibility": {"document_name": "연성_2027학년도 연성대학교 수시모집요강.pdf", "academic_year": 2027, "page_number": 26, "locator": "일반고 특별전형 및 위탁교육 이수자 지원자격 표", "source_status": "FINAL_GUIDE"},
+        "grade_source": {"document_name": "연성_2027학년도 연성대학교 수시모집요강.pdf", "academic_year": 2027, "page_number": 26, "locator": "위탁교육 이수학기 성적 제외 범위 표", "source_status": "FINAL_GUIDE"},
+        "score": {"document_name": "연성_2027학년도 연성대학교 수시모집요강.pdf", "academic_year": 2027, "page_number": 35, "locator": "학기별 15학점 이상 학기 중 우수 2개 학기 반영 표", "source_status": "FINAL_GUIDE"}
+      },
+      "eligibility_payload": {
+        "schema_version": 1,
+        "cases": [
+          {
+            "case_id": "general_school_with_external_condition",
+            "when": {
+              "all": [
+                {"fact": "final_school_type", "op": "eq", "value": "GENERAL"},
+                {"fact": "graduation_status", "op": "in", "value": ["EXPECTED", "GRADUATED"]}
+              ]
+            },
+            "status": "CONDITIONALLY_ELIGIBLE",
+            "reason_code": "SCHOOL_VIOLENCE_FACT_REQUIRES_CONFIRMATION"
+          }
+        ],
+        "default": {"status": "INELIGIBLE", "reason_code": "GENERAL_HIGH_SCHOOL_REQUIREMENT_NOT_MET"}
+      },
+      "grade_source_payload": {"schema_version": 1, "policy": "EXCLUDE_VOCATIONAL_SEMESTER"},
+      "score_rule_payload": {
+        "schema_version": 1,
+        "evidence_level": "UNIVERSITY_OFFICIAL",
+        "source_inclusion": {"home_grade_1": true, "home_grade_2": true, "home_grade_3_semester_1": true, "home_grade_3_semester_2": false, "vocational_grade": false, "vocational_semester_1": false, "vocational_semester_2": false},
+        "value_direction": "LOWER_IS_BETTER",
+        "semester_selection": {"method": "BEST_N", "scope": "GLOBAL", "best_count": 2},
+        "subject_selection": {"method": "ALL", "best_count": null, "scope": "ALL", "credit_weighted": true, "minimum_semester_credits": "15"},
+        "semester_rounding": {"mode": "ROUND_HALF_UP", "scale": 6},
+        "grade_rounding": {"mode": null, "scale": null},
+        "grade_weights": {"grade_1": null, "grade_2": null, "grade_3": null},
+        "semester_weights": {"grade_1_semester_1": null, "grade_1_semester_2": null, "grade_2_semester_1": null, "grade_2_semester_2": null, "grade_3_semester_1": null, "grade_3_semester_2": null},
+        "weighting_mode": "EQUAL",
+        "achievement": {"handling": "EXCLUDE", "table_code": null, "source": null, "formula_version": null, "distribution_scale": null, "career_subject_included": false},
+        "z_score": {"policy": "NOT_USED", "source": null, "table_code": null, "formula_version": null, "rounding_mode": null, "rounding_scale": null, "clip_min": null, "clip_max": null},
+        "attendance": {"attendance_included": false, "table_code": null, "source": null, "minor_event_conversion_unit": null},
+        "non_predictive_components": {"interview_ratio": null, "practical_ratio": null},
+        "rounding": {"mode": "ROUND_HALF_UP", "stage": "FINAL", "scale": 2, "display_scale": 2},
+        "score_transform": {"mode": "IDENTITY", "base": null, "multiplier": null},
+        "maximum_score": "9"
+      }
+    },
+    {
+      "academic_year": 2027,
+      "institution_code": "MYONGJI-COLLEGE",
+      "campus_code": "MAIN",
+      "admission_round_code": "SUSI-1",
+      "admission_track_code": "SPECIAL-GENERAL-HS",
+      "rule_id": "myongji-college-2027-susi1-special-general-grade",
+      "version": "verified-source-conservative-v2",
+      "execution_status": "VERIFIED_SOURCE",
+      "evidence": {
+        "eligibility": {"document_name": "명지전문_1. 2027학년도 명지전문대학 수시 모집요강.pdf", "academic_year": 2027, "page_number": 14, "locator": "일반고 전형 지원자격 표", "source_status": "FINAL_GUIDE"},
+        "grade_source": {"document_name": "명지전문_1. 2027학년도 명지전문대학 수시 모집요강.pdf", "academic_year": 2027, "page_number": 14, "locator": "비위탁 일반고 성적 범위만 제한 실행; 위탁 이력은 자동 계산 차단", "source_status": "FINAL_GUIDE"},
+        "score": {"document_name": "명지전문_1. 2027학년도 명지전문대학 수시 모집요강.pdf", "academic_year": 2027, "page_number": 14, "locator": "학년별 우수 학기 30%·30%·40% 반영 표", "source_status": "FINAL_GUIDE"}
+      },
+      "eligibility_payload": {
+        "schema_version": 1,
+        "cases": [
+          {
+            "case_id": "general_with_vocational_training_requires_review",
+            "when": {
+              "all": [
+                {"fact": "final_school_type", "op": "eq", "value": "GENERAL"},
+                {"fact": "graduation_status", "op": "in", "value": ["EXPECTED", "GRADUATED"]},
+                {"fact": "vocational_training_status", "op": "in", "value": ["PARTICIPATING", "EXPECTED_COMPLETION", "COMPLETED"]}
+              ]
+            },
+            "status": "NEEDS_REVIEW",
+            "reason_code": "VOCATIONAL_TRAINING_SCOPE_REQUIRES_REVIEW"
+          },
+          {
+            "case_id": "general_expected_or_graduated_without_vocational_training",
+            "when": {
+              "all": [
+                {"fact": "final_school_type", "op": "eq", "value": "GENERAL"},
+                {"fact": "graduation_status", "op": "in", "value": ["EXPECTED", "GRADUATED"]},
+                {"fact": "vocational_training_status", "op": "eq", "value": "NONE"}
+              ]
+            },
+            "status": "ELIGIBLE",
+            "reason_code": "GENERAL_HIGH_SCHOOL_ELIGIBLE"
+          }
+        ],
+        "default": {"status": "INELIGIBLE", "reason_code": "GENERAL_HIGH_SCHOOL_REQUIREMENT_NOT_MET"}
+      },
+      "grade_source_payload": {"schema_version": 1, "policy": "HOME_ONLY"},
+      "score_rule_payload": {
+        "schema_version": 1,
+        "evidence_level": "UNIVERSITY_OFFICIAL",
+        "source_inclusion": {"home_grade_1": true, "home_grade_2": true, "home_grade_3_semester_1": true, "home_grade_3_semester_2": false, "vocational_grade": false, "vocational_semester_1": false, "vocational_semester_2": false},
+        "value_direction": "LOWER_IS_BETTER",
+        "semester_selection": {"method": "BEST_N", "scope": "PER_GRADE", "best_count": 1},
+        "subject_selection": {"method": "ALL", "best_count": null, "scope": "ALL", "credit_weighted": true, "minimum_semester_credits": null},
+        "semester_rounding": {"mode": "ROUND_HALF_UP", "scale": 6},
+        "grade_rounding": {"mode": "ROUND_HALF_UP", "scale": 6},
+        "grade_weights": {"grade_1": "0.30", "grade_2": "0.30", "grade_3": "0.40"},
+        "semester_weights": {"grade_1_semester_1": null, "grade_1_semester_2": null, "grade_2_semester_1": null, "grade_2_semester_2": null, "grade_3_semester_1": null, "grade_3_semester_2": null},
+        "weighting_mode": "GRADE_ONLY",
+        "achievement": {"handling": "EXCLUDE", "table_code": null, "source": null, "formula_version": null, "distribution_scale": null, "career_subject_included": false},
+        "z_score": {"policy": "NOT_USED", "source": null, "table_code": null, "formula_version": null, "rounding_mode": null, "rounding_scale": null, "clip_min": null, "clip_max": null},
+        "attendance": {"attendance_included": false, "table_code": null, "source": null, "minor_event_conversion_unit": null},
+        "non_predictive_components": {"interview_ratio": null, "practical_ratio": null},
+        "rounding": {"mode": "ROUND_HALF_UP", "stage": "FINAL", "scale": 2, "display_scale": 2},
+        "score_transform": {"mode": "IDENTITY", "base": null, "multiplier": null},
+        "maximum_score": "9"
+      }
+    }
+  ]
+}

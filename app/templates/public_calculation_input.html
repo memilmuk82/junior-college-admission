@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>로그인 없이 성적 계산하기</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="admin-page public-calculation-page">
+    <header class="admin-header"><a href="{{ url_for('main.index') }}">전문대 입시 상담</a><span>로그인 없는 1회 계산 · 저장 안 됨</span></header>
+    <main class="admin-shell consultation-shell">
+      <nav class="public-steps" aria-label="계산 단계"><strong aria-current="step">1. 성적 입력</strong><span>2. 입력 확인</span><span>3. 대학·학과 선택</span><span>4. 결과와 근거</span></nav>
+      <div class="admin-heading"><div><h1>학생 성적 입력</h1><p>이름·학번·학교명 없이 입력하며, 원본과 임시 입력은 30분 뒤 또는 완료 시 삭제됩니다.</p></div><span class="step-indicator">저장 안 됨</span></div>
+      {% if example %}<div class="public-notice" role="status"><strong>합성 예시 성적을 불러왔습니다.</strong> 값은 자유롭게 바꿀 수 있으며 실제 대학의 일반 계산 서비스에 전달됩니다.</div>{% endif %}
+      {% if errors %}<div class="admin-alert" role="alert"><h2>입력을 확인하세요</h2><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
+      <form method="post" action="{{ url_for('main.start_public_calculation') }}" enctype="multipart/form-data" class="consultation-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <section class="admin-section">
+          <div class="admin-section__heading"><h2>입력 방식</h2><span>한 가지를 선택하세요</span></div>
+          <div class="public-mode-grid">
+            <label><input type="radio" name="input_mode" value="manual" checked> 직접 입력</label>
+            <label><input type="radio" name="input_mode" value="paste"> 표 붙여넣기</label>
+            <label><input type="radio" name="input_mode" value="upload"> CSV/XLSX 업로드</label>
+          </div>
+          <label class="public-source" for="record-source">성적 출처
+            <select id="record-source" name="record_source">
+              {% for code, label in [('MANUAL_INPUT','직접 입력'),('HOME_SCHOOL_RECORD','학교생활기록부'),('VOCATIONAL_TRAINING_RECORD','직업위탁 성적'),('GED_RECORD','검정고시 자료')] %}<option value="{{ code }}" {% if example and code == 'HOME_SCHOOL_RECORD' %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+          </label>
+          <label class="public-vocational"><input type="checkbox" name="is_vocational_training_semester" value="TRUE"> 위탁학기 성적으로 표시</label>
+        </section>
+        <section class="admin-section" aria-labelledby="manual-title">
+          <div class="admin-section__heading"><h2 id="manual-title">1·2학년 4개 학기와 3학년 1학기</h2><a class="button-link button-link--secondary" href="{{ url_for('main.public_calculation_input', example=1) }}">예시 성적 다시 불러오기</a></div>
+          <p class="form-help">과목이 빈 행은 제출하지 않습니다. 0, 빈 값, P는 서로 다르게 보존하며 표준편차가 0이거나 비어 있으면 Z점수를 임의 계산하지 않습니다.</p>
+          <div class="public-grade-grid-wrap">
+            <div class="public-grade-grid public-grade-grid--head" aria-hidden="true"><span>학년도</span><span>학년</span><span>학기</span><span>교과</span><span>과목</span><span>이수단위</span><span>석차등급</span><span>원점수</span><span>평균</span><span>표준편차</span><span>성취도</span><span>수강자수</span><span>성적 출처</span><span>위탁학기</span><span>작업</span></div>
+            {% for row in rows %}{% set index = loop.index0 %}<fieldset class="public-grade-grid" data-score-row><legend>{{ row.grade }}학년 {{ row.semester }}학기 성적 행 {{ loop.index }}</legend>
+              {% for field, label, kind in [('academic_year','학년도','number'),('grade','학년','number'),('semester','학기','number'),('subject_group','교과','text'),('subject_name','과목','text'),('credits','이수단위','text'),('rank_grade','석차등급','text'),('raw_score','원점수','text'),('course_mean','평균','text'),('standard_deviation','표준편차','text'),('achievement_level','성취도','text'),('enrollment_count','수강자수','number')] %}<label for="rows-{{ index }}-{{ field }}"><span>{{ label }}</span><input id="rows-{{ index }}-{{ field }}" name="rows-{{ index }}-{{ field }}" type="{{ kind }}" value="{{ row[field] }}" aria-label="{{ index + 1 }}행 {{ label }}" {% if field == 'grade' %}min="1" max="3"{% elif field == 'semester' %}min="1" max="2"{% endif %}></label>{% endfor %}<label for="rows-{{ index }}-record_source"><span>성적 출처</span><select id="rows-{{ index }}-record_source" name="rows-{{ index }}-record_source" aria-label="{{ index + 1 }}행 성적 출처">{% for code,label in [('HOME_SCHOOL_RECORD','학교생활기록부'),('VOCATIONAL_TRAINING_RECORD','직업위탁'),('GED_RECORD','검정고시'),('MANUAL_INPUT','직접 입력')] %}<option value="{{ code }}" {% if row.record_source == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label><label for="rows-{{ index }}-is_vocational_training_semester"><span>위탁학기</span><select id="rows-{{ index }}-is_vocational_training_semester" name="rows-{{ index }}-is_vocational_training_semester" aria-label="{{ index + 1 }}행 위탁학기"><option value="FALSE">아니오</option><option value="TRUE" {% if row.is_vocational_training_semester == 'TRUE' %}selected{% endif %}>예</option></select></label><button type="button" class="score-row-delete" data-delete-score-row>삭제</button>
+            </fieldset>{% endfor %}
+          </div>
+          <button type="button" class="button-link button-link--secondary" data-add-score-row>성적 행 추가</button>
+          <noscript><p class="form-help">JavaScript 없이도 기본 5개 학기 행을 직접 입력하고 제출할 수 있습니다.</p></noscript>
+        </section>
+        <section class="admin-section public-alternative-inputs">
+          <div><h2>표 붙여넣기</h2><p class="form-help">첫 행에 학년도, 학년, 학기, 과목, 이수단위, 석차등급 등의 머리글을 포함하세요.</p><label class="sr-only" for="pasted-table">붙여넣을 성적표</label><textarea id="pasted-table" name="pasted_table" rows="8" placeholder="학년도&#9;학년&#9;학기&#9;과목&#9;이수단위&#9;석차등급"></textarea></div>
+          <div><h2>CSV/XLSX 업로드</h2><p class="form-help">파일은 임시 보관하고 입력 확인이 끝나면 원본을 즉시 삭제합니다.</p><label for="score-file">성적표 파일</label><input id="score-file" type="file" name="score_file" accept=".csv,.xlsx"></div>
+        </section>
+        <div class="admin-actions"><button type="submit">추출값 확인·수정하기</button></div>
+      </form>
+    </main>
+    <script src="{{ url_for('static', filename='js/public_calculation.js') }}" defer></script>
+  </body>
+</html>

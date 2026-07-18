@@ -73,6 +73,7 @@ def _academic_record(
     *,
     student_id: str,
     record_source: str,
+    is_vocational_training_semester: bool,
     row: NormalizedCourseRow,
 ) -> StudentAcademicRecord:
     assert row.academic_year is not None
@@ -88,6 +89,10 @@ def _academic_record(
         )
     )
     if existing is not None:
+        if existing.is_vocational_training_semester != is_vocational_training_semester:
+            raise ConfirmationValidationError(
+                "같은 학기·성적 출처에 서로 다른 위탁학기 값이 있습니다."
+            )
         return existing
 
     record = StudentAcademicRecord(
@@ -96,7 +101,7 @@ def _academic_record(
         grade=row.grade,
         semester=row.semester,
         record_source=record_source,
-        is_vocational_training_semester=record_source == "VOCATIONAL_TRAINING_RECORD",
+        is_vocational_training_semester=is_vocational_training_semester,
         verification_status="USER_VERIFIED",
     )
     session.add(record)
@@ -128,7 +133,7 @@ def confirm_structured_import(
         confirmed_row_count=len(rows),
     )
     session.add(batch)
-    academic_records: dict[tuple[int, int, int], StudentAcademicRecord] = {}
+    academic_records: dict[tuple[int, int, int, str, bool], StudentAcademicRecord] = {}
     course_records: list[StudentCourseRecord] = []
 
     try:
@@ -138,13 +143,28 @@ def confirm_structured_import(
             assert row.grade is not None
             assert row.semester is not None
             assert row.subject_name is not None
-            academic_key = (row.academic_year, row.grade, row.semester)
+            resolved_source = row.record_source or record_source
+            if resolved_source not in RECORD_SOURCES:
+                raise ConfirmationValidationError("지원하지 않는 행별 성적 출처입니다.")
+            resolved_vocational = (
+                row.is_vocational_training_semester
+                if row.is_vocational_training_semester is not None
+                else resolved_source == "VOCATIONAL_TRAINING_RECORD"
+            )
+            academic_key = (
+                row.academic_year,
+                row.grade,
+                row.semester,
+                resolved_source,
+                resolved_vocational,
+            )
             academic_record = academic_records.get(academic_key)
             if academic_record is None:
                 academic_record = _academic_record(
                     session,
                     student_id=normalized_student_id,
-                    record_source=record_source,
+                    record_source=resolved_source,
+                    is_vocational_training_semester=resolved_vocational,
                     row=row,
                 )
                 academic_records[academic_key] = academic_record

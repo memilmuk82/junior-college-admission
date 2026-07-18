@@ -244,13 +244,18 @@ def test_runtime_profiles_bootstrap_database_admin_before_serving() -> None:
         "docker-compose.production.yml",
     ):
         compose = Path(compose_file).read_text(encoding="utf-8")
-        migration = compose.index("flask --app wsgi db upgrade")
-        bootstrap = compose.index("flask --app wsgi auth bootstrap-admin")
-        server = compose.index("gunicorn", bootstrap)
+        runtime = (
+            Path("scripts/run_production_web.sh").read_text(encoding="utf-8")
+            if compose_file == "docker-compose.production.yml"
+            else compose
+        )
+        migration = runtime.index("flask --app wsgi db upgrade")
+        bootstrap = runtime.index("flask --app wsgi auth bootstrap-admin")
+        server = runtime.index("gunicorn", bootstrap)
 
         assert migration < bootstrap < server
 
-    production = Path("docker-compose.production.yml").read_text(encoding="utf-8")
+    production = Path("scripts/run_production_web.sh").read_text(encoding="utf-8")
     assert 'case "${PRODUCTION_BOOTSTRAP_ADMIN_ON_STARTUP:-1}" in' in production
 
 
@@ -262,11 +267,16 @@ def test_runtime_profiles_use_query_free_gunicorn_access_logs() -> None:
         "docker-compose.production.yml",
     ):
         compose = Path(compose_file).read_text(encoding="utf-8")
+        runtime = (
+            Path("scripts/run_production_web.sh").read_text(encoding="utf-8")
+            if compose_file == "docker-compose.production.yml"
+            else compose
+        )
 
-        assert safe_format in compose
-        assert "%(r)s" not in compose
-        assert "%(q)s" not in compose
-        assert "%(f)s" not in compose
+        assert safe_format in runtime
+        assert "%(r)s" not in runtime
+        assert "%(q)s" not in runtime
+        assert "%(f)s" not in runtime
 
     alpha = Path("docker-compose.alpha.yml").read_text(encoding="utf-8")
     assert "flask --app wsgi run" not in alpha
@@ -366,14 +376,19 @@ def test_public_demo_account_is_optional_and_bootstrapped_before_server_start() 
         "docker-compose.production.yml",
     ):
         compose = Path(compose_file).read_text(encoding="utf-8")
-        assert "auth bootstrap-demo" in compose
-        assert compose.index("auth bootstrap-admin") < compose.index("auth bootstrap-demo")
-        assert compose.index("auth bootstrap-demo") < compose.index("gunicorn")
+        runtime = (
+            Path("scripts/run_production_web.sh").read_text(encoding="utf-8")
+            if compose_file == "docker-compose.production.yml"
+            else compose
+        )
+        assert "auth bootstrap-demo" in runtime
+        assert runtime.index("auth bootstrap-admin") < runtime.index("auth bootstrap-demo")
+        assert runtime.index("auth bootstrap-demo") < runtime.index("gunicorn")
         assert "DEMO_LOGIN_NAME:" in compose
         assert "DEMO_PUBLIC_PASSWORD:" in compose
 
-    production_compose = Path("docker-compose.production.yml").read_text(encoding="utf-8")
-    assert "0) true ;;" in production_compose
+    production_runtime = Path("scripts/run_production_web.sh").read_text(encoding="utf-8")
+    assert "0) ;;" in production_runtime
     makefile = Path("Makefile").read_text(encoding="utf-8")
     rollback = makefile.split("production-origin-rollback-app:", 1)[1].split(
         "production-origin-backup:", 1
@@ -387,6 +402,6 @@ def test_public_demo_account_is_optional_and_bootstrapped_before_server_start() 
     assert rollback.index(rollback_gate) < rollback.index("PRODUCTION_BOOTSTRAP_ADMIN_ON_STARTUP")
 
     readme = Path("README.md").read_text(encoding="utf-8")
-    assert "demo-teacher" in readme
-    assert "DemoTeacher2027!" in readme
-    assert "모두 합성 예시" in readme
+    assert "예시 성적으로 체험하기" in readme
+    assert "수정 가능한 합성 학생 성적" in readme
+    assert "공개 계산의 필수 입구가 아닙니다" in readme

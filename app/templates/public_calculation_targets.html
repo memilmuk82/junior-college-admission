@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ko">
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>대학·학과 선택</title><link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}"><script src="{{ url_for('static', filename='js/consultation_programs.js') }}" defer></script></head>
+  <body class="admin-page public-calculation-page">
+    <header class="admin-header"><a href="{{ url_for('main.index') }}">전문대 입시 상담</a><span>로그인 없는 1회 계산 · 저장 안 됨</span></header>
+    <main class="admin-shell consultation-shell">
+      <nav class="public-steps" aria-label="계산 단계"><a href="{{ url_for('main.review_input', review_session_id=calculation_id) }}">1. 성적 입력·확인</a><span>2. 학생 사실</span><strong aria-current="step">3. 대학·학과 선택</strong><span>4. 결과와 근거</span></nav>
+      <div class="admin-heading"><div><h1>실제 대학·학과 선택</h1><p>선택한 학과의 전형마다 지원자격을 먼저 독립 판정하고, 허용된 전형만 성적을 계산합니다.</p></div><span class="step-indicator">2–3 / 4</span></div>
+      <form class="public-year-filter" method="get"><label>모집학년도 <input name="academic_year" type="number" min="2000" max="2100" value="{{ values.academic_year }}"></label><button type="submit">학년도 학과 조회</button></form>
+      {% if errors %}<div class="admin-alert" role="alert"><h2>입력을 확인하세요</h2><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
+      {% if not programs %}<div class="admin-alert" role="status"><h2>선택 가능한 학과가 없습니다</h2><p>{{ values.academic_year }}학년도에 등록된 실제 대학·학과·전형 기준정보가 없습니다.</p></div>{% endif %}
+      <form method="post" action="{{ url_for('main.public_calculation_results', calculation_id=calculation_id) }}" class="consultation-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <section class="admin-section"><div class="admin-section__heading"><h2>학생 사실</h2><span>모르면 비워 두세요</span></div><div class="admin-edit-grid">
+          <label>모집학년도<input name="academic_year" type="number" min="2000" max="2100" value="{{ values.academic_year }}" required><small>학년도를 바꾼 뒤 이 화면을 다시 열면 해당 연도 학과를 조회합니다.</small></label>
+          <label>과거 입시결과 기준연도<input name="admission_result_year" type="number" min="2000" max="2100" value="{{ values.admission_result_year }}"></label>
+          <label>원적교 유형<select name="home_school_type"><option value="">모름</option>{% for code,label in [('GENERAL','일반고'),('VOCATIONAL','특성화고'),('MEISTER','마이스터고'),('COMPREHENSIVE_VOCATIONAL','종합고 직업계열'),('LIFELONG_EDUCATION','평생교육시설'),('FOREIGN','외국학교')] %}<option value="{{ code }}" {% if values.home_school_type == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+          <label>최종 학교 유형<select name="final_school_type"><option value="">모름</option>{% for code,label in [('GENERAL','일반고'),('VOCATIONAL','특성화고'),('MEISTER','마이스터고'),('COMPREHENSIVE_VOCATIONAL','종합고 직업계열'),('LIFELONG_EDUCATION','평생교육시설'),('FOREIGN','외국학교')] %}<option value="{{ code }}" {% if values.final_school_type == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+          <label>졸업 상태<select name="graduation_status"><option value="">모름</option>{% for code,label in [('EXPECTED','졸업예정'),('GRADUATED','졸업'),('NOT_GRADUATED','미졸업')] %}<option value="{{ code }}" {% if values.graduation_status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+          <label>직업위탁 상태<select name="vocational_training_status"><option value="">모름</option>{% for code,label in [('NONE','해당 없음'),('PARTICIPATING','참여 중'),('EXPECTED_COMPLETION','수료 예정'),('COMPLETED','수료')] %}<option value="{{ code }}" {% if values.vocational_training_status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+          {% for field,label in [('vocational_training_semesters','위탁 학기 수'),('vocational_training_hours','위탁 이수 시간'),('vocational_training_months','위탁 이수 개월')] %}<label>{{ label }}<input name="{{ field }}" type="number" min="0" value="{{ values[field] }}"></label>{% endfor %}
+          {% for field,label in [('transferred','전·편입 여부'),('ged','검정고시 여부')] %}<label>{{ label }}<select name="{{ field }}"><option value="">모름</option><option value="TRUE" {% if values[field] == 'TRUE' %}selected{% endif %}>예</option><option value="FALSE" {% if values[field] == 'FALSE' %}selected{% endif %}>아니오</option></select></label>{% endfor %}
+        </div></section>
+        <section class="admin-section"><div class="admin-section__heading"><h2>대학·학과</h2><span>복수 선택 가능</span></div><div class="program-picker" data-program-picker><div class="program-picker__tools"><label>대학명·학과명 검색<input type="search" data-program-search></label><button type="button" class="button-link button-link--secondary" data-select-visible>검색 결과 전체 선택</button><strong data-selection-count>{{ selected_program_ids|length }}개 선택</strong></div>{% for institution_name, institution_programs in programs|groupby('institution_name') %}<fieldset class="program-group" data-program-group data-search-text="{{ institution_name }}"><legend><label><input type="checkbox" data-institution-toggle> {{ institution_name }}</label></legend>{% for program in institution_programs %}<label class="program-option" data-program-option data-search-text="{{ program.institution_name }} {{ program.campus_name }} {{ program.program_name }}"><input type="checkbox" name="program_ids" value="{{ program.program_id }}" {% if program.program_id in selected_program_ids %}checked{% endif %}><span><strong>{{ program.program_name }}</strong><small>{{ program.campus_name }} · {{ program.academic_year }}학년도</small></span></label>{% endfor %}</fieldset>{% endfor %}<noscript><p class="form-help">검색 보조 없이도 각 학과 체크박스를 선택해 제출할 수 있습니다.</p></noscript></div></section>
+        <div class="admin-actions"><button type="submit" {% if not programs %}disabled{% endif %}>지원자격 확인 후 계산하기</button></div>
+      </form>
+    </main>
+  </body>
+</html>

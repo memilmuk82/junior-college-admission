@@ -19,6 +19,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY app ./app
 COPY alembic.ini ./
 COPY migrations ./migrations
+COPY scripts/run_production_web.sh ./scripts/run_production_web.sh
 COPY wsgi.py ./
 
 EXPOSE 8000

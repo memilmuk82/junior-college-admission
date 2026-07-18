@@ -190,6 +190,110 @@ def test_local_signup_ignores_role_tampering_and_blocks_use_until_approval(
         assert (member.role, member.status) == ("MEMBER", "PENDING_APPROVAL")
 
 
+@pytest.mark.parametrize(
+    ("account_type", "expected_role", "heading"),
+    (("student", "STUDENT", "학생 회원가입"), ("teacher", "TEACHER", "교사 회원가입")),
+)
+def test_role_specific_local_registration_preserves_requested_account_type(
+    postgres_engine: Engine,
+    account_type: str,
+    expected_role: str,
+    heading: str,
+) -> None:
+    app = _app(postgres_engine)
+    client = app.test_client()
+    page = client.get(f"/auth/register?account_type={account_type}")
+    body = page.get_data(as_text=True)
+    assert heading in body
+    assert 'name="account_type" value="' + account_type + '"' in body
+
+    response = client.post(
+        "/auth/register",
+        data={
+            "csrf_token": _csrf(body),
+            "account_type": account_type,
+            "login_name": f"phase11-{account_type}-request",
+            "email": f"{account_type}-request@phase11.invalid",
+            "display_name": f"합성 {heading}",
+            "password": "phase11-member-password",
+            "password_confirmation": "phase11-member-password",
+            "role": "ADMIN",
+            "status": "ACTIVE",
+        },
+    )
+
+    assert response.status_code == 302
+    with Session(postgres_engine) as database_session:
+        account = database_session.scalar(
+            select(UserAccount).where(
+                UserAccount.email == f"{account_type}-request@phase11.invalid"
+            )
+        )
+        assert account is not None
+        assert (account.role, account.status) == (expected_role, "PENDING_APPROVAL")
+
+
+@pytest.mark.parametrize(
+    ("account_type", "expected_role", "destination"),
+    (
+        ("student", "STUDENT", "/account/records"),
+        ("teacher", "TEACHER", "/admin/consultations/new"),
+    ),
+)
+def test_admin_approves_role_specific_registration_through_member_route(
+    postgres_engine: Engine,
+    account_type: str,
+    expected_role: str,
+    destination: str,
+) -> None:
+    _bootstrap(postgres_engine)
+    with Session(postgres_engine) as database_session:
+        account = register_local_member(
+            database_session,
+            login_name=f"phase11-{account_type}-approval",
+            email=f"{account_type}-approval@phase11.invalid",
+            display_name=f"합성 {expected_role} 승인 대상",
+            password="phase11-member-password",
+            requested_role=expected_role,
+            occurred_at=datetime(2026, 7, 19, 1, 0, tzinfo=UTC),
+        )
+        database_session.commit()
+        account_id = account.id
+
+    client = _app(postgres_engine).test_client()
+    assert _login(client, "phase11-admin", "phase11-admin-password").status_code == 302
+    page = client.get("/admin/members")
+    body = page.get_data(as_text=True)
+    assert page.status_code == 200
+    assert expected_role in body
+    approve = client.post(
+        f"/admin/members/{account_id}/approve",
+        data={"csrf_token": _csrf(body)},
+    )
+    assert approve.status_code == 302
+    assert approve.headers["Location"].endswith("/admin/members?message=approved")
+
+    with Session(postgres_engine) as database_session:
+        stored = database_session.get(UserAccount, account_id)
+        assert stored is not None
+        assert (stored.role, stored.status) == (expected_role, "ACTIVE")
+        assert stored.approved_by_user_id is not None
+        assert stored.approved_at is not None
+
+    members_page = client.get("/admin/members")
+    client.post(
+        "/auth/logout",
+        data={"csrf_token": _csrf(members_page.get_data(as_text=True))},
+    )
+    login = _login(
+        client,
+        f"phase11-{account_type}-approval",
+        "phase11-member-password",
+    )
+    assert login.status_code == 302
+    assert login.headers["Location"].endswith(destination)
+
+
 def test_public_demo_member_is_idempotent_active_and_cannot_use_mutating_features(
     postgres_engine: Engine,
 ) -> None:
@@ -208,70 +312,20 @@ def test_public_demo_member_is_idempotent_active_and_cannot_use_mutating_feature
 
     login = _login(client, "phase11-demo-teacher", "phase11-demo-password")
     assert login.status_code == 302
-    assert login.headers["Location"].endswith("/admin/consultations/new")
+    assert login.headers["Location"].endswith("/calculate?example=1")
 
-    form_page = client.get("/admin/consultations/new")
+    form_page = client.get(login.headers["Location"])
     body = form_page.get_data(as_text=True)
     assert form_page.status_code == 200
-    assert "합성 데이터 전용 체험" in body
-    assert "가상 미래전문대" in body
-    assert "demo-student" in body
-
-    submitted = client.post(
-        "/admin/consultations/new",
-        data={
-            "csrf_token": _csrf(body),
-            "student_id": "demo-student",
-            "admission_track_id": "demo-synthetic-track",
-            "home_school_type": "GENERAL",
-            "final_school_type": "GENERAL",
-            "graduation_status": "EXPECTED",
-            "vocational_training_status": "PARTICIPATING",
-            "vocational_training_semesters": "1",
-            "vocational_training_hours": "",
-            "vocational_training_months": "",
-            "transferred": "FALSE",
-            "ged": "FALSE",
-            "admission_result_year": "2026",
-            "consultation_note": "합성 데모 메모",
-        },
+    assert "합성 예시 성적을 불러왔습니다" in body
+    assert "가상 미래전문대" not in body
+    assert (
+        client.get("/admin/consultations/new").headers["Location"].endswith("/calculate?example=1")
     )
-    result_body = submitted.get_data(as_text=True)
-    assert submitted.status_code == 200
-    assert "DEMO_SYNTHETIC" in result_body
-    assert "가상 미래전문대" in result_body
-    assert "합성 예시" in result_body
-    assert "1.75등급" in result_body
-    assert "환산점수" not in result_body
-    assert "3.00" in result_body
-    assert "BYOK 키 설정" not in result_body
-
-    teacher_print = client.post(
-        "/admin/consultations/print/teacher",
-        data={
-            "csrf_token": _csrf(result_body),
-            "student_id": "demo-student",
-            "admission_track_id": "demo-synthetic-track",
-            "home_school_type": "GENERAL",
-            "final_school_type": "GENERAL",
-            "graduation_status": "EXPECTED",
-            "vocational_training_status": "PARTICIPATING",
-            "vocational_training_semesters": "1",
-            "vocational_training_hours": "",
-            "vocational_training_months": "",
-            "transferred": "FALSE",
-            "ged": "FALSE",
-            "admission_result_year": "2026",
-            "consultation_note": "합성 데모 메모",
-        },
-    )
-    assert teacher_print.status_code == 200
-    assert "교사용 상담 결과" in teacher_print.get_data(as_text=True)
-    assert "합성 데이터" in teacher_print.get_data(as_text=True)
 
     assert client.get("/admin/ai/settings").status_code == 403
     assert client.get("/admin/rules").status_code == 403
-    assert client.get("/input/review/does-not-exist").status_code == 403
+    assert client.get("/input/review/does-not-exist").status_code == 404
 
     with Session(postgres_engine) as database_session:
         synthetic_institutions = database_session.scalar(
@@ -360,8 +414,10 @@ def test_public_demo_role_pollution_cannot_reach_admin_or_approval_routes(
     assert login.status_code == 302
     assert client.get("/admin/rules").status_code == 403
     assert client.get("/admin/members").status_code == 403
-    assert client.get("/admin/consultations/new").status_code == 200
-    assert login.headers["Location"].endswith("/admin/consultations/new")
+    consultation = client.get("/admin/consultations/new")
+    assert consultation.status_code == 302
+    assert consultation.headers["Location"].endswith("/calculate?example=1")
+    assert login.headers["Location"].endswith("/calculate?example=1")
 
 
 def test_bootstrap_demo_disabled_revokes_session_and_credentials_then_reactivates_same_actor(
@@ -371,7 +427,9 @@ def test_bootstrap_demo_disabled_revokes_session_and_credentials_then_reactivate
     app = _app(postgres_engine)
     client = app.test_client()
     assert _login(client, "phase11-demo-teacher", "phase11-demo-password").status_code == 302
-    assert client.get("/admin/consultations/new").status_code == 200
+    assert (
+        client.get("/admin/consultations/new").headers["Location"].endswith("/calculate?example=1")
+    )
 
     app.config.update(DEMO_LOGIN_NAME=None, DEMO_PUBLIC_PASSWORD=None)
     disabled = app.test_cli_runner().invoke(args=["auth", "bootstrap-demo"])
@@ -587,7 +645,9 @@ def test_bootstrap_demo_rotation_conflict_revokes_old_demo_and_hides_credentials
     app = _app(postgres_engine)
     client = app.test_client()
     assert _login(client, "phase11-demo-teacher", "phase11-demo-password").status_code == 302
-    assert client.get("/admin/consultations/new").status_code == 200
+    assert (
+        client.get("/admin/consultations/new").headers["Location"].endswith("/calculate?example=1")
+    )
     app.config.update(
         DEMO_LOGIN_NAME="phase11-rotated-demo-login",
         DEMO_PUBLIC_PASSWORD="phase11-rotated-demo-password",

@@ -47,3 +47,19 @@ def test_unselected_invalid_row_does_not_block_valid_selected_rows() -> None:
 
     assert submission.is_valid
     assert submission.field_errors["rows-1-raw_score"] == "숫자를 확인하세요."
+
+
+def test_selected_row_preserves_zero_score_but_rejects_zero_required_denominators() -> None:
+    form = _form()
+    form.setlist("rows-0-credits", ["0"])
+    form.setlist("rows-0-raw_score", ["0"])
+    form.setlist("rows-0-standard_deviation", ["0"])
+    form.setlist("rows-0-enrollment_count", ["0"])
+
+    submission = parse_review_submission(form, _preview())
+
+    assert not submission.is_valid
+    assert submission.preview.rows[0].raw_score == 0
+    assert submission.field_errors["rows-0-credits"] == "이수단위는 0보다 커야 합니다."
+    assert "임의 값으로 대체하지 않습니다" in submission.field_errors["rows-0-standard_deviation"]
+    assert submission.field_errors["rows-0-enrollment_count"] == "수강자수는 1 이상이어야 합니다."
