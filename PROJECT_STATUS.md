@@ -2,9 +2,9 @@
 
 - 기준일: 2026-07-18
 - 현재 단계: Phase 12 사이트 기능 완성·공개 데모
-- 단계 판정: `CODE_COMPLETE_PHASE_12` — 관리자 기준정보 SSR·공개 합성 데모와 독립 보안 검증 완료, 저장소 전체 lint 잔여 2건은 Phase 12 범위 밖에서 별도 해소 필요
-- 현재 작업: Phase 12 코드·PostgreSQL·Playwright 검증 결과 확정과 릴리스 준비
-- 다음 게이트: 범위 밖 import 정렬 2건 해소 후 전체 lint 재검증, 승인된 Git 동기화와 운영 직전 새 백업·격리 복원·배포
+- 단계 판정: `LIVE_VERIFIED_NO_OFFICIAL_CONTENT` — Phase 12 코드·Git·백업·migration·운영 이미지·공인 HTTPS 검증 완료, 공식 게시 규칙은 0건
+- 현재 작업: Phase 12 운영 안정성 관찰과 공식 모집요강·사람 승인 자료 대기
+- 다음 게이트: 공식 근거의 사람 승인·게시, Phase 12 범위 밖 import 정렬 2건 해소 후 저장소 전체 lint 재검증
 
 ## 저장소 인벤토리
 
@@ -256,4 +256,10 @@
 
 Phase 12 회귀는 단위 290건, PostgreSQL 통합 127건과 합성 백업·격리 복원, 규칙 검증, 민감자료 검사를 통과했다. Playwright는 데스크톱과 390px JavaScript 비활성 환경에서 비로그인·일반 회원·관리자 경계와 대학→캠퍼스→학과→모집시기→전형 5단계 등록을 확인했고, PostgreSQL에 두 세트 각 5종이 저장되며 관련 게시 규칙은 0건임을 검증했다. 브라우저 console·page error는 0건이었다.
 
-`make lint`는 작업 트리를 변경하지 않았고 Phase 12 허용 범위 밖인 `scripts/check_google_oidc_https.py`, `scripts/check_production_https.py`의 import 정렬 2건 때문에 실패했다. 이 검사는 성공으로 기록하지 않는다. Git push, 새 live 백업, 운영 migration·배포는 수행하지 않았으며 live 공식 대학 규칙 게시 수는 0건이다.
+`make lint`는 작업 트리를 변경하지 않았고 Phase 12 허용 범위 밖인 `scripts/check_google_oidc_https.py`, `scripts/check_production_https.py`의 import 정렬 2건 때문에 실패했다. 이 검사는 성공으로 기록하지 않는다.
+
+검증된 변경은 `main`과 `origin/main`의 `a55e679a90492c431f7b7dff680f3b8099307b59`로 동기화했다. 운영 직전 `backups/production/admission_20260718_120856_3870618.dump`를 생성해 SHA-256 `6f05d0a890bde0d82ba1b6360918ba61022177c66400bc9644af80ec033e58e2`, archive, network-none/tmpfs 격리 복원을 검증했다. 이전 이미지는 `sha256:0cc429511fca2a8b99d24986f111eaf287242714070e1ff39b8633cf9f4a2466`과 `rollback-f0ef03c-20260718` 태그로 보존했다.
+
+신규 이미지 `sha256:5106fec82bbe9f703cd615312bde5671fd38855b50acab19884a95048cc0d6c2`로 web을 교체하고 live DB를 `e51f0b24c8aa → 6c1a2e9f4b73`으로 적용했다. Docker health, `127.0.0.1:8000` loopback, origin/public health, Cloudflare HTTPS, HTTP redirect, TLS, CSP·HSTS·nosniff·frame·referrer 헤더, host Nginx 설정과 active 상태를 확인했다. 운영 Playwright 3건과 Phase 12 비파괴 smoke에서 관리자 catalog 5개 SSR 폼·친화적 400 오류·모바일·무JavaScript, 비로그인 redirect, 데모 MEMBER 합성 상담·catalog 403, console/page error 0건을 확인했다. 최근 web·전용 Nginx 로그의 5xx·fatal·query·비밀값·학생 PII 패턴은 0건이다.
+
+합성 기준정보를 live DB에 남기거나 삭제하지 않기 위해 운영에서는 성공 등록을 수행하지 않았다. 실제 5단계 저장은 격리 PostgreSQL E2E로, live에서는 동일 이미지·migration의 조회와 비파괴 오류 경로로 검증했다. live catalog 5종과 공식 게시 규칙은 모두 0건이며 Google OIDC는 비활성 상태다.

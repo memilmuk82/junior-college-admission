@@ -9,7 +9,7 @@
 ## 선행조건과 경계
 
 - Phase 8 상담 UI와 Phase 11 회원 인증 코드는 비운영 환경에서 동작한다.
-- 운영 DB는 현재 `e51f0b24c8aa`이므로 이 작업에서 운영 migration이나 배포를 수행하지 않는다.
+- 구현 시작 시 운영 DB 기준선은 `e51f0b24c8aa`이며, 운영 migration·배포는 코드 수용 기준과 별도로 사용자 승인·새 백업·격리 복원을 통과한 경우에만 수행한다.
 - 공식 근거와 검수 없이 전형 규칙을 생성하거나 게시하지 않는다.
 - 기존 모델을 사용하며 이번 기능 단위에서는 migration을 추가하지 않는다.
 - 데모 자료는 공식 모집요강이나 게시 규칙으로 저장하지 않고 메모리의 명시적 합성 예시로만 실행한다.
@@ -35,7 +35,7 @@
 ## 금지 사항
 
 - 기준 원본 문서 수정
-- 운영 DB migration·배포, Nginx·Cloudflare 변경
+- 별도 사용자 승인과 복구 게이트 없는 운영 DB migration·배포, Nginx·Cloudflare 변경
 - 실제 비밀값·학생자료·공식 원본 반입
 - 연쇄 삭제 위험이 있는 기준정보 삭제 UI
 - 공식 근거 없는 규칙 자동 생성·승인·게시
@@ -66,3 +66,16 @@
 - [x] 데모 전용 합성 학생 상담·A4 출력
 - [x] 데모 계정의 관리·업로드·BYOK AI 차단
 - [x] README 공개 체험 계정·Google 로그인 상태 안내
+
+## 릴리스·운영 검증
+
+- [x] `main`·`origin/main`을 `a55e679a90492c431f7b7dff680f3b8099307b59`로 동기화
+- [x] 새 live custom-format 백업·SHA-256·archive·manifest·network-none/tmpfs 격리 복원
+- [x] 이전 image ID·rollback 태그 보존과 production 이미지 재빌드
+- [x] 승인된 live migration `e51f0b24c8aa → 6c1a2e9f4b73`과 web 교체
+- [x] Docker health·loopback origin·Cloudflare/host Nginx 공인 HTTPS·TLS·보안 헤더
+- [x] 운영 관리자·모바일·무JavaScript Playwright와 비파괴 catalog·데모 권한 smoke
+- [x] 최근 web·전용 Nginx 로그의 5xx·fatal·query·비밀값·학생 PII 패턴 0건
+- [x] live catalog·공식 게시 규칙 0건, Google OIDC 비활성 유지
+
+운영 성공 등록은 합성 기준정보를 남기지 않기 위해 실행하지 않았다. 대학→캠퍼스→학과→모집시기→전형의 실제 저장과 DB 결과는 격리 PostgreSQL E2E에서 확인했고, live에서는 동일 이미지·migration의 관리자 조회와 유효성 오류 경로를 비파괴로 검증했다. 공식 근거와 사람 승인을 받은 규칙이 없으므로 최종 콘텐츠 상태는 준비 전이다.
