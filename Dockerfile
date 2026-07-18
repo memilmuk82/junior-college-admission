@@ -17,10 +17,13 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY app ./app
+COPY data ./data
 COPY alembic.ini ./
 COPY migrations ./migrations
 COPY scripts/run_production_web.sh ./scripts/run_production_web.sh
 COPY wsgi.py ./
+RUN chmod -R a+rX /app/app /app/data /app/migrations \
+    && chmod a+r /app/alembic.ini /app/wsgi.py
 
 EXPOSE 8000
 
