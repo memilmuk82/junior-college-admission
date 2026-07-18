@@ -203,6 +203,19 @@
 - 정적 검사·mypy·단위 273건·PostgreSQL 통합 112건·무JavaScript Playwright 2건과 합성 백업·격리 복원을 통과해 `PASS_NONPROD_PHASE_11`로 판정했다.
 - live DB·앱에는 적용하지 않았으며, 호스트 Nginx query 로그·공개 인증 rate limit, 실제 Google Web client와 별도 변경창을 운영 전제조건으로 남겼다.
 
+## 2026-07-18 · Phase 12
+
+- 관리자 전용 Jinja2 SSR 화면에서 대학→캠퍼스→학과→모집시기→전형을 순서대로 등록하고 즉시 조회하도록 구현했다. 핵심 흐름은 JavaScript 없이 동작한다.
+- 상위 참조와 모집시기·학과의 대학 일치, 중복·누락·ASCII 코드 형식을 서버에서 검증하고, CSRF·권한 차단·DB 오류 원문 은닉·오류 뒤 불필요한 재조회를 검증했다.
+- 기준정보 등록만으로 공식 규칙이나 상담 대상이 게시되지 않으며, 공식 대학 규칙 게시 수는 계속 0건이다.
+- 공개 합성 데모 계정이 관리자 권한을 얻지 못하도록 유효 역할을 고정하고, 환경 설정 제거 시 revoke하며, 로그인명·이메일 선점 충돌은 기존 계정을 탈취하지 않고 데모만 비활성 상태로 유지하도록 보완했다.
+- 데모 로그인 안내는 DB의 실제 활성 자격증명과 일치할 때만 렌더하고, 구이미지 롤백은 데모 보안 상태를 확인하지 못하면 중단하는 fail-closed 계약을 검증했다.
+- `make test-unit` 단위 290건과 `make test-integration` PostgreSQL 통합 127건을 통과했으며, 통합 검사에 포함된 합성 PostgreSQL 백업·격리 복원도 통과했다.
+- `make validate-rules`와 `make check-sensitive-data`를 통과했고 독립 보안 검증은 `APPROVE`로 판정됐다.
+- Playwright에서 데스크톱과 390px JavaScript 비활성 흐름, 비로그인·일반 회원·관리자 경계, 기준정보 5단계 등록, 브라우저 console·page error 0건을 확인했다. PostgreSQL에는 합성 두 세트의 기준정보가 각 5종 저장되고 관련 게시 규칙은 0건이었다.
+- `make lint`는 작업 트리를 바꾸지 않았으며 Phase 12 허용 범위 밖인 `scripts/check_google_oidc_https.py`, `scripts/check_production_https.py`의 import 정렬 2건 때문에 실패했다. 성공으로 기록하지 않고 후속 범위에서 해소한다.
+- Git push, 새 live 백업, 운영 migration·배포는 수행하지 않았다.
+
 ## 확정 기술 결정
 
 - uv로 Python 환경과 잠금 파일을 관리한다.

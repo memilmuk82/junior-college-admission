@@ -1,10 +1,10 @@
 # 프로젝트 상태
 
-- 기준일: 2026-07-16
-- 현재 단계: Phase 11 내부 사용자 승인·권한·Google OIDC
-- 단계 판정: `PASS_NONPROD_PHASE_11` — 회원 DB 계약·동시성·SSR·PostgreSQL migration·운영 백업 복제 migration·합성 Docker Playwright 통과
-- 현재 작업: 로컬/Google 가입을 `MEMBER/PENDING_APPROVAL`로 고정하고 관리자·보조관리자 승인 및 역할 경계를 구현
-- 다음 게이트: live DB 변경창·직전 백업 복원 검증, 호스트 Nginx OAuth query 로그 차단·auth rate limit, 실제 Google Web client 등록 후 별도 배포 승인
+- 기준일: 2026-07-18
+- 현재 단계: Phase 12 사이트 기능 완성·공개 데모
+- 단계 판정: `CODE_COMPLETE_PHASE_12` — 관리자 기준정보 SSR·공개 합성 데모와 독립 보안 검증 완료, 저장소 전체 lint 잔여 2건은 Phase 12 범위 밖에서 별도 해소 필요
+- 현재 작업: Phase 12 코드·PostgreSQL·Playwright 검증 결과 확정과 릴리스 준비
+- 다음 게이트: 범위 밖 import 정렬 2건 해소 후 전체 lint 재검증, 승인된 Git 동기화와 운영 직전 새 백업·격리 복원·배포
 
 ## 저장소 인벤토리
 
@@ -243,3 +243,17 @@
 직전 배포 기준선은 정적 검사·단위 248건·PostgreSQL 통합 53건·규칙·민감자료 검사와 실제 공인 HTTPS 관리자 smoke 3건을 통과했다. live DB와 기존 백업의 migration은 `e51f0b24c8aa`이며, 현재 작업 트리의 신규 head `6c1a2e9f4b73`과 회원 승인 코드는 아직 배포하지 않았다.
 
 현재 작업 트리는 정적 검사·mypy·단위 273건·PostgreSQL 통합 112건·규칙·민감자료 검사와 합성 PostgreSQL 백업·격리 복원을 통과했다. 기존 관리자 username을 불변 `actor_ref`로 유지해 과거 검수·AI 소유권을 보존하고, 신규 계정은 UUID namespace를 사용한다. 합성 secret과 고유 port·network·volume만 사용한 최종 알파 image는 migration head `6c1a2e9f4b73`, health, 무JavaScript 회원가입→승인→로그인과 보조관리자 403 Playwright 2건을 통과했고 합성 자원을 제거했다. live 백업 복제본에서도 전체 신규 migration 체인과 `golden_test_ref=0` 유지가 확인됐다. 현재 변경은 `PASS_NONPROD_PHASE_11`이며 live DB·배포에는 적용하지 않았다. Google OIDC는 기본 비활성화 상태로, 실제 활성화 전 호스트 Nginx callback query 로그와 공개 로그인·가입 rate limit을 별도 운영 게이트로 처리한다. 공식 대학 규칙 게시 수는 계속 0건이며 AI는 `HUMAN_APPROVED` 또는 게시 상태를 설정하지 않는다.
+
+## Phase 12 완료 항목
+
+- [x] 관리자 전용 대학·캠퍼스·학과·모집시기·전형 기준정보의 JavaScript 없는 등록·즉시 조회 SSR
+- [x] 상위 참조·전형의 대학 일치·중복·누락·ASCII 코드 검증과 DB 오류 원문 은닉
+- [x] 비로그인·일반 회원 권한 차단, CSRF 보호, 오류 뒤 불필요한 재조회 방지
+- [x] 기준정보 등록과 공식 규칙·상담 대상 게시의 분리 유지
+- [x] 공개 합성 데모의 권한 오염 차단, 환경 제거 시 revoke, 선점 충돌 비치명·비탈취 처리
+- [x] 데모 자격증명 DB 일치 렌더와 구이미지 롤백 fail-closed 검증
+- [x] 독립 보안 검증 `APPROVE`
+
+Phase 12 회귀는 단위 290건, PostgreSQL 통합 127건과 합성 백업·격리 복원, 규칙 검증, 민감자료 검사를 통과했다. Playwright는 데스크톱과 390px JavaScript 비활성 환경에서 비로그인·일반 회원·관리자 경계와 대학→캠퍼스→학과→모집시기→전형 5단계 등록을 확인했고, PostgreSQL에 두 세트 각 5종이 저장되며 관련 게시 규칙은 0건임을 검증했다. 브라우저 console·page error는 0건이었다.
+
+`make lint`는 작업 트리를 변경하지 않았고 Phase 12 허용 범위 밖인 `scripts/check_google_oidc_https.py`, `scripts/check_production_https.py`의 import 정렬 2건 때문에 실패했다. 이 검사는 성공으로 기록하지 않는다. Git push, 새 live 백업, 운영 migration·배포는 수행하지 않았으며 live 공식 대학 규칙 게시 수는 0건이다.

@@ -19,7 +19,7 @@ from flask import (
 )
 from sqlalchemy.orm import Session
 
-from app.auth import actor_ref, member_required, session_user
+from app.auth import actor_ref, member_required, non_demo_required, session_user
 from app.auth import csrf_token as auth_csrf_token
 from app.database import db
 from app.services.confirmed_imports import (
@@ -132,6 +132,7 @@ def health():
 
 @bp.route("/input/review/<review_session_id>", methods=["GET", "POST"])
 @member_required
+@non_demo_required
 def review_input(review_session_id: str):
     state = _review_state(review_session_id)
     if request.method == "GET":
@@ -183,6 +184,7 @@ def review_input(review_session_id: str):
 
 @bp.post("/input/review/<review_session_id>/discard")
 @member_required
+@non_demo_required
 def discard_review(review_session_id: str):
     _require_csrf()
     _review_state(review_session_id)

@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>기준정보 관리 · 2027 전문대 입시 상담</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="admin-page">
+    <header class="admin-header">
+      <div>
+        <p class="admin-eyebrow">CATALOG ADMINISTRATION</p>
+        <a href="{{ url_for('admin.catalog') }}">기준정보 관리</a>
+      </div>
+      <form method="post" action="{{ url_for('admin.logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <span>{{ actor_ref }}</span><button class="text-action" type="submit">로그아웃</button>
+      </form>
+    </header>
+
+    <main class="admin-shell">
+      <div class="admin-heading">
+        <div>
+          <h1>대학·전형 기준정보</h1>
+          <p>대학부터 전형까지 상위 정보를 순서대로 등록합니다.</p>
+        </div>
+        <div class="admin-heading__actions">
+          <a class="button-link button-link--secondary" href="{{ url_for('admin.rules') }}">규칙 관리</a>
+          <a class="button-link button-link--secondary" href="{{ url_for('admin.new_consultation') }}">상담 시작</a>
+        </div>
+      </div>
+
+      {% if message %}<p class="admin-section" role="status">{{ message }}</p>{% endif %}
+      {% if error %}<div class="admin-alert" role="alert">{{ error }}</div>{% endif %}
+      <section class="admin-section" aria-labelledby="catalog-safety-title">
+        <h2 id="catalog-safety-title">게시 안전 경계</h2>
+        <p>기준정보 등록만으로 공식 규칙이나 상담 대상이 게시되지 않습니다. 규칙은 별도 근거·검수·사람 승인 절차를 거쳐야 합니다.</p>
+      </section>
+
+      {% set institution_values = form_values if form_name == 'institution' else {} %}
+      {% set campus_values = form_values if form_name == 'campus' else {} %}
+      {% set program_values = form_values if form_name == 'program' else {} %}
+      {% set round_values = form_values if form_name == 'admission_round' else {} %}
+      {% set track_values = form_values if form_name == 'admission_track' else {} %}
+
+      <div class="admin-action-grid">
+        <form class="admin-form admin-edit-grid" method="post" action="{{ url_for('admin.add_catalog_institution') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <h2>1. 대학 등록</h2>
+          <label>대학 코드
+            <input name="code" value="{{ institution_values.get('code', '') }}" maxlength="80" pattern="[A-Za-z0-9_\-]+" autocomplete="off" required>
+          </label>
+          <label>대학명
+            <input name="name" value="{{ institution_values.get('name', '') }}" maxlength="200" required>
+          </label>
+          <label>기관 유형
+            <select name="institution_type" required>
+              <option value="JUNIOR_COLLEGE" {% if institution_values.get('institution_type', 'JUNIOR_COLLEGE') == 'JUNIOR_COLLEGE' %}selected{% endif %}>전문대학</option>
+              <option value="POLYTECHNIC" {% if institution_values.get('institution_type') == 'POLYTECHNIC' %}selected{% endif %}>한국폴리텍대학</option>
+            </select>
+          </label>
+          <button class="primary-button" type="submit">대학 등록</button>
+        </form>
+
+        <form class="admin-form admin-edit-grid" method="post" action="{{ url_for('admin.add_catalog_campus') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <h2>2. 캠퍼스 등록</h2>
+          <label>대학
+            <select name="institution_id" required>
+              <option value="">선택</option>
+              {% for institution in institutions %}
+                <option value="{{ institution.id }}" {% if campus_values.get('institution_id') == institution.id %}selected{% endif %}>{{ institution.code or '기존 미등록' }} · {{ institution.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>캠퍼스 코드
+            <input name="code" value="{{ campus_values.get('code', '') }}" maxlength="80" pattern="[A-Za-z0-9_\-]+" autocomplete="off" required>
+          </label>
+          <label>캠퍼스명
+            <input name="name" value="{{ campus_values.get('name', '') }}" maxlength="200" required>
+          </label>
+          <button class="primary-button" type="submit">캠퍼스 등록</button>
+        </form>
+
+        <form class="admin-form admin-edit-grid" method="post" action="{{ url_for('admin.add_catalog_program') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <h2>3. 학과 등록</h2>
+          <label>캠퍼스
+            <select name="campus_id" required>
+              <option value="">선택</option>
+              {% for campus in campuses %}
+                {% set institution = institution_by_id.get(campus.institution_id) %}
+                <option value="{{ campus.id }}" {% if program_values.get('campus_id') == campus.id %}selected{% endif %}>{{ institution.name if institution else '대학 연결 확인 필요' }} · {{ campus.code or '기존 미등록' }} · {{ campus.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>학과 코드
+            <input name="code" value="{{ program_values.get('code', '') }}" maxlength="120" pattern="[A-Za-z0-9_\-]+" autocomplete="off" required>
+          </label>
+          <label>학과명
+            <input name="name" value="{{ program_values.get('name', '') }}" maxlength="200" required>
+          </label>
+          <button class="primary-button" type="submit">학과 등록</button>
+        </form>
+
+        <form class="admin-form admin-edit-grid" method="post" action="{{ url_for('admin.add_catalog_admission_round') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <h2>4. 모집시기 등록</h2>
+          <label>대학
+            <select name="institution_id" required>
+              <option value="">선택</option>
+              {% for institution in institutions %}
+                <option value="{{ institution.id }}" {% if round_values.get('institution_id') == institution.id %}selected{% endif %}>{{ institution.code or '기존 미등록' }} · {{ institution.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>모집학년도
+            <input type="number" name="academic_year" value="{{ round_values.get('academic_year', '2027') }}" min="2000" max="2100" required>
+          </label>
+          <label>모집시기 코드
+            <input name="code" value="{{ round_values.get('code', '') }}" maxlength="80" pattern="[A-Za-z0-9_\-]+" autocomplete="off" required>
+          </label>
+          <label>모집시기명
+            <input name="name" value="{{ round_values.get('name', '') }}" maxlength="200" required>
+          </label>
+          <button class="primary-button" type="submit">모집시기 등록</button>
+        </form>
+
+        <form class="admin-form admin-edit-grid" method="post" action="{{ url_for('admin.add_catalog_admission_track') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <h2>5. 전형 등록</h2>
+          <label>모집시기
+            <select name="admission_round_id" required>
+              <option value="">선택</option>
+              {% for admission_round in admission_rounds %}
+                {% set institution = institution_by_id.get(admission_round.institution_id) %}
+                <option value="{{ admission_round.id }}" {% if track_values.get('admission_round_id') == admission_round.id %}selected{% endif %}>{{ institution.name if institution else '대학 연결 확인 필요' }} · {{ admission_round.academic_year }} · {{ admission_round.code }} · {{ admission_round.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>학과
+            <select name="program_id" required>
+              <option value="">선택</option>
+              {% for program in programs %}
+                {% set campus = campus_by_id.get(program.campus_id) %}
+                {% set institution = institution_by_id.get(campus.institution_id) if campus else none %}
+                <option value="{{ program.id }}" {% if track_values.get('program_id') == program.id %}selected{% endif %}>{{ institution.name if institution else '대학 연결 확인 필요' }} · {{ campus.name if campus else '캠퍼스 연결 확인 필요' }} · {{ program.code or '기존 미등록' }} · {{ program.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <p class="form-help">모집시기와 학과는 같은 대학에 속해야 합니다.</p>
+          <label>전형 코드
+            <input name="code" value="{{ track_values.get('code', '') }}" maxlength="80" pattern="[A-Za-z0-9_\-]+" autocomplete="off" required>
+          </label>
+          <label>전형명
+            <input name="name" value="{{ track_values.get('name', '') }}" maxlength="200" required>
+          </label>
+          <button class="primary-button" type="submit">전형 등록</button>
+        </form>
+      </div>
+
+      <section class="admin-section" aria-labelledby="institution-list-title">
+        <div class="admin-section__heading"><h2 id="institution-list-title">대학 목록</h2><span>{{ institutions|length }}건</span></div>
+        {% if institutions %}<div class="admin-table-wrap"><table class="admin-table">
+          <thead><tr><th>코드</th><th>대학명</th><th>기관 유형</th></tr></thead>
+          <tbody>{% for institution in institutions %}<tr><td>{{ institution.code or '기존 미등록' }}</td><td>{{ institution.name }}</td><td>{{ institution.institution_type }}</td></tr>{% endfor %}</tbody>
+        </table></div>{% else %}<p class="admin-empty">등록된 대학이 없습니다.</p>{% endif %}
+      </section>
+
+      <section class="admin-section" aria-labelledby="campus-list-title">
+        <div class="admin-section__heading"><h2 id="campus-list-title">캠퍼스 목록</h2><span>{{ campuses|length }}건</span></div>
+        {% if campuses %}<div class="admin-table-wrap"><table class="admin-table">
+          <thead><tr><th>대학</th><th>코드</th><th>캠퍼스명</th></tr></thead>
+          <tbody>{% for campus in campuses %}{% set institution = institution_by_id.get(campus.institution_id) %}<tr><td>{{ institution.name if institution else '연결 확인 필요' }}</td><td>{{ campus.code or '기존 미등록' }}</td><td>{{ campus.name }}</td></tr>{% endfor %}</tbody>
+        </table></div>{% else %}<p class="admin-empty">등록된 캠퍼스가 없습니다.</p>{% endif %}
+      </section>
+
+      <section class="admin-section" aria-labelledby="program-list-title">
+        <div class="admin-section__heading"><h2 id="program-list-title">학과 목록</h2><span>{{ programs|length }}건</span></div>
+        {% if programs %}<div class="admin-table-wrap"><table class="admin-table">
+          <thead><tr><th>대학</th><th>캠퍼스</th><th>코드</th><th>학과명</th></tr></thead>
+          <tbody>{% for program in programs %}{% set campus = campus_by_id.get(program.campus_id) %}{% set institution = institution_by_id.get(campus.institution_id) if campus else none %}<tr><td>{{ institution.name if institution else '연결 확인 필요' }}</td><td>{{ campus.name if campus else '연결 확인 필요' }}</td><td>{{ program.code or '기존 미등록' }}</td><td>{{ program.name }}</td></tr>{% endfor %}</tbody>
+        </table></div>{% else %}<p class="admin-empty">등록된 학과가 없습니다.</p>{% endif %}
+      </section>
+
+      <section class="admin-section" aria-labelledby="round-list-title">
+        <div class="admin-section__heading"><h2 id="round-list-title">모집시기 목록</h2><span>{{ admission_rounds|length }}건</span></div>
+        {% if admission_rounds %}<div class="admin-table-wrap"><table class="admin-table">
+          <thead><tr><th>대학</th><th>학년도</th><th>코드</th><th>모집시기명</th></tr></thead>
+          <tbody>{% for admission_round in admission_rounds %}{% set institution = institution_by_id.get(admission_round.institution_id) %}<tr><td>{{ institution.name if institution else '연결 확인 필요' }}</td><td>{{ admission_round.academic_year }}</td><td>{{ admission_round.code }}</td><td>{{ admission_round.name }}</td></tr>{% endfor %}</tbody>
+        </table></div>{% else %}<p class="admin-empty">등록된 모집시기가 없습니다.</p>{% endif %}
+      </section>
+
+      <section class="admin-section" aria-labelledby="track-list-title">
+        <div class="admin-section__heading"><h2 id="track-list-title">전형 목록</h2><span>{{ admission_tracks|length }}건</span></div>
+        {% if admission_tracks %}<div class="admin-table-wrap"><table class="admin-table">
+          <thead><tr><th>대학</th><th>모집시기</th><th>캠퍼스·학과</th><th>코드</th><th>전형명</th></tr></thead>
+          <tbody>{% for track in admission_tracks %}{% set admission_round = round_by_id.get(track.admission_round_id) %}{% set program = program_by_id.get(track.program_id) %}{% set campus = campus_by_id.get(program.campus_id) if program else none %}{% set institution = institution_by_id.get(admission_round.institution_id) if admission_round else none %}<tr><td>{{ institution.name if institution else '연결 확인 필요' }}</td><td>{% if admission_round %}{{ admission_round.academic_year }} · {{ admission_round.name }}{% else %}연결 확인 필요{% endif %}</td><td>{% if campus and program %}{{ campus.name }} · {{ program.name }}{% else %}연결 확인 필요{% endif %}</td><td>{{ track.code }}</td><td>{{ track.name }}</td></tr>{% endfor %}</tbody>
+        </table></div>{% else %}<p class="admin-empty">등록된 전형이 없습니다.</p>{% endif %}
+      </section>
+    </main>
+  </body>
+</html>

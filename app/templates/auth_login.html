@@ -17,6 +17,14 @@
       <h1>교직원 로그인</h1>
       <p class="auth-lead">관리자 승인이 완료된 내부 교직원 계정만 상담 기능을 사용할 수 있습니다.</p>
 
+      {% if demo_login_name and demo_public_password %}
+        <section class="demo-credentials" aria-labelledby="demo-account-title">
+          <h2 id="demo-account-title">포트폴리오 공개 체험 계정</h2>
+          <p>실제 학생·대학 자료가 아닌 합성 상담 흐름과 A4 출력을 체험합니다.</p>
+          <dl><div><dt>아이디</dt><dd><code>{{ demo_login_name }}</code></dd></div><div><dt>비밀번호</dt><dd><code>{{ demo_public_password }}</code></dd></div></dl>
+        </section>
+      {% endif %}
+
       {% if error %}
         <div class="auth-alert auth-alert--error" role="alert" tabindex="-1">
           <strong>로그인할 수 없습니다.</strong>

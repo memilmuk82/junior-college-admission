@@ -36,6 +36,18 @@ docker compose up --build
 
 production 후보는 `docker-compose.production.yml`의 Nginx TLS → Gunicorn → PostgreSQL 구조로 분리되며, 실제 비밀값과 인증서는 Git 제외 secret 파일로만 주입합니다.
 
+## 공개 체험
+
+포트폴리오 방문자는 실제 학생·대학 자료와 분리된 공개 데모 교사 계정으로 지원자격 우선 상담, 결정론적 성적 계산, 과거 입시결과 표시와 학생용·교사용 A4 출력을 체험할 수 있습니다.
+
+- 서비스: `https://admission.memilmuk82.com`
+- 아이디: `demo-teacher`
+- 비밀번호: `DemoTeacher2027!`
+
+이 계정과 화면에 표시되는 학생·대학·전형·성적·입시결과는 모두 합성 예시입니다. 데모 계정은 관리자·회원관리·규칙관리·파일 검수·BYOK AI 기능에 접근할 수 없으며, 실제 공식 전형 규칙이나 학생자료를 생성·변경하지 않습니다.
+
+로컬 계정 가입·승인과 Google OIDC 로그인 코드는 구현되어 있습니다. Google 로그인은 실제 Google Web OAuth client, 정확한 HTTPS callback, 호스트 Nginx·Cloudflare 로그 및 rate-limit 게이트가 준비된 경우에만 활성화하며 기본 운영값은 비활성입니다. Google로 처음 가입한 교직원도 관리자 승인 전에는 상담 기능을 사용할 수 없습니다.
+
 ## 검증
 
 ```bash

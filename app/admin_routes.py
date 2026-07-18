@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -16,22 +17,28 @@ from flask import (
     url_for,
 )
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.auth import (
     actor_ref,
     admin_required,
     csrf_token,
+    is_demo_user,
     member_required,
+    non_demo_required,
     require_csrf,
 )
 from app.auth_routes import login_view
 from app.database import db
 from app.models import (
+    AdmissionRound,
     AdmissionTrack,
     AiConsultationDraft,
     AiProviderCredential,
+    Campus,
+    Institution,
+    Program,
     RuleAuditEvent,
     RuleGoldenTestArtifact,
     RuleReview,
@@ -49,6 +56,15 @@ from app.services.ai_drafts import AiDraftError, confirm_ai_draft, reject_ai_dra
 from app.services.ai_http_providers import provider_adapter
 from app.services.ai_narratives import AiNarrativeError, generate_consultation_narrative
 from app.services.ai_providers import PROVIDER_CODES, NarrativeProviderError
+from app.services.catalog_admin import (
+    CatalogDuplicateError,
+    CatalogValidationError,
+    create_admission_round,
+    create_admission_track,
+    create_campus,
+    create_institution,
+    create_program,
+)
 from app.services.consultation_forms import (
     CONSULTATION_FORM_FIELDS,
     ConsultationFormResult,
@@ -59,6 +75,11 @@ from app.services.consultations import (
     ConsultationResult,
     list_consultation_targets,
     run_consultation,
+)
+from app.services.demo_consultations import (
+    DEMO_CONSULTATION_DEFAULTS,
+    demo_consultation_targets,
+    run_demo_consultation,
 )
 from app.services.rule_admin import (
     RULE_CONTRACT_SCHEMA_VERSION,
@@ -220,7 +241,12 @@ def _render_consultation_form(
     errors: tuple[str, ...] = (),
     status: int = 200,
 ) -> Response:
-    targets = list_consultation_targets(cast(Session, db.session))
+    demo_mode = is_demo_user()
+    targets = (
+        demo_consultation_targets()
+        if demo_mode
+        else list_consultation_targets(cast(Session, db.session))
+    )
     return _private(
         render_template(
             "admin_consultation_form.html",
@@ -229,6 +255,7 @@ def _render_consultation_form(
             errors=errors,
             csrf_token=_csrf_token(),
             actor_ref=_actor_ref(),
+            demo_mode=demo_mode,
         ),
         status,
     )
@@ -237,6 +264,8 @@ def _render_consultation_form(
 def _evaluate_consultation_form(parsed: ConsultationFormResult) -> ConsultationResult:
     if parsed.request is None:
         raise ConsultationError("상담 입력을 확인하세요.")
+    if is_demo_user():
+        return run_demo_consultation(parsed.request)
     return run_consultation(cast(Session, db.session), parsed.request)
 
 
@@ -248,11 +277,16 @@ def _render_consultation_result(
     status: int = 200,
 ) -> Response:
     actor_ref = _actor_ref()
-    credentials = tuple(
-        cast(Session, db.session).scalars(
-            select(AiProviderCredential)
-            .where(AiProviderCredential.actor_ref == actor_ref)
-            .order_by(AiProviderCredential.provider)
+    demo_mode = is_demo_user()
+    credentials = (
+        ()
+        if demo_mode
+        else tuple(
+            cast(Session, db.session).scalars(
+                select(AiProviderCredential)
+                .where(AiProviderCredential.actor_ref == actor_ref)
+                .order_by(AiProviderCredential.provider)
+            )
         )
     )
     return _private(
@@ -265,6 +299,7 @@ def _render_consultation_result(
             actor_ref=actor_ref,
             credentials=credentials,
             ai_error=ai_error,
+            demo_mode=demo_mode,
         ),
         status,
     )
@@ -274,7 +309,8 @@ def _render_consultation_result(
 @member_required
 def new_consultation() -> Response:
     if request.method == "GET":
-        return _render_consultation_form(dict(CONSULTATION_DEFAULTS))
+        defaults = DEMO_CONSULTATION_DEFAULTS if is_demo_user() else CONSULTATION_DEFAULTS
+        return _render_consultation_form(dict(defaults))
     _require_csrf()
     parsed = parse_consultation_form(request.form)
     if parsed.errors:
@@ -288,6 +324,7 @@ def new_consultation() -> Response:
 
 @bp.post("/consultations/ai-draft")
 @member_required
+@non_demo_required
 def generate_ai_consultation_draft() -> Response | Any:
     _require_csrf()
     parsed = parse_consultation_form(request.form)
@@ -358,12 +395,14 @@ def _render_ai_settings(*, error: str | None = None, status: int = 200) -> Respo
 
 @bp.get("/ai/settings")
 @member_required
+@non_demo_required
 def ai_settings() -> Response:
     return _render_ai_settings()
 
 
 @bp.post("/ai/credentials")
 @member_required
+@non_demo_required
 def save_ai_credential() -> Response | Any:
     _require_csrf()
     try:
@@ -384,6 +423,7 @@ def save_ai_credential() -> Response | Any:
 
 @bp.post("/ai/credentials/<provider>/delete")
 @member_required
+@non_demo_required
 def delete_ai_credential(provider: str) -> Any:
     _require_csrf()
     try:
@@ -424,12 +464,14 @@ def _render_ai_draft(
 
 @bp.get("/ai/drafts/<draft_id>")
 @member_required
+@non_demo_required
 def ai_draft_detail(draft_id: str) -> Response:
     return _render_ai_draft(_owned_ai_draft(draft_id))
 
 
 @bp.post("/ai/drafts/<draft_id>/confirm")
 @member_required
+@non_demo_required
 def confirm_ai_draft_route(draft_id: str) -> Response | Any:
     _require_csrf()
     record = _owned_ai_draft(draft_id)
@@ -451,6 +493,7 @@ def confirm_ai_draft_route(draft_id: str) -> Response | Any:
 
 @bp.post("/ai/drafts/<draft_id>/reject")
 @member_required
+@non_demo_required
 def reject_ai_draft_route(draft_id: str) -> Response | Any:
     _require_csrf()
     record = _owned_ai_draft(draft_id)
@@ -941,3 +984,169 @@ def publish_rule(rule_type: str, rule_id: str) -> Any:
             status=409,
         )
     return redirect(url_for("admin.rule_detail", rule_type=rule_type, rule_id=rule_id))
+
+
+CatalogCreator = Callable[[Session, Mapping[str, str]], object]
+
+CATALOG_CREATED_MESSAGES = {
+    "institution": "대학 정보를 등록했습니다.",
+    "campus": "캠퍼스 정보를 등록했습니다.",
+    "program": "학과 정보를 등록했습니다.",
+    "admission_round": "모집시기 정보를 등록했습니다.",
+    "admission_track": "전형 정보를 등록했습니다.",
+}
+
+
+def _render_catalog(
+    *,
+    error: str | None = None,
+    status: int = 200,
+    form_name: str | None = None,
+    form_values: Mapping[str, str] | None = None,
+    load_records: bool = True,
+) -> Response:
+    database_session = cast(Session, db.session)
+    institutions: tuple[Institution, ...]
+    campuses: tuple[Campus, ...]
+    programs: tuple[Program, ...]
+    admission_rounds: tuple[AdmissionRound, ...]
+    admission_tracks: tuple[AdmissionTrack, ...]
+    if load_records:
+        institutions = tuple(
+            database_session.scalars(select(Institution).order_by(Institution.name, Institution.id))
+        )
+        campuses = tuple(
+            database_session.scalars(
+                select(Campus).order_by(Campus.institution_id, Campus.name, Campus.id)
+            )
+        )
+        programs = tuple(
+            database_session.scalars(
+                select(Program).order_by(Program.campus_id, Program.name, Program.id)
+            )
+        )
+        admission_rounds = tuple(
+            database_session.scalars(
+                select(AdmissionRound).order_by(
+                    AdmissionRound.academic_year.desc(),
+                    AdmissionRound.institution_id,
+                    AdmissionRound.code,
+                    AdmissionRound.id,
+                )
+            )
+        )
+        admission_tracks = tuple(
+            database_session.scalars(
+                select(AdmissionTrack).order_by(
+                    AdmissionTrack.admission_round_id,
+                    AdmissionTrack.program_id,
+                    AdmissionTrack.code,
+                    AdmissionTrack.id,
+                )
+            )
+        )
+    else:
+        institutions = ()
+        campuses = ()
+        programs = ()
+        admission_rounds = ()
+        admission_tracks = ()
+    return _private(
+        render_template(
+            "admin_catalog.html",
+            institutions=institutions,
+            campuses=campuses,
+            programs=programs,
+            admission_rounds=admission_rounds,
+            admission_tracks=admission_tracks,
+            institution_by_id={row.id: row for row in institutions},
+            campus_by_id={row.id: row for row in campuses},
+            program_by_id={row.id: row for row in programs},
+            round_by_id={row.id: row for row in admission_rounds},
+            csrf_token=_csrf_token(),
+            actor_ref=_actor_ref(),
+            message=CATALOG_CREATED_MESSAGES.get(request.args.get("created", "")),
+            error=error,
+            form_name=form_name,
+            form_values=dict(form_values or {}),
+        ),
+        status,
+    )
+
+
+def _create_catalog_entry(kind: str, creator: CatalogCreator) -> Response:
+    _require_csrf()
+    database_session = cast(Session, db.session)
+    try:
+        creator(database_session, request.form)
+        database_session.commit()
+    except CatalogDuplicateError as error:
+        database_session.rollback()
+        return _render_catalog(
+            error=str(error),
+            status=409,
+            form_name=kind,
+            form_values=request.form,
+        )
+    except CatalogValidationError as error:
+        database_session.rollback()
+        return _render_catalog(
+            error=str(error),
+            status=400,
+            form_name=kind,
+            form_values=request.form,
+        )
+    except IntegrityError:
+        database_session.rollback()
+        return _render_catalog(
+            error="같은 업무키의 기준정보가 이미 등록되어 있습니다. 현재 목록을 확인하세요.",
+            status=409,
+            form_name=kind,
+            form_values=request.form,
+        )
+    except SQLAlchemyError:
+        database_session.rollback()
+        current_app.logger.warning("기준정보 등록 중 데이터베이스 요청을 처리할 수 없습니다.")
+        return _render_catalog(
+            error="데이터베이스 요청을 처리할 수 없습니다. 잠시 후 다시 시도하세요.",
+            status=503,
+            form_name=kind,
+            load_records=False,
+        )
+    return make_response(redirect(url_for("admin.catalog", created=kind)))
+
+
+@bp.get("/catalog")
+@admin_required
+def catalog() -> Response:
+    return _render_catalog()
+
+
+@bp.post("/catalog/institutions")
+@admin_required
+def add_catalog_institution() -> Response:
+    return _create_catalog_entry("institution", create_institution)
+
+
+@bp.post("/catalog/campuses")
+@admin_required
+def add_catalog_campus() -> Response:
+    return _create_catalog_entry("campus", create_campus)
+
+
+@bp.post("/catalog/programs")
+@admin_required
+def add_catalog_program() -> Response:
+    return _create_catalog_entry("program", create_program)
+
+
+@bp.post("/catalog/admission-rounds")
+@admin_required
+def add_catalog_admission_round() -> Response:
+    return _create_catalog_entry("admission_round", create_admission_round)
+
+
+@bp.post("/catalog/admission-tracks")
+@admin_required
+def add_catalog_admission_track() -> Response:
+    return _create_catalog_entry("admission_track", create_admission_track)

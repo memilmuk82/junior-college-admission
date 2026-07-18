@@ -183,6 +183,8 @@ def create_app(test_config: dict | None = None) -> Flask:
         GOOGLE_OIDC_CLIENT_ID=_environment_value("GOOGLE_OIDC_CLIENT_ID"),
         GOOGLE_OIDC_CLIENT_SECRET=_environment_value("GOOGLE_OIDC_CLIENT_SECRET"),
         GOOGLE_REDIRECT_URI=os.environ.get("GOOGLE_REDIRECT_URI"),
+        DEMO_LOGIN_NAME=os.environ.get("DEMO_LOGIN_NAME"),
+        DEMO_PUBLIC_PASSWORD=os.environ.get("DEMO_PUBLIC_PASSWORD"),
         # 환경변수 관리자 로그인은 로컬 개발 호환용이다. alpha/beta/production은
         # 시작 시 DB 관리자를 부트스트랩하고 DB 인증만 사용한다.
         ALLOW_LEGACY_ADMIN_LOGIN=os.environ.get("APP_ENV", "development") == "development",

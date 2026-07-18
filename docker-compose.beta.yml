@@ -9,6 +9,7 @@ services:
       - >-
         uv run --no-sync flask --app wsgi db upgrade &&
         uv run --no-sync flask --app wsgi auth bootstrap-admin &&
+        uv run --no-sync flask --app wsgi auth bootstrap-demo &&
         exec gunicorn
         --bind=0.0.0.0:5000
         --workers=${BETA_WEB_WORKERS:-2}
@@ -31,6 +32,8 @@ services:
       GOOGLE_OIDC_CLIENT_ID: "${BETA_GOOGLE_OIDC_CLIENT_ID:-}"
       GOOGLE_OIDC_CLIENT_SECRET: "${BETA_GOOGLE_OIDC_CLIENT_SECRET:-}"
       GOOGLE_REDIRECT_URI: "${BETA_GOOGLE_REDIRECT_URI:-}"
+      DEMO_LOGIN_NAME: "${BETA_DEMO_LOGIN_NAME:-}"
+      DEMO_PUBLIC_PASSWORD: "${BETA_DEMO_PUBLIC_PASSWORD:-}"
     ports:
       - "127.0.0.1:${BETA_WEB_PORT:-5002}:5000"
     depends_on:

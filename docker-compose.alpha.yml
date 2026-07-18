@@ -9,6 +9,7 @@ services:
       - >-
         uv run --no-sync flask --app wsgi db upgrade &&
         uv run --no-sync flask --app wsgi auth bootstrap-admin &&
+        uv run --no-sync flask --app wsgi auth bootstrap-demo &&
         exec uv run --no-sync gunicorn
         --bind=0.0.0.0:5000
         --workers=1
@@ -31,6 +32,8 @@ services:
       GOOGLE_OIDC_CLIENT_ID: "${ALPHA_GOOGLE_OIDC_CLIENT_ID:-}"
       GOOGLE_OIDC_CLIENT_SECRET: "${ALPHA_GOOGLE_OIDC_CLIENT_SECRET:-}"
       GOOGLE_REDIRECT_URI: "${ALPHA_GOOGLE_REDIRECT_URI:-}"
+      DEMO_LOGIN_NAME: "${ALPHA_DEMO_LOGIN_NAME:-}"
+      DEMO_PUBLIC_PASSWORD: "${ALPHA_DEMO_PUBLIC_PASSWORD:-}"
     ports:
       - "127.0.0.1:${ALPHA_WEB_PORT:-5001}:5000"
     depends_on:

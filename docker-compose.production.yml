@@ -73,7 +73,7 @@ services:
       - >-
         flask --app wsgi db upgrade &&
         case "${PRODUCTION_BOOTSTRAP_ADMIN_ON_STARTUP:-1}" in
-        1) flask --app wsgi auth bootstrap-admin ;;
+        1) flask --app wsgi auth bootstrap-admin && flask --app wsgi auth bootstrap-demo ;;
         0) true ;;
         *) exit 1 ;;
         esac &&
@@ -96,6 +96,8 @@ services:
       BYOK_MASTER_KEY_FILE: /run/secrets/byok_master_key
       GOOGLE_OIDC_ENABLED: "${GOOGLE_OIDC_ENABLED:-false}"
       GOOGLE_REDIRECT_URI: "${GOOGLE_REDIRECT_URI:-}"
+      DEMO_LOGIN_NAME: "${DEMO_LOGIN_NAME:-}"
+      DEMO_PUBLIC_PASSWORD: "${DEMO_PUBLIC_PASSWORD:-}"
       PUBLIC_BASE_URL: "${PRODUCTION_PUBLIC_BASE_URL:?PRODUCTION_PUBLIC_BASE_URL must be set}"
       TRUSTED_HOSTS: "${PRODUCTION_TRUSTED_HOSTS:?PRODUCTION_TRUSTED_HOSTS must be set}"
       HEALTHCHECK_HOST: "${PRODUCTION_HEALTHCHECK_HOST:?PRODUCTION_HEALTHCHECK_HOST must be set}"

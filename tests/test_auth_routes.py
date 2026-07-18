@@ -12,13 +12,21 @@ from requests import RequestException
 from sqlalchemy import Engine, delete, select, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
-from werkzeug.security import generate_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import create_app
-from app.models import AiProviderCredential, ExternalIdentity, UserAccount
+from app.models import (
+    AiProviderCredential,
+    ExternalIdentity,
+    UserAccount,
+    UserAccountAuditEvent,
+)
 from app.services.membership import (
+    MembershipError,
     approve_pending_member,
+    authenticate_local_member,
     bootstrap_admin,
+    bootstrap_demo_member,
     change_member_role,
     change_member_status,
     register_local_member,
@@ -68,6 +76,8 @@ def _app(postgres_engine: Engine):  # type: ignore[no-untyped-def]
             "ADMIN_PASSWORD_HASH": generate_password_hash("phase11-admin-password"),
             "ALLOW_LEGACY_ADMIN_LOGIN": False,
             "GOOGLE_OIDC_ENABLED": False,
+            "DEMO_LOGIN_NAME": "phase11-demo-teacher",
+            "DEMO_PUBLIC_PASSWORD": "phase11-demo-password",
         }
     )
 
@@ -101,6 +111,31 @@ def _bootstrap(postgres_engine: Engine) -> UserAccount:
         database_session.refresh(admin)
         database_session.expunge(admin)
         return admin
+
+
+def _bootstrap_demo(postgres_engine: Engine) -> UserAccount:
+    with Session(postgres_engine) as database_session:
+        admin = database_session.scalar(
+            select(UserAccount).where(UserAccount.login_name == "phase11-admin")
+        )
+        if admin is None:
+            admin = bootstrap_admin(
+                database_session,
+                login_name="phase11-admin",
+                password_hash=generate_password_hash("phase11-admin-password"),
+                occurred_at=datetime(2026, 7, 15, 11, 0, tzinfo=UTC),
+            )
+        demo = bootstrap_demo_member(
+            database_session,
+            login_name="phase11-demo-teacher",
+            public_password="phase11-demo-password",
+            approved_by=admin,
+            occurred_at=datetime(2026, 7, 15, 11, 1, tzinfo=UTC),
+        )
+        database_session.commit()
+        database_session.refresh(demo)
+        database_session.expunge(demo)
+        return demo
 
 
 def _login(client: FlaskClient, username: str, password: str):  # type: ignore[no-untyped-def]
@@ -153,6 +188,431 @@ def test_local_signup_ignores_role_tampering_and_blocks_use_until_approval(
         )
         assert member is not None
         assert (member.role, member.status) == ("MEMBER", "PENDING_APPROVAL")
+
+
+def test_public_demo_member_is_idempotent_active_and_cannot_use_mutating_features(
+    postgres_engine: Engine,
+) -> None:
+    first = _bootstrap_demo(postgres_engine)
+    second = _bootstrap_demo(postgres_engine)
+
+    assert first.id == second.id
+    assert first.actor_ref == "demo:public"
+    assert (first.role, first.status) == ("MEMBER", "ACTIVE")
+    client = _app(postgres_engine).test_client()
+    login_page = client.get("/auth/login")
+    login_body = login_page.get_data(as_text=True)
+    assert "포트폴리오 공개 체험 계정" in login_body
+    assert "phase11-demo-teacher" in login_body
+    assert "phase11-demo-password" in login_body
+
+    login = _login(client, "phase11-demo-teacher", "phase11-demo-password")
+    assert login.status_code == 302
+    assert login.headers["Location"].endswith("/admin/consultations/new")
+
+    form_page = client.get("/admin/consultations/new")
+    body = form_page.get_data(as_text=True)
+    assert form_page.status_code == 200
+    assert "합성 데이터 전용 체험" in body
+    assert "가상 미래전문대" in body
+    assert "demo-student" in body
+
+    submitted = client.post(
+        "/admin/consultations/new",
+        data={
+            "csrf_token": _csrf(body),
+            "student_id": "demo-student",
+            "admission_track_id": "demo-synthetic-track",
+            "home_school_type": "GENERAL",
+            "final_school_type": "GENERAL",
+            "graduation_status": "EXPECTED",
+            "vocational_training_status": "PARTICIPATING",
+            "vocational_training_semesters": "1",
+            "vocational_training_hours": "",
+            "vocational_training_months": "",
+            "transferred": "FALSE",
+            "ged": "FALSE",
+            "admission_result_year": "2026",
+            "consultation_note": "합성 데모 메모",
+        },
+    )
+    result_body = submitted.get_data(as_text=True)
+    assert submitted.status_code == 200
+    assert "DEMO_SYNTHETIC" in result_body
+    assert "가상 미래전문대" in result_body
+    assert "합성 예시" in result_body
+    assert "1.75 / 9" in result_body
+    assert "3.00" in result_body
+    assert "BYOK 키 설정" not in result_body
+
+    teacher_print = client.post(
+        "/admin/consultations/print/teacher",
+        data={
+            "csrf_token": _csrf(result_body),
+            "student_id": "demo-student",
+            "admission_track_id": "demo-synthetic-track",
+            "home_school_type": "GENERAL",
+            "final_school_type": "GENERAL",
+            "graduation_status": "EXPECTED",
+            "vocational_training_status": "PARTICIPATING",
+            "vocational_training_semesters": "1",
+            "vocational_training_hours": "",
+            "vocational_training_months": "",
+            "transferred": "FALSE",
+            "ged": "FALSE",
+            "admission_result_year": "2026",
+            "consultation_note": "합성 데모 메모",
+        },
+    )
+    assert teacher_print.status_code == 200
+    assert "교사용 상담 결과" in teacher_print.get_data(as_text=True)
+    assert "합성 데이터" in teacher_print.get_data(as_text=True)
+
+    assert client.get("/admin/ai/settings").status_code == 403
+    assert client.get("/admin/rules").status_code == 403
+    assert client.get("/input/review/does-not-exist").status_code == 403
+
+    with Session(postgres_engine) as database_session:
+        synthetic_institutions = database_session.scalar(
+            text("SELECT count(*) FROM institutions WHERE code = 'DEMO_SYNTHETIC_U'")
+        )
+        assert synthetic_institutions == 0
+
+
+def test_public_demo_target_rejects_role_and_status_mutations_but_ordinary_member_allows_them(
+    postgres_engine: Engine,
+) -> None:
+    demo = _bootstrap_demo(postgres_engine)
+    with Session(postgres_engine) as database_session:
+        admin = database_session.scalar(
+            select(UserAccount).where(UserAccount.login_name == "phase11-admin")
+        )
+        stored_demo = database_session.get(UserAccount, demo.id)
+        ordinary = register_local_member(
+            database_session,
+            login_name="phase11-ordinary-target",
+            email="ordinary-target@phase11.invalid",
+            display_name="합성 일반 변경 대상",
+            password="phase11-ordinary-password",
+            occurred_at=datetime(2026, 7, 15, 11, 2, tzinfo=UTC),
+        )
+        assert admin is not None and stored_demo is not None
+        approve_pending_member(
+            database_session,
+            actor=admin,
+            target=ordinary,
+            occurred_at=datetime(2026, 7, 15, 11, 3, tzinfo=UTC),
+        )
+
+        with pytest.raises(MembershipError, match="공개 데모 계정"):
+            change_member_role(
+                database_session,
+                actor=admin,
+                target=stored_demo,
+                new_role="ADMIN",
+                occurred_at=datetime(2026, 7, 15, 11, 4, tzinfo=UTC),
+            )
+        with pytest.raises(MembershipError, match="공개 데모 계정"):
+            change_member_status(
+                database_session,
+                actor=admin,
+                target=stored_demo,
+                new_status="SUSPENDED",
+                occurred_at=datetime(2026, 7, 15, 11, 5, tzinfo=UTC),
+            )
+
+        change_member_role(
+            database_session,
+            actor=admin,
+            target=ordinary,
+            new_role="ASSISTANT_ADMIN",
+            occurred_at=datetime(2026, 7, 15, 11, 6, tzinfo=UTC),
+        )
+        change_member_status(
+            database_session,
+            actor=admin,
+            target=ordinary,
+            new_status="SUSPENDED",
+            occurred_at=datetime(2026, 7, 15, 11, 7, tzinfo=UTC),
+        )
+        database_session.commit()
+
+        database_session.refresh(stored_demo)
+        database_session.refresh(ordinary)
+        assert (stored_demo.role, stored_demo.status) == ("MEMBER", "ACTIVE")
+        assert (ordinary.role, ordinary.status) == ("ASSISTANT_ADMIN", "SUSPENDED")
+
+
+def test_public_demo_role_pollution_cannot_reach_admin_or_approval_routes(
+    postgres_engine: Engine,
+) -> None:
+    demo = _bootstrap_demo(postgres_engine)
+    with Session(postgres_engine) as database_session:
+        stored_demo = database_session.get(UserAccount, demo.id)
+        assert stored_demo is not None
+        stored_demo.role = "ADMIN"
+        database_session.commit()
+
+    client = _app(postgres_engine).test_client()
+    login = _login(client, "phase11-demo-teacher", "phase11-demo-password")
+
+    assert login.status_code == 302
+    assert client.get("/admin/rules").status_code == 403
+    assert client.get("/admin/members").status_code == 403
+    assert client.get("/admin/consultations/new").status_code == 200
+    assert login.headers["Location"].endswith("/admin/consultations/new")
+
+
+def test_bootstrap_demo_disabled_revokes_session_and_credentials_then_reactivates_same_actor(
+    postgres_engine: Engine,
+) -> None:
+    demo = _bootstrap_demo(postgres_engine)
+    app = _app(postgres_engine)
+    client = app.test_client()
+    assert _login(client, "phase11-demo-teacher", "phase11-demo-password").status_code == 302
+    assert client.get("/admin/consultations/new").status_code == 200
+
+    app.config.update(DEMO_LOGIN_NAME=None, DEMO_PUBLIC_PASSWORD=None)
+    disabled = app.test_cli_runner().invoke(args=["auth", "bootstrap-demo"])
+
+    assert disabled.exit_code == 0
+    assert "기존 공개 데모 계정 해제 완료" in disabled.output
+    invalidated = client.get("/admin/consultations/new")
+    assert invalidated.status_code == 302
+    assert "/auth/login" in invalidated.headers["Location"]
+    with Session(postgres_engine) as database_session:
+        revoked = database_session.get(UserAccount, demo.id)
+        assert revoked is not None
+        assert revoked.actor_ref == "demo:public"
+        assert (revoked.role, revoked.status) == ("MEMBER", "SUSPENDED")
+        assert revoked.login_name == "phase11-demo-teacher"
+        assert revoked.password_hash is not None
+        assert not check_password_hash(revoked.password_hash, "phase11-demo-password")
+        assert revoked.auth_version == demo.auth_version + 1
+        assert (
+            authenticate_local_member(
+                database_session,
+                login_name="phase11-demo-teacher",
+                password="phase11-demo-password",
+                occurred_at=datetime(2026, 7, 15, 11, 8, tzinfo=UTC),
+            )
+            is None
+        )
+        audit_types = set(
+            database_session.scalars(
+                select(UserAccountAuditEvent.event_type).where(
+                    UserAccountAuditEvent.target_user_id == demo.id
+                )
+            )
+        )
+        assert {"STATUS_CHANGED", "PASSWORD_CHANGED"}.issubset(audit_types)
+        revoked_password_hash = revoked.password_hash
+
+    disabled_again = app.test_cli_runner().invoke(args=["auth", "bootstrap-demo"])
+    assert disabled_again.exit_code == 0
+    with Session(postgres_engine) as database_session:
+        still_revoked = database_session.get(UserAccount, demo.id)
+        assert still_revoked is not None
+        assert still_revoked.auth_version == demo.auth_version + 1
+        assert still_revoked.password_hash == revoked_password_hash
+
+    app.config.update(
+        DEMO_LOGIN_NAME="phase11-demo-teacher",
+        DEMO_PUBLIC_PASSWORD="phase11-rotated-demo-password",
+    )
+    reactivated = app.test_cli_runner().invoke(args=["auth", "bootstrap-demo"])
+
+    assert reactivated.exit_code == 0
+    with Session(postgres_engine) as database_session:
+        restored = database_session.get(UserAccount, demo.id)
+        assert restored is not None
+        assert restored.actor_ref == "demo:public"
+        assert (restored.role, restored.status) == ("MEMBER", "ACTIVE")
+        assert restored.login_name == "phase11-demo-teacher"
+        assert restored.password_hash is not None
+        assert check_password_hash(restored.password_hash, "phase11-rotated-demo-password")
+        assert restored.auth_version == demo.auth_version + 2
+
+    assert (
+        _login(
+            app.test_client(),
+            "phase11-demo-teacher",
+            "phase11-rotated-demo-password",
+        ).status_code
+        == 302
+    )
+
+
+def test_bootstrap_demo_incomplete_configuration_fails_closed(
+    postgres_engine: Engine,
+) -> None:
+    _bootstrap_demo(postgres_engine)
+    app = _app(postgres_engine)
+    app.config.update(DEMO_PUBLIC_PASSWORD=None)
+
+    result = app.test_cli_runner().invoke(args=["auth", "bootstrap-demo"])
+
+    assert result.exit_code != 0
+    assert "공개 데모 계정 설정이 불완전합니다." in result.output
+
+
+@pytest.mark.parametrize(
+    ("login_name", "email"),
+    [
+        ("phase11-demo-teacher", "reserved-login@phase11.invalid"),
+        ("phase11-reserved-email", "public-demo@local.invalid"),
+    ],
+)
+def test_public_registration_reserves_configured_demo_login_and_fixed_email(
+    postgres_engine: Engine,
+    login_name: str,
+    email: str,
+) -> None:
+    _bootstrap(postgres_engine)
+    app = _app(postgres_engine)
+    client = app.test_client()
+    page = client.get("/auth/register")
+
+    response = client.post(
+        "/auth/register",
+        data={
+            "csrf_token": _csrf(page.get_data(as_text=True)),
+            "login_name": login_name,
+            "email": email,
+            "display_name": "합성 예약값 선점 시도",
+            "password": "phase11-member-password",
+            "password_confirmation": "phase11-member-password",
+        },
+    )
+
+    assert response.status_code == 302
+    assert response.headers["Location"] == "/auth/registration-received"
+    with Session(postgres_engine) as database_session:
+        reserved = database_session.scalar(
+            select(UserAccount).where(
+                (UserAccount.login_name == login_name) | (UserAccount.email == email)
+            )
+        )
+        assert reserved is None
+
+    bootstrap = app.test_cli_runner().invoke(args=["auth", "bootstrap-demo"])
+    assert bootstrap.exit_code == 0
+    with Session(postgres_engine) as database_session:
+        demo = database_session.scalar(
+            select(UserAccount).where(UserAccount.actor_ref == "demo:public")
+        )
+        assert demo is not None
+        assert (demo.login_name, demo.role, demo.status) == (
+            "phase11-demo-teacher",
+            "MEMBER",
+            "ACTIVE",
+        )
+
+
+@pytest.mark.parametrize("conflict", ["login", "email"])
+def test_bootstrap_demo_conflict_is_nonfatal_and_never_takes_over_an_existing_member(
+    postgres_engine: Engine,
+    conflict: str,
+) -> None:
+    with Session(postgres_engine) as database_session:
+        admin = bootstrap_admin(
+            database_session,
+            login_name="phase11-admin",
+            password_hash=generate_password_hash("phase11-admin-password"),
+            occurred_at=datetime(2026, 7, 15, 11, 9, tzinfo=UTC),
+        )
+        existing = register_local_member(
+            database_session,
+            login_name=(
+                "phase11-demo-teacher" if conflict == "login" else "phase11-preexisting-demo-email"
+            ),
+            email="preexisting-active@phase11.invalid",
+            display_name="기존 활성 합성 회원",
+            password="phase11-preexisting-password",
+            occurred_at=datetime(2026, 7, 15, 11, 10, tzinfo=UTC),
+        )
+        approve_pending_member(
+            database_session,
+            actor=admin,
+            target=existing,
+            occurred_at=datetime(2026, 7, 15, 11, 11, tzinfo=UTC),
+        )
+        if conflict == "email":
+            # 데모 식별자 예약 기능 배포 전에 생성된 계정을 합성한다.
+            existing.email = "public-demo@local.invalid"
+        database_session.commit()
+        existing_id = existing.id
+        existing_login = existing.login_name
+        existing_email = existing.email
+
+    app = _app(postgres_engine)
+    result = app.test_cli_runner().invoke(args=["auth", "bootstrap-demo"])
+
+    assert result.exit_code == 0
+    assert "데모만 비활성 상태를 유지합니다." in result.output
+    login_body = app.test_client().get("/auth/login").get_data(as_text=True)
+    assert "포트폴리오 공개 체험 계정" not in login_body
+    assert "phase11-demo-password" not in login_body
+    with Session(postgres_engine) as database_session:
+        preserved = database_session.get(UserAccount, existing_id)
+        assert preserved is not None
+        assert preserved.actor_ref != "demo:public"
+        assert (preserved.role, preserved.status) == ("MEMBER", "ACTIVE")
+        assert (preserved.login_name, preserved.email) == (existing_login, existing_email)
+        assert (
+            database_session.scalar(
+                select(UserAccount).where(UserAccount.actor_ref == "demo:public")
+            )
+            is None
+        )
+
+
+def test_bootstrap_demo_rotation_conflict_revokes_old_demo_and_hides_credentials(
+    postgres_engine: Engine,
+) -> None:
+    demo = _bootstrap_demo(postgres_engine)
+    with Session(postgres_engine) as database_session:
+        owner = register_local_member(
+            database_session,
+            login_name="phase11-rotated-demo-login",
+            email="rotated-demo-owner@phase11.invalid",
+            display_name="합성 회전 로그인 소유자",
+            password="phase11-existing-owner-password",
+            occurred_at=datetime(2026, 7, 15, 11, 12, tzinfo=UTC),
+        )
+        database_session.commit()
+        owner_id = owner.id
+
+    app = _app(postgres_engine)
+    client = app.test_client()
+    assert _login(client, "phase11-demo-teacher", "phase11-demo-password").status_code == 302
+    assert client.get("/admin/consultations/new").status_code == 200
+    app.config.update(
+        DEMO_LOGIN_NAME="phase11-rotated-demo-login",
+        DEMO_PUBLIC_PASSWORD="phase11-rotated-demo-password",
+    )
+
+    result = app.test_cli_runner().invoke(args=["auth", "bootstrap-demo"])
+
+    assert result.exit_code == 0
+    assert "데모만 비활성 상태를 유지합니다." in result.output
+    invalidated = client.get("/admin/consultations/new")
+    assert invalidated.status_code == 302
+    assert "/auth/login" in invalidated.headers["Location"]
+    login_body = app.test_client().get("/auth/login").get_data(as_text=True)
+    assert "포트폴리오 공개 체험 계정" not in login_body
+    assert "phase11-rotated-demo-login" not in login_body
+    assert "phase11-rotated-demo-password" not in login_body
+    with Session(postgres_engine) as database_session:
+        preserved = database_session.get(UserAccount, owner_id)
+        revoked = database_session.get(UserAccount, demo.id)
+        assert preserved is not None and revoked is not None
+        assert preserved.actor_ref != "demo:public"
+        assert (preserved.role, preserved.status) == ("MEMBER", "PENDING_APPROVAL")
+        assert (revoked.role, revoked.status) == ("MEMBER", "SUSPENDED")
+        assert revoked.auth_version == demo.auth_version + 1
+        assert revoked.password_hash is not None
+        assert not check_password_hash(revoked.password_hash, "phase11-demo-password")
 
 
 def test_duplicate_registration_has_same_external_response_as_new_request(
@@ -266,7 +726,10 @@ def test_admin_approves_member_then_member_can_use_consultation(postgres_engine:
     assert member_login.headers["Location"].endswith("/admin/consultations/new")
     consultation = client.get("/admin/consultations/new")
     assert consultation.status_code == 200
-    assert "지원자격" in consultation.get_data(as_text=True)
+    consultation_body = consultation.get_data(as_text=True)
+    assert "지원자격" in consultation_body
+    assert "가상 미래전문대" not in consultation_body
+    assert "합성 데이터 전용 체험" not in consultation_body
 
 
 def test_assistant_can_approve_but_cannot_change_rules_or_roles(postgres_engine: Engine) -> None:

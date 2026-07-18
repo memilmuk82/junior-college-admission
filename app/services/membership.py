@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import secrets
 import unicodedata
 from datetime import datetime
 
@@ -18,10 +19,21 @@ GOOGLE_ISSUERS = frozenset({CANONICAL_GOOGLE_ISSUER, "accounts.google.com"})
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 DUMMY_PASSWORD_HASH = generate_password_hash("synthetic-non-account-password")
 BOOTSTRAP_ADMIN_LOCK_KEY = 780_331_006_507_120_011
+BOOTSTRAP_DEMO_LOCK_KEY = 780_331_006_507_120_012
+DEMO_ACTOR_REF = "demo:public"
+DEMO_EMAIL = "public-demo@local.invalid"
 
 
 class MembershipError(RuntimeError):
     pass
+
+
+class RegistrationConflict(MembershipError):
+    """가입 가능 여부를 외부 응답에서 구분하면 안 되는 예약값 충돌."""
+
+
+class DemoAccountConflict(MembershipError):
+    """기존 계정을 덮어쓰지 않고 공개 데모만 비활성화해야 하는 충돌."""
 
 
 def canonicalize_google_issuer(value: str) -> str:
@@ -128,16 +140,23 @@ def register_local_member(
     occurred_at: datetime,
     requested_role: str | None = None,
     requested_status: str | None = None,
+    reserved_login_name: str | None = None,
 ) -> UserAccount:
     del requested_role, requested_status
     _aware(occurred_at)
     _validate_password(password)
+    normalized_login_name = _normalize_login_name(login_name)
+    normalized_email = _normalize_email(email)
+    if reserved_login_name and normalized_login_name == _normalize_login_name(reserved_login_name):
+        raise RegistrationConflict("예약된 계정 정보입니다.")
+    if normalized_email == DEMO_EMAIL:
+        raise RegistrationConflict("예약된 계정 정보입니다.")
     account_id = new_id()
     member = UserAccount(
         id=account_id,
         actor_ref=f"user:{account_id}",
-        login_name=_normalize_login_name(login_name),
-        email=_normalize_email(email),
+        login_name=normalized_login_name,
+        email=normalized_email,
         display_name=_normalize_display_name(display_name),
         password_hash=generate_password_hash(password),
         role="MEMBER",
@@ -177,6 +196,9 @@ def authenticate_local_member(
         return None
     if not check_password_hash(member.password_hash, password):
         return None
+    if member.actor_ref == DEMO_ACTOR_REF:
+        # 공개 공유 계정 로그인으로 감사 테이블이 무제한 증가하지 않게 한다.
+        return member
     member.last_login_at = occurred_at
     _audit(
         session,
@@ -259,6 +281,240 @@ def bootstrap_admin(
         after_status=admin.status,
     )
     return admin
+
+
+def bootstrap_demo_member(
+    session: Session,
+    *,
+    login_name: str,
+    public_password: str,
+    approved_by: UserAccount,
+    occurred_at: datetime,
+) -> UserAccount:
+    """공개 포트폴리오 체험용 최소권한 MEMBER를 멱등 생성한다."""
+    _aware(occurred_at)
+    normalized = _normalize_login_name(login_name)
+    _validate_password(public_password)
+    if approved_by.role != "ADMIN" or approved_by.status != "ACTIVE":
+        raise MembershipError("공개 데모 계정은 활성 관리자만 부트스트랩할 수 있습니다.")
+    session.execute(
+        text("SELECT pg_advisory_xact_lock(:lock_key)"),
+        {"lock_key": BOOTSTRAP_DEMO_LOCK_KEY},
+    )
+    matches = tuple(
+        session.scalars(
+            select(UserAccount)
+            .where(
+                (UserAccount.actor_ref == DEMO_ACTOR_REF)
+                | (UserAccount.login_name == normalized)
+                | (UserAccount.email == DEMO_EMAIL)
+            )
+            .order_by(UserAccount.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    )
+    existing = next((account for account in matches if account.actor_ref == DEMO_ACTOR_REF), None)
+    login_owner = next((account for account in matches if account.login_name == normalized), None)
+    email_owner = next((account for account in matches if account.email == DEMO_EMAIL), None)
+    if existing is not None:
+        if login_owner is not None and login_owner.id != existing.id:
+            raise DemoAccountConflict("공개 데모 계정 식별자가 이미 사용 중입니다.")
+        if email_owner is not None and email_owner.id != existing.id:
+            raise DemoAccountConflict("공개 데모 계정 식별자가 이미 사용 중입니다.")
+        before_role = existing.role
+        before_status = existing.status
+        credentials_changed = (
+            existing.login_name != normalized
+            or existing.email != DEMO_EMAIL
+            or existing.password_hash is None
+        )
+        if existing.password_hash is not None and not check_password_hash(
+            existing.password_hash, public_password
+        ):
+            credentials_changed = True
+        changed = before_role != "MEMBER" or before_status != "ACTIVE" or credentials_changed
+        existing.login_name = normalized
+        existing.email = DEMO_EMAIL
+        existing.role = "MEMBER"
+        existing.status = "ACTIVE"
+        existing.approved_by_user_id = approved_by.id
+        if existing.approved_at is None:
+            existing.approved_at = occurred_at
+        if credentials_changed:
+            existing.password_hash = generate_password_hash(public_password)
+        if changed:
+            existing.auth_version += 1
+        if before_role != existing.role:
+            _audit(
+                session,
+                target=existing,
+                actor=approved_by,
+                event_type="ROLE_CHANGED",
+                occurred_at=occurred_at,
+                before_role=before_role,
+                after_role=existing.role,
+                before_status=before_status,
+                after_status=existing.status,
+            )
+        if before_status != existing.status:
+            _audit(
+                session,
+                target=existing,
+                actor=approved_by,
+                event_type="STATUS_CHANGED",
+                occurred_at=occurred_at,
+                before_role=existing.role,
+                after_role=existing.role,
+                before_status=before_status,
+                after_status=existing.status,
+            )
+        if credentials_changed:
+            _audit(
+                session,
+                target=existing,
+                actor=approved_by,
+                event_type="PASSWORD_CHANGED",
+                occurred_at=occurred_at,
+                after_role=existing.role,
+                after_status=existing.status,
+            )
+        return existing
+    if login_owner is not None or email_owner is not None:
+        raise DemoAccountConflict("공개 데모 계정 식별자가 이미 사용 중입니다.")
+
+    account_id = new_id()
+    demo = UserAccount(
+        id=account_id,
+        actor_ref=DEMO_ACTOR_REF,
+        login_name=normalized,
+        email=DEMO_EMAIL,
+        display_name="공개 데모 교사",
+        password_hash=generate_password_hash(public_password),
+        role="MEMBER",
+        status="ACTIVE",
+        auth_version=1,
+        approved_by_user_id=approved_by.id,
+        approved_at=occurred_at,
+    )
+    session.add(demo)
+    session.flush()
+    _audit(
+        session,
+        target=demo,
+        actor=None,
+        event_type="REGISTERED_LOCAL",
+        occurred_at=occurred_at,
+        after_role=demo.role,
+        after_status="PENDING_APPROVAL",
+    )
+    _audit(
+        session,
+        target=demo,
+        actor=approved_by,
+        event_type="APPROVED",
+        occurred_at=occurred_at,
+        before_role=demo.role,
+        after_role=demo.role,
+        before_status="PENDING_APPROVAL",
+        after_status=demo.status,
+    )
+    return demo
+
+
+def revoke_demo_member(
+    session: Session,
+    *,
+    occurred_at: datetime,
+) -> UserAccount | None:
+    """비활성 공개 데모 계정의 세션과 알려진 자격증명을 폐기한다."""
+    _aware(occurred_at)
+    session.execute(
+        text("SELECT pg_advisory_xact_lock(:lock_key)"),
+        {"lock_key": BOOTSTRAP_DEMO_LOCK_KEY},
+    )
+    existing = session.scalar(
+        select(UserAccount)
+        .where(UserAccount.actor_ref == DEMO_ACTOR_REF)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if existing is None:
+        return None
+    if existing.role == "MEMBER" and existing.status == "SUSPENDED":
+        return existing
+
+    before_role = existing.role
+    before_status = existing.status
+    existing.role = "MEMBER"
+    existing.status = "SUSPENDED"
+    if existing.approved_by_user_id is None:
+        existing.approved_by_user_id = existing.id
+        existing.approved_at = occurred_at
+    existing.password_hash = generate_password_hash(secrets.token_urlsafe(48))
+    existing.auth_version += 1
+    if before_role != existing.role:
+        _audit(
+            session,
+            target=existing,
+            actor=None,
+            event_type="ROLE_CHANGED",
+            occurred_at=occurred_at,
+            before_role=before_role,
+            after_role=existing.role,
+            before_status=before_status,
+            after_status=existing.status,
+        )
+    if before_status != existing.status:
+        _audit(
+            session,
+            target=existing,
+            actor=None,
+            event_type="STATUS_CHANGED",
+            occurred_at=occurred_at,
+            before_role=existing.role,
+            after_role=existing.role,
+            before_status=before_status,
+            after_status=existing.status,
+        )
+    _audit(
+        session,
+        target=existing,
+        actor=None,
+        event_type="PASSWORD_CHANGED",
+        occurred_at=occurred_at,
+        after_role=existing.role,
+        after_status=existing.status,
+    )
+    return existing
+
+
+def active_demo_credentials(
+    session: Session,
+    *,
+    login_name: object,
+    public_password: object,
+) -> tuple[str, str] | None:
+    """현재 DB의 활성 최소권한 데모와 일치할 때만 공개 자격증명을 반환한다."""
+    if not isinstance(login_name, str) or not isinstance(public_password, str):
+        return None
+    try:
+        normalized = _normalize_login_name(login_name)
+        _validate_password(public_password)
+    except MembershipError:
+        return None
+    demo = session.scalar(select(UserAccount).where(UserAccount.actor_ref == DEMO_ACTOR_REF))
+    if (
+        demo is None
+        or demo.login_name != normalized
+        or demo.email != DEMO_EMAIL
+        or demo.role != "MEMBER"
+        or demo.status != "ACTIVE"
+        or demo.password_hash is None
+        or not check_password_hash(demo.password_hash, public_password)
+    ):
+        return None
+    return normalized, public_password
 
 
 def register_google_member(
@@ -359,6 +615,7 @@ def approve_pending_member(
         locked_actor is None
         or locked_actor.status != "ACTIVE"
         or locked_actor.role not in {"ADMIN", "ASSISTANT_ADMIN"}
+        or locked_actor.actor_ref == DEMO_ACTOR_REF
     ):
         raise MembershipError("회원 승인 권한이 없습니다.")
     locked = locked_accounts.get(target.id)
@@ -402,13 +659,20 @@ def change_member_role(
         target_id=target.id,
     )
     locked_actor = locked_accounts.get(actor.id)
-    if locked_actor is None or locked_actor.status != "ACTIVE" or locked_actor.role != "ADMIN":
+    if (
+        locked_actor is None
+        or locked_actor.status != "ACTIVE"
+        or locked_actor.role != "ADMIN"
+        or locked_actor.actor_ref == DEMO_ACTOR_REF
+    ):
         raise MembershipError("회원 역할 변경 권한이 없습니다.")
     if new_role not in USER_ROLES:
         raise MembershipError("허용되지 않은 회원 역할입니다.")
     locked = locked_accounts.get(target.id)
     if locked is None:
         raise MembershipError("대상 회원을 찾을 수 없습니다.")
+    if locked.actor_ref == DEMO_ACTOR_REF:
+        raise MembershipError("공개 데모 계정의 역할은 변경할 수 없습니다.")
     if locked.status != "ACTIVE":
         raise MembershipError("활성 회원의 역할만 변경할 수 있습니다.")
     if locked.role == new_role:
@@ -447,13 +711,20 @@ def change_member_status(
         target_id=target.id,
     )
     locked_actor = locked_accounts.get(actor.id)
-    if locked_actor is None or locked_actor.status != "ACTIVE" or locked_actor.role != "ADMIN":
+    if (
+        locked_actor is None
+        or locked_actor.status != "ACTIVE"
+        or locked_actor.role != "ADMIN"
+        or locked_actor.actor_ref == DEMO_ACTOR_REF
+    ):
         raise MembershipError("회원 상태 변경 권한이 없습니다.")
     if new_status not in {"PENDING_APPROVAL", "REJECTED", "SUSPENDED", "ACTIVE"}:
         raise MembershipError("허용되지 않은 회원 상태입니다.")
     locked = locked_accounts.get(target.id)
     if locked is None:
         raise MembershipError("대상 회원을 찾을 수 없습니다.")
+    if locked.actor_ref == DEMO_ACTOR_REF:
+        raise MembershipError("공개 데모 계정의 상태는 변경할 수 없습니다.")
     if locked.role == "ADMIN" and new_status != "ACTIVE" and len(active_admins) <= 1:
         raise MembershipError("마지막 활성 관리자는 정지할 수 없습니다.")
     allowed = {

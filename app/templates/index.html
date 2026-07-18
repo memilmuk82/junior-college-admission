@@ -17,7 +17,7 @@
             <span class="landing-account">{{ account.display_name }} · {{ account.role }}</span>
             <a href="{{ url_for('admin.new_consultation') }}">상담 시작</a>
             {% if account.role in ('ADMIN', 'ASSISTANT_ADMIN') %}<a href="{{ url_for('members.index') }}">회원 관리</a>{% endif %}
-            {% if account.role == 'ADMIN' %}<a href="{{ url_for('admin.rules') }}">규칙 관리</a>{% endif %}
+            {% if account.role == 'ADMIN' %}<a href="{{ url_for('admin.catalog') }}">기준정보 관리</a><a href="{{ url_for('admin.rules') }}">규칙 관리</a>{% endif %}
             <form method="post" action="{{ url_for('auth.logout') }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token|default('') }}">
               <button type="submit">로그아웃</button>

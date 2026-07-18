@@ -18,7 +18,7 @@ from flask import (
 )
 from joserfc.errors import JoseError
 from requests import RequestException
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash
 
@@ -34,6 +34,8 @@ from app.database import db
 from app.services.google_oidc import google_oidc_client, verified_google_claims
 from app.services.membership import (
     MembershipError,
+    RegistrationConflict,
+    active_demo_credentials,
     authenticate_local_member,
     register_google_member,
     register_local_member,
@@ -96,12 +98,25 @@ def login_view() -> Any:
         if current_app.config.get("DATABASE_URL"):
             database_session.rollback()
         error = "로그인 정보를 확인하세요."
+    demo_credentials: tuple[str, str] | None = None
+    if current_app.config.get("DATABASE_URL"):
+        database_session = cast(Session, db.session)
+        try:
+            demo_credentials = active_demo_credentials(
+                database_session,
+                login_name=current_app.config.get("DEMO_LOGIN_NAME"),
+                public_password=current_app.config.get("DEMO_PUBLIC_PASSWORD"),
+            )
+        except SQLAlchemyError:
+            database_session.rollback()
     return _private(
         render_template(
             "auth_login.html",
             csrf_token=csrf_token(),
             error=error,
             google_enabled=bool(current_app.config.get("GOOGLE_OIDC_ENABLED")),
+            demo_login_name=None if demo_credentials is None else demo_credentials[0],
+            demo_public_password=None if demo_credentials is None else demo_credentials[1],
             next=requested_next or "",
         ),
         401 if error else 200,
@@ -132,8 +147,12 @@ def register() -> Any:
                 requested_role=request.form.get("role"),
                 requested_status=request.form.get("status"),
                 occurred_at=datetime.now(UTC),
+                reserved_login_name=current_app.config.get("DEMO_LOGIN_NAME"),
             )
             database_session.commit()
+            return redirect(url_for("auth.registration_received"))
+        except RegistrationConflict:
+            database_session.rollback()
             return redirect(url_for("auth.registration_received"))
         except MembershipError as error:
             database_session.rollback()

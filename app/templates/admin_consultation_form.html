@@ -7,16 +7,17 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   </head>
   <body class="admin-page consultation-page">
-    <header class="admin-header"><div><p class="admin-eyebrow">CONSULTATION</p><a href="{{ url_for('admin.rules') }}">규칙 관리자</a></div><span>{{ actor_ref }}</span></header>
+    <header class="admin-header"><div><p class="admin-eyebrow">CONSULTATION</p>{% if demo_mode %}<a href="{{ url_for('main.index') }}">처음 화면</a>{% else %}<a href="{{ url_for('admin.rules') }}">규칙 관리자</a>{% endif %}</div><span>{{ actor_ref }}</span></header>
     <main class="admin-shell consultation-shell">
-      <a class="admin-back" href="{{ url_for('admin.rules') }}">← 규칙 검수 대기열</a>
+      <a class="admin-back" href="{{ url_for('main.index') }}">← 처음 화면</a>
+      {% if demo_mode %}<div class="demo-banner" role="status"><strong>합성 데이터 전용 체험</strong><span>가상 학생·대학·규칙만 사용하며 입력한 상담 메모는 저장하지 않습니다.</span></div>{% endif %}
       <div class="admin-heading"><div><h1>단계형 상담 시작</h1><p>학생 사실 → 지원자격 → 성적 범위 → 계산 순서를 서버에서 강제합니다.</p></div><span class="step-indicator">1 / 3 입력</span></div>
       {% if errors %}<div class="admin-alert" role="alert"><h2>입력을 확인하세요</h2><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
       {% if not targets %}<div class="admin-alert" role="status"><h2>상담 가능한 게시 규칙이 없습니다</h2><p>지원자격·성적 범위·성적 계산 규칙이 모두 게시된 전형만 표시합니다.</p></div>{% endif %}
       <form method="post" class="consultation-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <section class="admin-section" aria-labelledby="consultation-target"><div class="admin-section__heading"><h2 id="consultation-target">1. 상담 대상</h2><span>익명 코드만 입력</span></div><div class="admin-edit-grid">
-          <label for="student_id">내부 익명 학생 코드<input id="student_id" name="student_id" maxlength="120" required value="{{ values.student_id }}" autocomplete="off"></label>
+          <label for="student_id">내부 익명 학생 코드<input id="student_id" name="student_id" maxlength="120" required value="{{ values.student_id }}" autocomplete="off" {% if demo_mode %}readonly{% endif %}></label>
           <label for="admission_track_id">대학·학과·전형<select id="admission_track_id" name="admission_track_id" required><option value="">선택하세요</option>{% for target in targets %}<option value="{{ target.admission_track_id }}" {% if values.admission_track_id == target.admission_track_id %}selected{% endif %}>{{ target.academic_year }} · {{ target.institution_name }} {{ target.campus_name }} · {{ target.program_name }} · {{ target.admission_round_name }} {{ target.admission_track_name }}</option>{% endfor %}</select></label>
           <label for="admission_result_year">과거 입시결과 기준연도(선택)<input id="admission_result_year" name="admission_result_year" type="number" min="2000" max="2100" value="{{ values.admission_result_year }}"><small>같은 업무키의 게시 자료만 조회하며 규칙 버전이 다르면 참고로만 표시합니다.</small></label>
         </div></section>

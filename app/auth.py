@@ -15,7 +15,14 @@ from sqlalchemy.orm import Session
 
 from app.database import db
 from app.models import UserAccount
-from app.services.membership import MembershipError, bootstrap_admin
+from app.services.membership import (
+    DEMO_ACTOR_REF,
+    DemoAccountConflict,
+    MembershipError,
+    bootstrap_admin,
+    bootstrap_demo_member,
+    revoke_demo_member,
+)
 
 
 def csrf_token() -> str:
@@ -114,7 +121,8 @@ def roles_required(
                 return redirect(url_for(login_endpoint, next=next_path))
             if user.status != "ACTIVE":
                 return redirect(url_for("auth.pending"))
-            if roles and user.role not in roles:
+            effective_role = "MEMBER" if user.actor_ref == DEMO_ACTOR_REF else user.role
+            if roles and effective_role not in roles:
                 abort(403)
             return view(*args, **kwargs)
 
@@ -128,11 +136,26 @@ admin_required = roles_required("ADMIN")
 approval_required = roles_required("ADMIN", "ASSISTANT_ADMIN", allow_legacy=False)
 
 
+def is_demo_user(user: UserAccount | None = None) -> bool:
+    resolved = session_user() if user is None else user
+    return resolved is not None and resolved.actor_ref == DEMO_ACTOR_REF
+
+
+def non_demo_required(view: Callable[..., Any]) -> Callable[..., Any]:
+    @wraps(view)
+    def wrapped(*args: Any, **kwargs: Any) -> Any:
+        if is_demo_user():
+            abort(403)
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
 def post_login_destination(user: UserAccount, requested_next: str | None = None) -> str:
     candidate = safe_next(requested_next)
     if candidate:
         return candidate
-    if user.role == "ADMIN":
+    if user.actor_ref != DEMO_ACTOR_REF and user.role == "ADMIN":
         return url_for("admin.rules")
     return url_for("admin.new_consultation")
 
@@ -162,5 +185,68 @@ def register_auth_cli(app: Flask) -> None:
             database_session.rollback()
             raise click.ClickException(str(error)) from error
         click.echo("관리자 계정 부트스트랩 확인 완료")
+
+    @group.command("bootstrap-demo")
+    def bootstrap_demo_command() -> None:
+        """구성된 공개 데모 MEMBER를 멱등 생성한다."""
+        login_name = current_app.config.get("DEMO_LOGIN_NAME")
+        public_password = current_app.config.get("DEMO_PUBLIC_PASSWORD")
+        login_configured = isinstance(login_name, str) and bool(login_name.strip())
+        password_configured = isinstance(public_password, str) and bool(public_password)
+        if not login_configured and not password_configured:
+            if not current_app.config.get("DATABASE_URL"):
+                click.echo("공개 데모 계정 비활성")
+                return
+            database_session = cast(Session, db.session)
+            try:
+                revoked = revoke_demo_member(
+                    database_session,
+                    occurred_at=datetime.now(UTC),
+                )
+                database_session.commit()
+            except MembershipError as error:
+                database_session.rollback()
+                raise click.ClickException(str(error)) from error
+            if revoked is None:
+                click.echo("공개 데모 계정 비활성")
+            else:
+                click.echo("기존 공개 데모 계정 해제 완료")
+            return
+        if not login_configured or not password_configured:
+            raise click.ClickException("공개 데모 계정 설정이 불완전합니다.")
+        assert isinstance(login_name, str) and isinstance(public_password, str)
+        if not current_app.config.get("DATABASE_URL"):
+            raise click.ClickException("공개 데모 계정용 데이터베이스 설정이 없습니다.")
+        database_session = cast(Session, db.session)
+        admin = (
+            database_session.query(UserAccount)
+            .filter_by(role="ADMIN", status="ACTIVE")
+            .order_by(UserAccount.id)
+            .first()
+        )
+        if admin is None:
+            raise click.ClickException("공개 데모 계정을 승인할 활성 관리자가 없습니다.")
+        try:
+            bootstrap_demo_member(
+                database_session,
+                login_name=login_name,
+                public_password=public_password,
+                approved_by=admin,
+                occurred_at=datetime.now(UTC),
+            )
+            database_session.commit()
+        except DemoAccountConflict:
+            database_session.rollback()
+            revoke_demo_member(
+                database_session,
+                occurred_at=datetime.now(UTC),
+            )
+            database_session.commit()
+            click.echo("공개 데모 계정 충돌로 데모만 비활성 상태를 유지합니다.")
+            return
+        except MembershipError as error:
+            database_session.rollback()
+            raise click.ClickException(str(error)) from error
+        click.echo("공개 데모 계정 부트스트랩 확인 완료")
 
     app.cli.add_command(group)

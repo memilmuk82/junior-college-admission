@@ -136,6 +136,7 @@ production-origin-rollback-app:
 	test "$(ROLLBACK_DATABASE_RESTORE_CONFIRMED)" = "RESTORED_AND_VERIFIED"
 	test -n "$(ROLLBACK_APP_IMAGE)"
 	test -n "$(ROLLBACK_APP_IMAGE_ID)"
+	COMPOSE_FILE=docker-compose.production.yml COMPOSE_OVERRIDE_FILE=docker-compose.host-nginx.yml COMPOSE_ENV_FILE="$(PRODUCTION_ENV_FILE)" DB_SERVICE=db-production METRICS_SQL=deploy/postgres_demo_rollback_gate.sql ./scripts/collect_postgres_metrics.sh > /dev/null
 	@actual_id=$$(docker image inspect --format '{{.Id}}' "$(ROLLBACK_APP_IMAGE)"); \
 		test "$$actual_id" = "$(ROLLBACK_APP_IMAGE_ID)"
 	PRODUCTION_BOOTSTRAP_ADMIN_ON_STARTUP=0 PRODUCTION_APP_IMAGE="$(ROLLBACK_APP_IMAGE)" docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml --env-file $(PRODUCTION_ENV_FILE) up -d --no-build --no-deps --wait web-production

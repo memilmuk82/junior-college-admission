@@ -241,6 +241,20 @@ def evaluate_eligibility_for_verification(
     return _evaluate_eligibility_payload(facts, rule)
 
 
+def evaluate_synthetic_demo_eligibility(
+    facts: StudentFacts, rule: EligibilityRule
+) -> EligibilityDecision:
+    """공식 게시 규칙과 섞이지 않는 명시적 합성 데모 규칙만 평가한다."""
+    if (
+        rule.lifecycle_status != "DEMO_SYNTHETIC"
+        or not rule.rule_id.startswith("demo-synthetic-")
+        or rule.source_citation_id is not None
+        or rule.human_approved_at is not None
+    ):
+        raise UnusableEligibilityRule("합성 데모 전용 규칙 계약이 유효하지 않습니다.")
+    return _evaluate_eligibility_payload(facts, rule)
+
+
 def _evaluate_eligibility_payload(
     facts: StudentFacts, rule: EligibilityRule
 ) -> EligibilityDecision:
@@ -666,6 +680,7 @@ __all__ = [
     "UnusableEligibilityRule",
     "evaluate_eligibility",
     "evaluate_eligibility_for_verification",
+    "evaluate_synthetic_demo_eligibility",
     "require_score_calculation_allowed",
     "validate_eligibility_rule_payload",
 ]

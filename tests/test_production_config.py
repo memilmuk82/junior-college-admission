@@ -341,3 +341,52 @@ def test_google_oidc_environment_contract_contains_no_committed_credentials() ->
     assert "GOOGLE_OIDC_CLIENT_SECRET_FILE: /run/secrets/google_oidc_client_secret" in oidc_override
     assert "GOOGLE_OIDC_CLIENT_ID:" not in oidc_override
     assert "GOOGLE_OIDC_CLIENT_SECRET:" not in oidc_override
+
+
+def test_public_demo_account_is_optional_and_bootstrapped_before_server_start() -> None:
+    example = Path(".env.example").read_text(encoding="utf-8")
+    environment = dict(
+        line.split("=", 1)
+        for line in example.splitlines()
+        if line and not line.startswith("#") and "=" in line
+    )
+    for name in (
+        "DEMO_LOGIN_NAME",
+        "DEMO_PUBLIC_PASSWORD",
+        "ALPHA_DEMO_LOGIN_NAME",
+        "ALPHA_DEMO_PUBLIC_PASSWORD",
+        "BETA_DEMO_LOGIN_NAME",
+        "BETA_DEMO_PUBLIC_PASSWORD",
+    ):
+        assert environment[name] == ""
+
+    for compose_file in (
+        "docker-compose.alpha.yml",
+        "docker-compose.beta.yml",
+        "docker-compose.production.yml",
+    ):
+        compose = Path(compose_file).read_text(encoding="utf-8")
+        assert "auth bootstrap-demo" in compose
+        assert compose.index("auth bootstrap-admin") < compose.index("auth bootstrap-demo")
+        assert compose.index("auth bootstrap-demo") < compose.index("gunicorn")
+        assert "DEMO_LOGIN_NAME:" in compose
+        assert "DEMO_PUBLIC_PASSWORD:" in compose
+
+    production_compose = Path("docker-compose.production.yml").read_text(encoding="utf-8")
+    assert "0) true ;;" in production_compose
+    makefile = Path("Makefile").read_text(encoding="utf-8")
+    rollback = makefile.split("production-origin-rollback-app:", 1)[1].split(
+        "production-origin-backup:", 1
+    )[0]
+    rollback_gate = "deploy/postgres_demo_rollback_gate.sql"
+    assert f"METRICS_SQL={rollback_gate}" in rollback
+    gate_sql = Path(rollback_gate).read_text(encoding="utf-8")
+    assert "to_regclass('public.user_accounts')" in gate_sql
+    assert "actor_ref = $1 AND status = $2" in gate_sql
+    assert "USING 'demo:public', 'ACTIVE'" in gate_sql
+    assert rollback.index(rollback_gate) < rollback.index("PRODUCTION_BOOTSTRAP_ADMIN_ON_STARTUP")
+
+    readme = Path("README.md").read_text(encoding="utf-8")
+    assert "demo-teacher" in readme
+    assert "DemoTeacher2027!" in readme
+    assert "모두 합성 예시" in readme

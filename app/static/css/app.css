@@ -1026,6 +1026,58 @@ body {
   line-height: 1.55;
 }
 
+.demo-credentials,
+.demo-banner {
+  border: 1px solid #67e8f9;
+  border-radius: 0.9rem;
+  background: #ecfeff;
+  color: #164e63;
+  padding: 1rem;
+}
+
+.demo-credentials {
+  margin: 1.25rem 0;
+}
+
+.demo-credentials h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.demo-credentials p {
+  margin: 0 0 0.75rem;
+}
+
+.demo-credentials dl,
+.demo-credentials dl div {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.demo-credentials dl {
+  gap: 0.5rem;
+}
+
+.demo-credentials dl div {
+  grid-template-columns: 5rem 1fr;
+}
+
+.demo-credentials dt {
+  font-weight: 700;
+}
+
+.demo-credentials dd {
+  margin: 0;
+}
+
+.demo-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  margin-bottom: 1rem;
+}
+
 .auth-links {
   display: flex;
   flex-wrap: wrap;

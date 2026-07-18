@@ -14,6 +14,11 @@ from app.services.application_policies import (
     evaluate_disqualification,
     evaluate_multiple_application,
 )
+from app.services.consultation_forms import parse_consultation_form
+from app.services.demo_consultations import (
+    DEMO_CONSULTATION_DEFAULTS,
+    run_demo_consultation,
+)
 from app.services.published_rules import PublishedRule
 
 
@@ -252,3 +257,25 @@ def test_disqualification_rules_reject_eligibility_facts_and_statuses(
             facts=SensitiveDisqualificationFacts({"flag": True}),
             rule=_published_rule(payload),
         )
+
+
+def test_synthetic_demo_reuses_eligibility_first_and_score_engines_without_database() -> None:
+    eligible_form = parse_consultation_form(DEMO_CONSULTATION_DEFAULTS)
+    assert eligible_form.request is not None
+    eligible = run_demo_consultation(eligible_form.request)
+
+    assert eligible.status.value == "READY"
+    assert eligible.eligibility.reason_code == "DEMO_GENERAL_ALLOWED"
+    assert eligible.score is not None
+    assert str(eligible.score.display_score) == "1.75"
+    assert eligible.admission_result.result is not None
+    assert str(eligible.admission_result.result.competition_rate) == "3.00"
+
+    blocked_values = {**DEMO_CONSULTATION_DEFAULTS, "final_school_type": "VOCATIONAL"}
+    blocked_form = parse_consultation_form(blocked_values)
+    assert blocked_form.request is not None
+    blocked = run_demo_consultation(blocked_form.request)
+
+    assert blocked.status.value == "ELIGIBILITY_BLOCKED"
+    assert blocked.score is None
+    assert blocked.score_input is None
