@@ -2,9 +2,9 @@
 
 - 기준일: 2026-07-19
 - 현재 단계: Phase 14 엑셀 업무 흐름 중심 재구축
-- 단계 판정: `PASS_NONPROD_PHASE_14` — 공개 계산·실제 공개 데이터·연도 import·계정 저장 경계와 독립 브라우저 검증 완료, 운영 배포 확인 전
-- 현재 작업: Phase 14 전체 diff·민감자료 검토와 운영 백업·migration·웹 재배포
-- 다음 게이트: 커밋·원격 push 후 기존 PostgreSQL 보존 배포, 공인 HTTPS 공개 흐름 smoke
+- 단계 판정: `LIVE_VERIFIED_PHASE_14` — 공개 계산·실제 공개 데이터·연도 import·계정 저장 경계와 독립 검증, PostgreSQL 보존 배포와 공인 HTTPS smoke 완료
+- 현재 작업: Phase 14 구현·운영 배포 완료
+- 다음 게이트: 실제 상담 피드백 관찰과 추가 대학 공식 규칙의 관리자 최종확인
 
 ## 저장소 인벤토리
 
@@ -298,4 +298,16 @@ Phase 12 회귀는 단위 290건, PostgreSQL 통합 127건과 합성 백업·격
 
 동양미래대학교 호텔관광학과 대표 흐름에서 합성 예시의 첫 성적을 수정한 결과는 1.71등급이었고, `영어Ⅰ` 석차등급을 1에서 9로 바꾸면 2.00등급으로 변경됐다. 같은 화면에 2025 평균 5.7000, 최저 6.3000, 경쟁률 8.4000, 모집인원 47과 계산 trace가 표시됐다. 공식 범위가 확인되지 않은 전형은 가상 산식 대신 `계산 기준 준비 중` 또는 `NEEDS_REVIEW`로 표시한다.
 
-익명 입력은 계정 학생 성적 테이블에 저장하지 않고 새 계산·완료 시 즉시 삭제하며 production 앱의 5분 주기 정리 loop가 30분 만료 자료를 트래픽 없이도 삭제한다. 학생은 본인 소유 자료만, 교사는 자신이 관리하는 자료만 다루며 관리자는 회원 승인·공개 데이터 import·규칙 최종확인을 담당한다. 운영 이미지·migration·공인 URL 결과는 배포 뒤 이 절에 추가한다.
+익명 입력은 계정 학생 성적 테이블에 저장하지 않고 새 계산·완료 시 즉시 삭제하며 production 앱의 5분 주기 정리 loop가 30분 만료 자료를 트래픽 없이도 삭제한다. 학생은 본인 소유 자료만, 교사는 자신이 관리하는 자료만 다루며 관리자는 회원 승인·공개 데이터 import·규칙 최종확인을 담당한다.
+
+### Phase 14 운영 배포
+
+- Compose 프로젝트: `junior-college-admission-live`; `web-production`만 재빌드·재생성했으며 `db-production` 컨테이너와 PostgreSQL volume은 유지했다.
+- 배포 전 백업: `admission_20260719_015836_2852233.dump`, SHA-256 `49a88630e5ab6629f222b7198ddd42e7e49c878f81b1c76826f984f6f216b44a`; archive 검사와 network-none/tmpfs 격리 복원 통과.
+- migration: `6c1a2e9f4b73 → 2f8a4c6e91d3 (head)`; 기존 계정 2건과 학생 성적 0건을 보존했다.
+- rollback 이미지: `sha256:7e9f1d0e130c8d9131dadcdaeb683520409c7269775f8aea1162630d9603a3d1`; 최종 이미지: `sha256:74edf6f9e007cfc70c5f1ff58f4a2177ebee40a902b8768d8928fbfdd83ae19c`.
+- 첫 재빌드에서 새 파일의 런타임 읽기 권한이 부족해 health가 실패했다. 성공으로 기록하지 않고 Dockerfile에 공개 seed 포함과 비루트 읽기 권한을 명시한 뒤 재빌드해 `healthy`를 확인했다.
+- 운영 공개 dataset: 2025 결과·2027 상담 대상, `PUBLISHED 482/482`; 대학 4곳·학과 128개이며 기존 원본이나 학생 성적 시트 값은 게시하지 않았다.
+- `https://admission.memilmuk82.com`에서 TLS·health·보안 헤더, loopback health, 공개 Chromium 3건, JavaScript 비활성, 390px, 학생·교사 A4, 결과 변화 `1.71→2.00`, 완료 후 임시 세션 404 삭제와 console/page error 0건을 확인했다.
+- 운영 관리자 자격으로 import SSR 화면 접근을 비밀값 출력 없이 확인했다. CSV/XLSX 게시 변경은 격리 PostgreSQL Playwright 2건으로 검증해 live에 합성 dataset을 추가하지 않았다.
+- 최종 웹 로그에서 5xx·traceback·fatal 패턴은 0건이며 DB와 웹 컨테이너가 모두 `healthy`다.

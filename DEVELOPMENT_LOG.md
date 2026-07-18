@@ -17,6 +17,12 @@
 - production web 프로세스에 5분 주기 익명 자료 정리 loop를 두어 요청이 없어도 30분 TTL을 집행한다.
 - 독립 Chromium에서 예시 수정 1.71→2.00, 실제 과거 결과, 학생용·교사용 A4, 완료 삭제, 무JavaScript, 390px, console/page error 0건을 확인했다. 관리자 import는 2027→2028 CSV 게시와 기준 XLSX 3,470행 검수를 확인했다.
 - 단위 337건, PostgreSQL 통합 140건과 격리 백업·복원, Ruff·포맷·mypy, 규칙, 민감자료 검사를 통과했다. 운영 배포 결과는 배포 기록 커밋에서 별도로 남긴다.
+- 구현 커밋 `03cd951`과 운영 이미지 권한 보완 커밋 `42c0a03`을 `origin/main`에 push했다. 첫 운영 재빌드는 새 Python 파일의 비루트 읽기 권한 부족으로 health가 실패해 성공으로 기록하지 않았고, 공개 seed를 이미지에 포함하고 `/app/app`·`/app/data`·`/app/migrations` 읽기 권한을 명시해 재배포했다.
+- 운영 전 `admission_20260719_015836_2852233.dump` 백업을 만들고 SHA-256 `49a88630e5ab6629f222b7198ddd42e7e49c878f81b1c76826f984f6f216b44a`, archive, network-none/tmpfs 격리 복원을 검증했다. 기존 migration은 `6c1a2e9f4b73`, 계정은 2건, 학생 성적은 0건이었다.
+- `junior-college-admission-live`의 DB 컨테이너와 volume은 유지하고 web만 최종 이미지 `sha256:74edf6f9e007cfc70c5f1ff58f4a2177ebee40a902b8768d8928fbfdd83ae19c`로 교체했다. 이전 이미지 `sha256:7e9f1d0e130c8d9131dadcdaeb683520409c7269775f8aea1162630d9603a3d1`은 rollback 태그로 보존했다.
+- live DB를 `2f8a4c6e91d3 (head)`로 올리고 2025 결과·2027 상담 대상 공개 dataset 482행을 게시했다. 기존 계정 2건과 학생 성적 0건은 보존됐고 대학 4곳·학과 128개·게시 import 행 482건을 확인했다.
+- 공인 HTTPS TLS·health·보안 헤더와 loopback health를 통과했다. 운영 Chromium에서 익명 실제 데이터 계산, `1.71→2.00` 결과 변화, 학생·교사 A4, 완료 삭제, JavaScript 비활성, 390px와 console/page error 0건을 확인했고 관리자 import SSR 접근 smoke도 통과했다.
+- 최종 web 로그의 5xx·traceback·fatal 패턴은 0건이며 web·DB health는 모두 정상이다. 운영 import에서 합성 변경을 만들지 않았고 CSV/XLSX 게시 수직 흐름은 격리 PostgreSQL E2E 2건으로 검증했다.
 
 ## 2026-07-10 · Phase 0
 
