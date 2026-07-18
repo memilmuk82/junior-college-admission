@@ -214,7 +214,7 @@
 - `make validate-rules`와 `make check-sensitive-data`를 통과했고 독립 보안 검증은 `APPROVE`로 판정됐다.
 - Playwright에서 데스크톱과 390px JavaScript 비활성 흐름, 비로그인·일반 회원·관리자 경계, 기준정보 5단계 등록, 브라우저 console·page error 0건을 확인했다. PostgreSQL에는 합성 두 세트의 기준정보가 각 5종 저장되고 관련 게시 규칙은 0건이었다.
 - `make lint`는 작업 트리를 바꾸지 않았으며 Phase 12 허용 범위 밖인 `scripts/check_google_oidc_https.py`, `scripts/check_production_https.py`의 import 정렬 2건 때문에 실패했다. 성공으로 기록하지 않고 후속 범위에서 해소한다.
-- 검증된 변경을 한국어 커밋 `a55e679`로 `main`과 `origin/main`에 동기화하고 원격 commit ID 일치를 확인했다.
+- 구현 변경 커밋 `a55e679`를 `main`과 `origin/main` 이력에 동기화했으며, 운영 결과는 후속 문서 커밋에 반영했다.
 - 새 live custom-format 백업 `admission_20260718_120856_3870618.dump`의 SHA-256·archive·manifest와 network-none/tmpfs 격리 복원을 검증했다. 복원 source migration은 `e51f0b24c8aa`, 공개 테이블은 35개였다.
 - 기존 web 이미지 `sha256:0cc429…a2466`을 `rollback-f0ef03c-20260718`로 보존하고 신규 이미지 `sha256:5106fe…0d6c2`를 빌드했다.
 - 승인된 운영 전환으로 live DB를 `e51f0b24c8aa → 6c1a2e9f4b73`으로 migration하고 신규 web 컨테이너 health와 `127.0.0.1:8000` 바인딩을 확인했다.

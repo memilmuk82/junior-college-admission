@@ -258,7 +258,7 @@ Phase 12 회귀는 단위 290건, PostgreSQL 통합 127건과 합성 백업·격
 
 `make lint`는 작업 트리를 변경하지 않았고 Phase 12 허용 범위 밖인 `scripts/check_google_oidc_https.py`, `scripts/check_production_https.py`의 import 정렬 2건 때문에 실패했다. 이 검사는 성공으로 기록하지 않는다.
 
-검증된 변경은 `main`과 `origin/main`의 `a55e679a90492c431f7b7dff680f3b8099307b59`로 동기화했다. 운영 직전 `backups/production/admission_20260718_120856_3870618.dump`를 생성해 SHA-256 `6f05d0a890bde0d82ba1b6360918ba61022177c66400bc9644af80ec033e58e2`, archive, network-none/tmpfs 격리 복원을 검증했다. 이전 이미지는 `sha256:0cc429511fca2a8b99d24986f111eaf287242714070e1ff39b8633cf9f4a2466`과 `rollback-f0ef03c-20260718` 태그로 보존했다.
+구현 커밋 `a55e679a90492c431f7b7dff680f3b8099307b59`는 `main`과 `origin/main` 이력에 동기화했으며, 운영 결과는 후속 문서 커밋에 반영했다. 운영 직전 `backups/production/admission_20260718_120856_3870618.dump`를 생성해 SHA-256 `6f05d0a890bde0d82ba1b6360918ba61022177c66400bc9644af80ec033e58e2`, archive, network-none/tmpfs 격리 복원을 검증했다. 이전 이미지는 `sha256:0cc429511fca2a8b99d24986f111eaf287242714070e1ff39b8633cf9f4a2466`과 `rollback-f0ef03c-20260718` 태그로 보존했다.
 
 신규 이미지 `sha256:5106fec82bbe9f703cd615312bde5671fd38855b50acab19884a95048cc0d6c2`로 web을 교체하고 live DB를 `e51f0b24c8aa → 6c1a2e9f4b73`으로 적용했다. Docker health, `127.0.0.1:8000` loopback, origin/public health, Cloudflare HTTPS, HTTP redirect, TLS, CSP·HSTS·nosniff·frame·referrer 헤더, host Nginx 설정과 active 상태를 확인했다. 운영 Playwright 3건과 Phase 12 비파괴 smoke에서 관리자 catalog 5개 SSR 폼·친화적 400 오류·모바일·무JavaScript, 비로그인 redirect, 데모 MEMBER 합성 상담·catalog 403, console/page error 0건을 확인했다. 최근 web·전용 Nginx 로그의 5xx·fatal·query·비밀값·학생 PII 패턴은 0건이다.
 

@@ -69,7 +69,7 @@
 
 ## 릴리스·운영 검증
 
-- [x] `main`·`origin/main`을 `a55e679a90492c431f7b7dff680f3b8099307b59`로 동기화
+- [x] 구현 커밋 `a55e679a90492c431f7b7dff680f3b8099307b59`를 `main`·`origin/main` 이력에 동기화하고 운영 결과를 후속 문서 커밋에 반영
 - [x] 새 live custom-format 백업·SHA-256·archive·manifest·network-none/tmpfs 격리 복원
 - [x] 이전 image ID·rollback 태그 보존과 production 이미지 재빌드
 - [x] 승인된 live migration `e51f0b24c8aa → 6c1a2e9f4b73`과 web 교체
