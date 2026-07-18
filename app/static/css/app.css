@@ -93,6 +93,21 @@ body {
 .consultation-form small, .form-help { color: #64748b; font-size: .78rem; font-weight: 500; line-height: 1.5; }
 .consultation-note { display: grid; gap: 8px; color: #364458; font-size: .82rem; font-weight: 750; }
 .consultation-note textarea { width: 100%; min-height: 110px; padding: 12px; border: 1px solid #aeb9c8; font: inherit; resize: vertical; }
+.program-picker { display: grid; gap: .8rem; margin-top: 1rem; }
+.program-picker__tools { display: grid; grid-template-columns: minmax(15rem, 1fr) auto auto; gap: .75rem; align-items: end; }
+.program-group { padding: .8rem; border: 1px solid #d8dee8; border-radius: .75rem; }
+.program-group legend { padding: 0 .35rem; font-weight: 700; }
+.program-option { display: flex; gap: .6rem; align-items: flex-start; padding: .55rem; border-radius: .5rem; }
+.program-option[hidden], .program-group[hidden] { display: none !important; }
+.program-option:hover { background: #f4f7fb; }
+.program-option span { display: grid; gap: .15rem; }
+.program-option small, .consultation-result-table small { display: block; margin-top: .2rem; color: #526174; }
+.consultation-result-table { min-width: 86rem; }
+.consultation-evidence-card { padding: 1rem 0; border-top: 1px solid #d8dee8; }
+.consultation-evidence-card:first-of-type { border-top: 0; }
+.consultation-evidence-card h3 { margin: 0 0 .5rem; }
+.print-results { font-size: .82rem; }
+.print-break-avoid { break-inside: avoid; }
 .consultation-summary { display: grid; grid-template-columns: repeat(3, 1fr); margin: 22px 0; border: 1px solid #d8dee8; background: #fff; }
 .consultation-summary > div { display: grid; gap: 6px; min-width: 0; padding: 18px; border-right: 1px solid #e2e8f0; }
 .consultation-summary > div:last-child { border-right: 0; }
@@ -138,6 +153,7 @@ body {
 .print-disclaimer { margin-top: 9mm; padding-top: 4mm; border-top: 1px solid #94a3b8; color: #475569; font-size: 8pt; }
 @media (max-width: 760px) { .admin-facts { grid-template-columns: 1fr; } .admin-header { align-items: flex-start; } .admin-heading { display: block; } }
 @media (max-width: 760px) { .consultation-summary, .print-metrics, .ai-draft-form { grid-template-columns: 1fr; } .consultation-summary > div, .print-metrics > div { border-right: 0; border-bottom: 1px solid #e2e8f0; } .consultation-summary > div:last-child, .print-metrics > div:last-child { border-bottom: 0; } .print-toolbar { display: grid; } }
+@media (max-width: 760px) { .program-picker__tools { grid-template-columns: 1fr; } }
 
 .review-page {
   min-width: 320px;

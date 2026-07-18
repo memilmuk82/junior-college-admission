@@ -7,21 +7,19 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
-from app.services.consultations import (
-    AdmissionResultComparisonStatus,
-    ConsultationResult,
-)
+from app.services.consultations import BatchConsultationResult, ConsultationResult
 
-ANONYMOUS_PAYLOAD_SCHEMA_VERSION = 1
-TOP_LEVEL_KEYS = frozenset(
+ANONYMOUS_PAYLOAD_SCHEMA_VERSION = 2
+TOP_LEVEL_KEYS = frozenset({"schema_version", "academic_year", "results"})
+RESULT_KEYS = frozenset(
     {
-        "schema_version",
-        "consultation_status",
+        "item_status",
         "target",
         "eligibility",
-        "score",
+        "average_grade",
         "admission_result",
         "evidence",
+        "warnings",
     }
 )
 TARGET_KEYS = frozenset(
@@ -35,27 +33,24 @@ TARGET_KEYS = frozenset(
     }
 )
 ELIGIBILITY_KEYS = frozenset({"status", "reason_code", "missing_fact_names", "rule_version"})
-SCORE_KEYS = frozenset(
+AVERAGE_GRADE_KEYS = frozenset(
     {
-        "final_score",
-        "display_score",
-        "maximum_score",
+        "unrounded_average_grade",
+        "final_average_grade",
+        "display_average_grade",
+        "grade_scale",
         "rule_version",
+        "weighting_mode",
         "rounding_mode",
         "rounding_scale",
-        "non_predictive_components",
     }
 )
 ADMISSION_RESULT_KEYS = frozenset(
     {
         "status",
         "academic_year",
-        "applicant_count",
-        "admitted_count",
         "competition_rate",
-        "highest_score",
-        "average_score",
-        "lowest_score",
+        "average_grade",
         "score_basis",
         "publication_version",
     }
@@ -74,49 +69,25 @@ class AnonymousConsultationPayload:
 
 
 def build_anonymous_consultation_payload(
-    result: ConsultationResult,
+    result: ConsultationResult | BatchConsultationResult,
 ) -> AnonymousConsultationPayload:
+    if isinstance(result, BatchConsultationResult):
+        academic_year = result.academic_year
+        rows = [_batch_item_payload(item) for item in result.items]
+    else:
+        academic_year = result.target.academic_year
+        rows = [_consultation_result_payload(result)]
     data: dict[str, Any] = {
         "schema_version": ANONYMOUS_PAYLOAD_SCHEMA_VERSION,
-        "consultation_status": result.status.value,
-        "target": {
-            "academic_year": result.target.academic_year,
-            "institution_name": result.target.institution_name,
-            "campus_name": result.target.campus_name,
-            "program_name": result.target.program_name,
-            "admission_round_name": result.target.admission_round_name,
-            "admission_track_name": result.target.admission_track_name,
-        },
-        "eligibility": {
-            "status": result.eligibility.status.value,
-            "reason_code": result.eligibility.reason_code,
-            "missing_fact_names": list(result.eligibility.missing_facts),
-            "rule_version": result.eligibility.trace.rule_version,
-        },
-        "score": _score_payload(result),
-        "admission_result": _admission_result_payload(result),
-        "evidence": [
-            {
-                "rule_kind": item.rule_kind,
-                "rule_version": item.rule_version,
-                "document_type": item.document_type,
-                "document_status": item.document_status,
-                "page_number": item.page_number,
-            }
-            for item in result.evidence
-        ],
+        "academic_year": academic_year,
+        "results": rows,
     }
-    canonical_json = json.dumps(
-        data,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
+    canonical_json = json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return AnonymousConsultationPayload(
-        schema_version=ANONYMOUS_PAYLOAD_SCHEMA_VERSION,
-        data=data,
-        canonical_json=canonical_json,
-        digest=hashlib.sha256(canonical_json.encode("utf-8")).hexdigest(),
+        ANONYMOUS_PAYLOAD_SCHEMA_VERSION,
+        data,
+        canonical_json,
+        hashlib.sha256(canonical_json.encode("utf-8")).hexdigest(),
     )
 
 
@@ -133,31 +104,130 @@ def validated_payload_copy(payload: AnonymousConsultationPayload) -> dict[str, A
     if not isinstance(parsed, dict) or parsed != payload.data:
         raise ValueError("AI payload data가 canonical JSON과 다릅니다.")
     canonical = json.dumps(parsed, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    if not hmac.compare_digest(canonical.encode("utf-8"), payload.canonical_json.encode("utf-8")):
+    if not hmac.compare_digest(canonical.encode(), payload.canonical_json.encode()):
         raise ValueError("AI payload JSON이 canonical 형식이 아닙니다.")
     _validate_payload_keys(parsed)
     return parsed
 
 
+def _batch_item_payload(item: Any) -> dict[str, Any]:
+    if item.result is not None:
+        return _consultation_result_payload(item.result)
+    target = None
+    if item.target is not None:
+        target = _target_payload(item.target)
+    else:
+        target = {
+            "academic_year": item.program.academic_year,
+            "institution_name": item.program.institution_name,
+            "campus_name": item.program.campus_name,
+            "program_name": item.program.program_name,
+            "admission_round_name": None,
+            "admission_track_name": None,
+        }
+    return {
+        "item_status": item.status.value,
+        "target": target,
+        "eligibility": None,
+        "average_grade": None,
+        "admission_result": {"status": "NOT_AVAILABLE"},
+        "evidence": [],
+        "warnings": [f"ITEM_{item.status.value}"],
+    }
+
+
+def _consultation_result_payload(result: ConsultationResult) -> dict[str, Any]:
+    return {
+        "item_status": result.status.value,
+        "target": _target_payload(result.target),
+        "eligibility": {
+            "status": result.eligibility.status.value,
+            "reason_code": result.eligibility.reason_code,
+            "missing_fact_names": list(result.eligibility.missing_facts),
+            "rule_version": result.eligibility.trace.rule_version,
+        },
+        "average_grade": _average_grade_payload(result),
+        "admission_result": _admission_result_payload(result),
+        "evidence": [
+            {
+                "rule_kind": item.rule_kind,
+                "rule_version": item.rule_version,
+                "document_type": item.document_type,
+                "document_status": item.document_status,
+                "page_number": item.page_number,
+            }
+            for item in result.evidence
+        ],
+        "warnings": list(result.warnings),
+    }
+
+
+def _target_payload(target: Any) -> dict[str, Any]:
+    return {
+        "academic_year": target.academic_year,
+        "institution_name": target.institution_name,
+        "campus_name": target.campus_name,
+        "program_name": target.program_name,
+        "admission_round_name": target.admission_round_name,
+        "admission_track_name": target.admission_track_name,
+    }
+
+
+def _average_grade_payload(result: ConsultationResult) -> dict[str, Any] | None:
+    grade = result.reflected_grade
+    if grade is None:
+        return None
+    return {
+        "unrounded_average_grade": _decimal(grade.unrounded_average_grade),
+        "final_average_grade": _decimal(grade.final_average_grade),
+        "display_average_grade": _decimal(grade.display_average_grade),
+        "grade_scale": grade.grade_scale,
+        "rule_version": grade.trace.rule_version,
+        "weighting_mode": grade.trace.weighting_mode,
+        "rounding_mode": grade.trace.rounding_mode,
+        "rounding_scale": grade.trace.rounding_scale,
+    }
+
+
+def _admission_result_payload(result: ConsultationResult) -> dict[str, Any]:
+    comparison = result.admission_result
+    published = comparison.result
+    if published is None:
+        return {"status": comparison.status.value}
+    average_grade = _decimal(comparison.display_average_grade)
+    return {
+        "status": comparison.status.value,
+        "academic_year": published.key.academic_year,
+        "competition_rate": _decimal(published.competition_rate),
+        "average_grade": average_grade,
+        "score_basis": published.score_basis,
+        "publication_version": published.publication_version,
+    }
+
+
 def _validate_payload_keys(data: dict[str, Any]) -> None:
-    if frozenset(data) != TOP_LEVEL_KEYS or data.get("schema_version") != 1:
+    if frozenset(data) != TOP_LEVEL_KEYS or data.get("schema_version") != 2:
         raise ValueError("AI payload 최상위 필드가 고정 schema와 다릅니다.")
-    _require_exact_keys(data.get("target"), TARGET_KEYS, "target")
-    _require_exact_keys(data.get("eligibility"), ELIGIBILITY_KEYS, "eligibility")
-    score = data.get("score")
-    if score is not None:
-        _require_exact_keys(score, SCORE_KEYS, "score")
-    admission_result = data.get("admission_result")
-    if not isinstance(admission_result, dict):
-        raise ValueError("AI payload admission_result가 객체가 아닙니다.")
-    admission_keys = frozenset(admission_result)
-    if admission_keys not in {frozenset({"status"}), ADMISSION_RESULT_KEYS}:
-        raise ValueError("AI payload admission_result 필드가 고정 schema와 다릅니다.")
-    evidence = data.get("evidence")
-    if not isinstance(evidence, list):
-        raise ValueError("AI payload evidence가 배열이 아닙니다.")
-    for item in evidence:
-        _require_exact_keys(item, EVIDENCE_KEYS, "evidence")
+    results = data.get("results")
+    if not isinstance(results, list) or not results:
+        raise ValueError("AI payload results는 비어 있지 않은 배열이어야 합니다.")
+    for row in results:
+        _require_exact_keys(row, RESULT_KEYS, "results")
+        _require_exact_keys(row["target"], TARGET_KEYS, "target")
+        if row["eligibility"] is not None:
+            _require_exact_keys(row["eligibility"], ELIGIBILITY_KEYS, "eligibility")
+        if row["average_grade"] is not None:
+            _require_exact_keys(row["average_grade"], AVERAGE_GRADE_KEYS, "average_grade")
+        admission = row["admission_result"]
+        if not isinstance(admission, dict) or frozenset(admission) not in {
+            frozenset({"status"}),
+            ADMISSION_RESULT_KEYS,
+        }:
+            raise ValueError("AI payload admission_result 필드가 고정 schema와 다릅니다.")
+        if not isinstance(row["evidence"], list) or not isinstance(row["warnings"], list):
+            raise ValueError("AI payload evidence와 warnings는 배열이어야 합니다.")
+        for evidence in row["evidence"]:
+            _require_exact_keys(evidence, EVIDENCE_KEYS, "evidence")
 
 
 def _require_exact_keys(value: object, allowed: frozenset[str], field: str) -> None:
@@ -167,44 +237,6 @@ def _require_exact_keys(value: object, allowed: frozenset[str], field: str) -> N
 
 def _decimal(value: Decimal | None) -> str | None:
     return None if value is None else str(value)
-
-
-def _score_payload(result: ConsultationResult) -> dict[str, Any] | None:
-    if result.score is None:
-        return None
-    return {
-        "final_score": _decimal(result.score.final_score),
-        "display_score": _decimal(result.score.display_score),
-        "maximum_score": _decimal(result.score.maximum_score),
-        "rule_version": result.score.trace.rule_version,
-        "rounding_mode": result.score.trace.rounding_mode,
-        "rounding_scale": result.score.trace.rounding_scale,
-        "non_predictive_components": {
-            name: _decimal(value) for name, value in result.score.trace.non_predictive_components
-        },
-    }
-
-
-def _admission_result_payload(result: ConsultationResult) -> dict[str, Any]:
-    comparison = result.admission_result
-    base: dict[str, Any] = {"status": comparison.status.value}
-    if (
-        comparison.status is not AdmissionResultComparisonStatus.COMPARABLE
-        or comparison.result is None
-    ):
-        return base
-    published = comparison.result
-    return base | {
-        "academic_year": published.key.academic_year,
-        "applicant_count": published.applicant_count,
-        "admitted_count": published.admitted_count,
-        "competition_rate": _decimal(published.competition_rate),
-        "highest_score": _decimal(published.highest_score),
-        "average_score": _decimal(published.average_score),
-        "lowest_score": _decimal(published.lowest_score),
-        "score_basis": published.score_basis,
-        "publication_version": published.publication_version,
-    }
 
 
 __all__ = [

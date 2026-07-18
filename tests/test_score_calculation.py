@@ -8,6 +8,7 @@ import pytest
 from app.services.score_calculation import (
     ScoreCalculationError,
     ScoreCalculationResult,
+    calculate_reflected_grade,
     calculate_selected_score,
 )
 from app.services.score_components import (
@@ -188,6 +189,94 @@ def test_limited_linear_transform_converts_aggregate_without_free_formula() -> N
     assert result.trace.aggregate_value == Decimal("74.0")
     assert result.pre_round_score == Decimal("26.0")
     assert result.final_score == Decimal("26.00")
+
+
+def test_reflected_grade_is_not_changed_by_point_linear_transform() -> None:
+    definition = replace(
+        _definition(),
+        value_direction="LOWER_IS_BETTER",
+        score_transform_mode="LINEAR",
+        score_base=Decimal("100"),
+        score_multiplier=Decimal("-1"),
+    )
+    grade_values = {
+        course_id: replace(
+            value,
+            normalized_value=Decimal(index % 5 + 1),
+            value_scale="RANK_GRADE",
+        )
+        for index, (course_id, value) in enumerate(_values().items())
+    }
+    source = _selection()
+    source = replace(
+        source,
+        records=tuple(
+            replace(
+                record,
+                courses=tuple(
+                    replace(
+                        course,
+                        rank_grade=grade_values[course.course_record_id].normalized_value,
+                    )
+                    for course in record.courses
+                ),
+            )
+            for record in source.records
+        ),
+    )
+    selection = select_terms_and_subjects(source, definition, grade_values)
+
+    reflected = calculate_reflected_grade(
+        selection,
+        definition,
+        rule_id="synthetic-score-rule",
+        rule_version="synthetic-v1",
+    )
+    point_score = _calculate(selection, definition)
+
+    assert reflected.unrounded_average_grade == Decimal("3")
+    assert reflected.final_average_grade == Decimal("3")
+    assert reflected.display_average_grade == Decimal("3.00")
+    assert point_score.trace.aggregate_value == reflected.unrounded_average_grade
+    assert point_score.final_score == Decimal("97.00")
+
+
+@pytest.mark.parametrize(
+    ("value_scale", "rank_grade"),
+    (("RANK_GRADE=74", Decimal("4")), ("RANK_GRADE", Decimal("74"))),
+)
+def test_reflected_grade_rejects_unapproved_scale_and_out_of_range_values(
+    value_scale: str, rank_grade: Decimal
+) -> None:
+    definition = replace(_definition(), value_direction="LOWER_IS_BETTER")
+    source = _selection()
+    source = replace(
+        source,
+        records=tuple(
+            replace(
+                record,
+                courses=tuple(replace(course, rank_grade=rank_grade) for course in record.courses),
+            )
+            for record in source.records
+        ),
+    )
+    grade_values = {
+        course_id: replace(
+            value,
+            normalized_value=rank_grade,
+            value_scale=value_scale,
+        )
+        for course_id, value in _values().items()
+    }
+    selection = select_terms_and_subjects(source, definition, grade_values)
+
+    with pytest.raises(ScoreCalculationError):
+        calculate_reflected_grade(
+            selection,
+            definition,
+            rule_id="synthetic-score-rule",
+            rule_version="synthetic-v1",
+        )
 
 
 def test_interview_and_practical_ratios_do_not_change_predicted_score() -> None:

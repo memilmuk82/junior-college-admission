@@ -71,14 +71,23 @@ from app.services.consultation_forms import (
     parse_consultation_form,
 )
 from app.services.consultations import (
+    BatchConsultationItem,
+    BatchConsultationRequest,
+    BatchConsultationResult,
     ConsultationError,
+    ConsultationItemStatus,
+    ConsultationProgram,
+    ConsultationRequest,
     ConsultationResult,
-    list_consultation_targets,
+    list_consultation_programs,
+    run_batch_consultation,
     run_consultation,
 )
 from app.services.demo_consultations import (
     DEMO_CONSULTATION_DEFAULTS,
-    demo_consultation_targets,
+    DEMO_DEFAULT_PROGRAM_IDS,
+    demo_consultation_programs,
+    run_demo_batch_consultation,
     run_demo_consultation,
 )
 from app.services.rule_admin import (
@@ -132,6 +141,7 @@ RULE_TYPE_LABELS = {
 }
 
 CONSULTATION_DEFAULTS = {field: "" for field in CONSULTATION_FORM_FIELDS} | {
+    "academic_year": "2027",
     "home_school_type": "GENERAL",
     "final_school_type": "GENERAL",
     "graduation_status": "EXPECTED",
@@ -242,16 +252,24 @@ def _render_consultation_form(
     status: int = 200,
 ) -> Response:
     demo_mode = is_demo_user()
-    targets = (
-        demo_consultation_targets()
+    try:
+        academic_year = int(values.get("academic_year") or "2027")
+    except ValueError:
+        academic_year = 2027
+    programs = (
+        demo_consultation_programs()
         if demo_mode
-        else list_consultation_targets(cast(Session, db.session))
+        else list_consultation_programs(cast(Session, db.session), academic_year)
     )
+    selected_program_ids = tuple(item for item in values.get("program_ids", "").split(",") if item)
+    if demo_mode and not selected_program_ids and not errors:
+        selected_program_ids = DEMO_DEFAULT_PROGRAM_IDS
     return _private(
         render_template(
             "admin_consultation_form.html",
             values=values,
-            targets=targets,
+            programs=programs,
+            selected_program_ids=selected_program_ids,
             errors=errors,
             csrf_token=_csrf_token(),
             actor_ref=_actor_ref(),
@@ -261,17 +279,50 @@ def _render_consultation_form(
     )
 
 
-def _evaluate_consultation_form(parsed: ConsultationFormResult) -> ConsultationResult:
+def _evaluate_consultation_form(
+    parsed: ConsultationFormResult,
+) -> ConsultationResult | BatchConsultationResult:
     if parsed.request is None:
         raise ConsultationError("상담 입력을 확인하세요.")
+    if is_demo_user() and isinstance(parsed.request, BatchConsultationRequest):
+        return run_demo_batch_consultation(parsed.request)
     if is_demo_user():
+        if not isinstance(parsed.request, ConsultationRequest):
+            raise ConsultationError("공개 데모 상담 요청 형식을 확인하세요.")
         return run_demo_consultation(parsed.request)
+    if isinstance(parsed.request, BatchConsultationRequest):
+        return run_batch_consultation(cast(Session, db.session), parsed.request)
     return run_consultation(cast(Session, db.session), parsed.request)
+
+
+def _batch_result(result: ConsultationResult | BatchConsultationResult) -> BatchConsultationResult:
+    if isinstance(result, BatchConsultationResult):
+        return result
+    program = ConsultationProgram(
+        result.target.admission_track_id,
+        result.target.academic_year,
+        result.target.institution_name,
+        result.target.campus_name,
+        result.target.program_name,
+        result.target.program_code,
+    )
+    return BatchConsultationResult(
+        result.target.academic_year,
+        (program,),
+        (
+            BatchConsultationItem(
+                program,
+                result.target,
+                ConsultationItemStatus.EVALUATED,
+                result,
+            ),
+        ),
+    )
 
 
 def _render_consultation_result(
     parsed: ConsultationFormResult,
-    result: ConsultationResult,
+    result: ConsultationResult | BatchConsultationResult,
     *,
     ai_error: str | None = None,
     status: int = 200,
@@ -292,7 +343,7 @@ def _render_consultation_result(
     return _private(
         render_template(
             "admin_consultation_result.html",
-            result=result,
+            result=_batch_result(result),
             values=parsed.values,
             consultation_note=parsed.consultation_note,
             csrf_token=_csrf_token(),
@@ -313,6 +364,8 @@ def new_consultation() -> Response:
         return _render_consultation_form(dict(defaults))
     _require_csrf()
     parsed = parse_consultation_form(request.form)
+    if parsed.program_ids:
+        parsed.values["program_ids"] = ",".join(parsed.program_ids)
     if parsed.errors:
         return _render_consultation_form(parsed.values, errors=parsed.errors, status=400)
     try:
@@ -328,6 +381,8 @@ def new_consultation() -> Response:
 def generate_ai_consultation_draft() -> Response | Any:
     _require_csrf()
     parsed = parse_consultation_form(request.form)
+    if parsed.program_ids:
+        parsed.values["program_ids"] = ",".join(parsed.program_ids)
     if parsed.errors:
         return _render_consultation_form(parsed.values, errors=parsed.errors, status=400)
     try:
@@ -518,6 +573,8 @@ def print_consultation(audience: str) -> Response:
         abort(404)
     _require_csrf()
     parsed = parse_consultation_form(request.form)
+    if parsed.program_ids:
+        parsed.values["program_ids"] = ",".join(parsed.program_ids)
     if parsed.errors:
         return _render_consultation_form(parsed.values, errors=parsed.errors, status=400)
     try:
@@ -528,8 +585,9 @@ def print_consultation(audience: str) -> Response:
         render_template(
             "consultation_print.html",
             audience=audience,
-            result=result,
+            result=_batch_result(result),
             consultation_note=parsed.consultation_note,
+            demo_mode=is_demo_user(),
         )
     )
 

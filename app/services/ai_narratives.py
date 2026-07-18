@@ -13,7 +13,7 @@ from app.services.ai_providers import (
     NarrativeProviderError,
     generate_narrative_draft,
 )
-from app.services.consultations import ConsultationResult
+from app.services.consultations import BatchConsultationResult, ConsultationResult
 
 
 class AiNarrativeError(ValueError):
@@ -26,7 +26,7 @@ def generate_consultation_narrative(
     actor_ref: str,
     provider_code: str,
     model_name: str,
-    result: ConsultationResult,
+    result: ConsultationResult | BatchConsultationResult,
     provider: NarrativeProvider,
     cipher: ByokCredentialCipher,
 ) -> AiConsultationDraft:

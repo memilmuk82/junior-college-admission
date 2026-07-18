@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
 
@@ -94,38 +95,38 @@ def test_wrong_master_key_and_tampered_ciphertext_are_rejected(session: Session)
 
 
 def test_teacher_must_explicitly_confirm_an_owned_draft(session: Session) -> None:
-    canonical_json = (
-        '{"admission_result":{"status":"NOT_AVAILABLE"},'
-        '"consultation_status":"ELIGIBILITY_BLOCKED","eligibility":'
-        '{"missing_fact_names":[],"reason_code":"TRACK_NOT_ALLOWED",'
-        '"rule_version":"v1","status":"INELIGIBLE"},"evidence":[],"schema_version":1,'
-        '"score":null,"target":{"academic_year":2027,"admission_round_name":"수시 1차",'
-        '"admission_track_name":"일반고 전형","campus_name":"본교",'
-        '"institution_name":"합성전문대","program_name":"합성학과"}}'
-    )
     payload_data = {
-        "schema_version": 1,
-        "consultation_status": "ELIGIBILITY_BLOCKED",
-        "target": {
-            "academic_year": 2027,
-            "institution_name": "합성전문대",
-            "campus_name": "본교",
-            "program_name": "합성학과",
-            "admission_round_name": "수시 1차",
-            "admission_track_name": "일반고 전형",
-        },
-        "eligibility": {
-            "status": "INELIGIBLE",
-            "reason_code": "TRACK_NOT_ALLOWED",
-            "missing_fact_names": [],
-            "rule_version": "v1",
-        },
-        "score": None,
-        "admission_result": {"status": "NOT_AVAILABLE"},
-        "evidence": [],
+        "schema_version": 2,
+        "academic_year": 2027,
+        "results": [
+            {
+                "item_status": "ELIGIBILITY_BLOCKED",
+                "target": {
+                    "academic_year": 2027,
+                    "institution_name": "합성전문대",
+                    "campus_name": "본교",
+                    "program_name": "합성학과",
+                    "admission_round_name": "수시 1차",
+                    "admission_track_name": "일반고 전형",
+                },
+                "eligibility": {
+                    "status": "INELIGIBLE",
+                    "reason_code": "TRACK_NOT_ALLOWED",
+                    "missing_fact_names": [],
+                    "rule_version": "v1",
+                },
+                "average_grade": None,
+                "admission_result": {"status": "NOT_AVAILABLE"},
+                "evidence": [],
+                "warnings": [],
+            }
+        ],
     }
+    canonical_json = json.dumps(
+        payload_data, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
     payload = AnonymousConsultationPayload(
-        schema_version=1,
+        schema_version=2,
         data=payload_data,
         canonical_json=canonical_json,
         digest=hashlib.sha256(canonical_json.encode("utf-8")).hexdigest(),

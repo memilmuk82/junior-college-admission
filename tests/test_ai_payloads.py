@@ -26,10 +26,20 @@ from app.services.eligibility import (
     EligibilityStatus,
     EligibilityTrace,
 )
-from app.services.score_calculation import ScoreCalculationResult, ScoreCalculationTrace
+from app.services.score_calculation import (
+    ReflectedGradeResult,
+    ReflectedGradeTrace,
+    ScoreCalculationResult,
+    ScoreCalculationTrace,
+)
 
 
-def _result(*, average_score: Decimal | None = Decimal("0")) -> ConsultationResult:
+def _result(
+    *,
+    average_score: Decimal | None = Decimal("0"),
+    score_basis: str = "RANK_GRADE",
+    comparison_status: AdmissionResultComparisonStatus = AdmissionResultComparisonStatus.COMPARABLE,
+) -> ConsultationResult:
     target = ConsultationTarget(
         admission_track_id="track-internal-id",
         academic_year=2027,
@@ -81,6 +91,29 @@ def _result(*, average_score: Decimal | None = Decimal("0")) -> ConsultationResu
             non_predictive_components=(("interview_ratio", Decimal("0.2")),),
         ),
     )
+    reflected_grade = ReflectedGradeResult(
+        unrounded_average_grade=Decimal("2.00"),
+        final_average_grade=Decimal("2.00"),
+        display_average_grade=Decimal("2.0"),
+        grade_scale="RANK_GRADE",
+        trace=ReflectedGradeTrace(
+            rule_id="score-rule-id",
+            rule_version="score-v2",
+            grade_scale="RANK_GRADE",
+            weighting_mode="EQUAL",
+            components=(),
+            selected_semesters=(),
+            selected_courses=(),
+            semester_rounding_mode=None,
+            semester_rounding_scale=None,
+            grade_rounding_mode=None,
+            grade_rounding_scale=None,
+            rounding_mode="ROUND_HALF_UP",
+            rounding_stage="DISPLAY_ONLY",
+            rounding_scale=1,
+            display_scale=1,
+        ),
+    )
     historical = HistoricalRuleReference(
         rule_id="score-rule-id",
         version="score-v2",
@@ -102,7 +135,7 @@ def _result(*, average_score: Decimal | None = Decimal("0")) -> ConsultationResu
         highest_score=None,
         average_score=average_score,
         lowest_score=None,
-        score_basis="SYNTHETIC_SCORE",
+        score_basis=score_basis,
         historical_rule=historical,
     )
     return ConsultationResult(
@@ -114,19 +147,20 @@ def _result(*, average_score: Decimal | None = Decimal("0")) -> ConsultationResu
         score=score,
         evidence=(),
         admission_result=AdmissionResultComparison(
-            status=AdmissionResultComparisonStatus.COMPARABLE,
+            status=comparison_status,
             result=admission_result,
             warning=None,
         ),
         warnings=(),
+        reflected_grade=reflected_grade,
     )
 
 
 def test_anonymous_payload_has_a_fixed_allowlist_and_preserves_zero() -> None:
     payload = build_anonymous_consultation_payload(_result())
 
-    assert payload.schema_version == 1
-    assert payload.data["target"] == {
+    assert payload.schema_version == 2
+    assert payload.data["results"][0]["target"] == {
         "academic_year": 2027,
         "institution_name": "합성전문대",
         "campus_name": "본교",
@@ -134,8 +168,7 @@ def test_anonymous_payload_has_a_fixed_allowlist_and_preserves_zero() -> None:
         "admission_round_name": "수시 1차",
         "admission_track_name": "일반고 전형",
     }
-    assert payload.data["admission_result"]["applicant_count"] == 0
-    assert payload.data["admission_result"]["admitted_count"] is None
+    assert payload.data["results"][0]["average_grade"]["display_average_grade"] == "2.0"
     assert "track-internal-id" not in payload.canonical_json
     assert "student" not in payload.canonical_json.lower()
     assert len(payload.digest) == 64
@@ -145,9 +178,30 @@ def test_anonymous_payload_digest_distinguishes_zero_from_missing() -> None:
     zero = build_anonymous_consultation_payload(_result(average_score=Decimal("0")))
     missing = build_anonymous_consultation_payload(_result(average_score=None))
 
-    assert zero.data["admission_result"]["average_score"] == "0"
-    assert missing.data["admission_result"]["average_score"] is None
+    assert zero.data["results"][0]["admission_result"]["average_grade"] == "0"
+    assert missing.data["results"][0]["admission_result"]["average_grade"] is None
     assert zero.digest != missing.digest
+
+
+def test_anonymous_payload_hides_average_from_incompatible_score_scale() -> None:
+    payload = build_anonymous_consultation_payload(
+        _result(
+            average_score=Decimal("387.5"),
+            score_basis="POINT_SCORE",
+            comparison_status=AdmissionResultComparisonStatus.INCOMPATIBLE_SCALE,
+        )
+    )
+
+    admission = payload.data["results"][0]["admission_result"]
+    assert admission["status"] == "INCOMPATIBLE_SCALE"
+    assert admission["average_grade"] is None
+    assert "387.5" not in payload.canonical_json
+
+    inconsistent_status = build_anonymous_consultation_payload(
+        _result(average_score=Decimal("387.5"), score_basis="POINT_SCORE")
+    )
+    assert inconsistent_status.data["results"][0]["admission_result"]["average_grade"] is None
+    assert "387.5" not in inconsistent_status.canonical_json
 
 
 class _SyntheticProvider:
@@ -160,7 +214,7 @@ class _SyntheticProvider:
         assert api_key == "synthetic-secret"
         self.received = payload
         return NarrativeDraft(
-            text="검증된 환산점수와 자료 기준연도를 함께 확인했습니다.",
+            text="검증된 반영 평균등급과 자료 기준연도를 함께 확인했습니다.",
             check_items=("최종 모집요강의 변경 여부를 확인하세요.",),
         )
 
@@ -186,7 +240,7 @@ def test_provider_rejects_tampered_or_extra_payload_fields() -> None:
     data["student_id"] = "must-not-leave-server"
     canonical = json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     injected = type(payload)(
-        schema_version=1,
+        schema_version=2,
         data=data,
         canonical_json=canonical,
         digest=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
@@ -226,11 +280,11 @@ def test_provider_response_rejects_ungrounded_numbers_but_allows_payload_numbers
 
     payload = build_anonymous_consultation_payload(_result())
     grounded = generate_narrative_draft(
-        NumberProvider("검증된 환산점수는 380.20점이며 기준연도는 2027년입니다."),
+        NumberProvider("검증된 반영 평균등급은 2.00이며 기준연도는 2027년입니다."),
         payload,
         "synthetic-secret",
     )
-    assert "380.20" in grounded.text
+    assert "2.00" in grounded.text
 
     with pytest.raises(NarrativeProviderError):
         generate_narrative_draft(

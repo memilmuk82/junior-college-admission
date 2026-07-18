@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 
 from app.services.admission_result_analysis import AdmissionResultAnalysisInput
@@ -7,8 +8,13 @@ from app.services.admission_results import AdmissionResultKey, HistoricalRuleRef
 from app.services.consultations import (
     AdmissionResultComparison,
     AdmissionResultComparisonStatus,
+    BatchConsultationItem,
+    BatchConsultationRequest,
+    BatchConsultationResult,
     ConsultationError,
     ConsultationEvidence,
+    ConsultationItemStatus,
+    ConsultationProgram,
     ConsultationRequest,
     ConsultationResult,
     ConsultationStatus,
@@ -18,7 +24,7 @@ from app.services.eligibility import (
     EligibilityRule,
     evaluate_synthetic_demo_eligibility,
 )
-from app.services.score_calculation import calculate_selected_score
+from app.services.score_calculation import calculate_reflected_grade
 from app.services.score_inputs import (
     AcademicRecordInput,
     CourseRecordInput,
@@ -45,8 +51,38 @@ DEMO_TARGET = ConsultationTarget(
     admission_track_code="DEMO_GENERAL",
 )
 
+DEMO_SPECIAL_TRACK_ID = "demo-synthetic-special-track"
+DEMO_PROGRAMS = (
+    ConsultationProgram(
+        "demo-program-ai",
+        2027,
+        "가상 미래전문대",
+        "가상 본교",
+        "AI융합과(합성)",
+        "DEMO_AI",
+    ),
+    ConsultationProgram(
+        "demo-program-care",
+        2027,
+        "가상 새봄전문대",
+        "가상 도심캠퍼스",
+        "돌봄서비스과(합성)",
+        "DEMO_CARE",
+    ),
+    ConsultationProgram(
+        "demo-program-design",
+        2027,
+        "가상 한빛전문대",
+        "가상 창작캠퍼스",
+        "콘텐츠디자인과(합성)",
+        "DEMO_DESIGN",
+    ),
+)
+DEMO_DEFAULT_PROGRAM_IDS = tuple(program.program_id for program in DEMO_PROGRAMS)
+
 DEMO_CONSULTATION_DEFAULTS = {
     "student_id": DEMO_STUDENT_ID,
+    "academic_year": "2027",
     "admission_track_id": DEMO_TRACK_ID,
     "home_school_type": "GENERAL",
     "final_school_type": "GENERAL",
@@ -69,6 +105,10 @@ DEMO_WARNING = (
 
 def demo_consultation_targets() -> tuple[ConsultationTarget, ...]:
     return (DEMO_TARGET,)
+
+
+def demo_consultation_programs() -> tuple[ConsultationProgram, ...]:
+    return DEMO_PROGRAMS
 
 
 def run_demo_consultation(request: ConsultationRequest) -> ConsultationResult:
@@ -164,7 +204,7 @@ def run_demo_consultation(request: ConsultationRequest) -> ConsultationResult:
             admission_result=no_result,
             warnings=(DEMO_WARNING, "합성 성적 선택 결과를 확인해야 합니다."),
         )
-    score = calculate_selected_score(
+    reflected_grade = calculate_reflected_grade(
         selection,
         definition,
         rule_id="demo-synthetic-score",
@@ -185,10 +225,291 @@ def run_demo_consultation(request: ConsultationRequest) -> ConsultationResult:
         eligibility=eligibility,
         score_input=score_input,
         score_selection=selection,
-        score=score,
+        score=None,
         evidence=evidence,
         admission_result=comparison,
         warnings=(DEMO_WARNING,),
+        reflected_grade=reflected_grade,
+    )
+
+
+def run_demo_batch_consultation(request: BatchConsultationRequest) -> BatchConsultationResult:
+    if request.student_id != DEMO_STUDENT_ID or request.academic_year != 2027:
+        raise ConsultationError("공개 데모에서는 준비된 합성 학생과 2027학년도만 사용합니다.")
+    available = {program.program_id: program for program in DEMO_PROGRAMS}
+    if any(program_id not in available for program_id in request.program_ids):
+        raise ConsultationError("공개 데모에 허용되지 않은 학과 ID가 포함되어 있습니다.")
+    selected = tuple(available[program_id] for program_id in request.program_ids)
+    items: list[BatchConsultationItem] = []
+    for program in selected:
+        if program.program_id == "demo-program-ai":
+            legacy = run_demo_consultation(
+                ConsultationRequest(
+                    request.student_id,
+                    DEMO_TRACK_ID,
+                    request.facts,
+                    request.admission_result_year,
+                )
+            )
+            items.append(
+                BatchConsultationItem(
+                    program, legacy.target, ConsultationItemStatus.EVALUATED, legacy
+                )
+            )
+            special_target = ConsultationTarget(
+                DEMO_SPECIAL_TRACK_ID,
+                2027,
+                program.institution_name,
+                program.campus_name,
+                program.program_name,
+                program.program_code,
+                "수시 1차(합성)",
+                "DEMO_EARLY_1",
+                "특성화고 전형(합성)",
+                "DEMO_VOCATIONAL",
+            )
+            items.append(
+                BatchConsultationItem(
+                    program,
+                    special_target,
+                    ConsultationItemStatus.EVALUATED,
+                    _run_demo_variant(
+                        request,
+                        special_target,
+                        scope_policy="VOCATIONAL_INCLUDED",
+                        definition=_all_semester_definition(),
+                        reason_code="DEMO_VOCATIONAL_CURRICULUM_ALLOWED",
+                    ),
+                )
+            )
+        elif program.program_id == "demo-program-care":
+            target = _program_target(program, "일반고 전형(합성)", "DEMO_CARE_GENERAL")
+            items.append(
+                BatchConsultationItem(
+                    program,
+                    target,
+                    ConsultationItemStatus.EVALUATED,
+                    _run_demo_variant(
+                        request,
+                        target,
+                        scope_policy="HOME_ONLY",
+                        definition=_grade_weighted_definition(),
+                        reason_code="DEMO_CARE_GENERAL_ALLOWED",
+                    ),
+                )
+            )
+            vocational_target = _program_target(
+                program, "특성화고 전형(합성)", "DEMO_CARE_VOCATIONAL"
+            )
+            items.append(
+                BatchConsultationItem(
+                    program,
+                    vocational_target,
+                    ConsultationItemStatus.EVALUATED,
+                    _run_demo_variant(
+                        request,
+                        vocational_target,
+                        scope_policy="VOCATIONAL_ONLY",
+                        definition=_all_semester_definition(),
+                        reason_code="DEMO_CARE_VOCATIONAL_ALLOWED",
+                        allowed_school_type="VOCATIONAL",
+                    ),
+                )
+            )
+        else:
+            items.append(
+                BatchConsultationItem(
+                    program,
+                    _program_target(program, "전형 준비 중(합성)", "DEMO_PREPARING"),
+                    ConsultationItemStatus.PREPARING,
+                    None,
+                    "계산 기준 준비 중: 합성 규칙 검수 상태를 보여주는 예시입니다.",
+                )
+            )
+    return BatchConsultationResult(
+        2027,
+        selected,
+        tuple(items),
+        (
+            DEMO_WARNING,
+            "복수지원 가능 여부는 전형별 지원자격과 별도이며 합성 데모에서는 판정하지 않습니다.",
+        ),
+    )
+
+
+def _program_target(
+    program: ConsultationProgram, track_name: str, track_code: str
+) -> ConsultationTarget:
+    return ConsultationTarget(
+        f"{program.program_id}-{track_code.lower()}",
+        2027,
+        program.institution_name,
+        program.campus_name,
+        program.program_name,
+        program.program_code,
+        "수시 1차(합성)",
+        "DEMO_EARLY_1",
+        track_name,
+        track_code,
+    )
+
+
+def _run_demo_variant(
+    request: BatchConsultationRequest,
+    target: ConsultationTarget,
+    *,
+    scope_policy: str,
+    definition: ScoreRuleDefinition,
+    reason_code: str,
+    allowed_school_type: str = "GENERAL",
+) -> ConsultationResult:
+    eligibility_rule_id = f"demo-synthetic-{target.admission_track_id}-eligibility"
+    eligibility = evaluate_synthetic_demo_eligibility(
+        request.facts,
+        EligibilityRule(
+            rule_id=eligibility_rule_id,
+            version=DEMO_RULE_VERSION,
+            lifecycle_status="DEMO_SYNTHETIC",
+            payload={
+                "schema_version": 1,
+                "cases": [
+                    {
+                        "case_id": "demo_general_vocational_student",
+                        "when": {
+                            "fact": "final_school_type",
+                            "op": "eq",
+                            "value": allowed_school_type,
+                        },
+                        "status": "ELIGIBLE",
+                        "reason_code": reason_code,
+                    }
+                ],
+                "default": {"status": "INELIGIBLE", "reason_code": "DEMO_TRACK_NOT_ALLOWED"},
+            },
+            source_citation_id=None,
+            independent_verified=False,
+            golden_test_ref=None,
+            human_approved_at=None,
+        ),
+    )
+    evidence = (
+        _evidence("ELIGIBILITY", eligibility_rule_id),
+        _evidence("GRADE_SOURCE_SCOPE", f"{target.admission_track_id}-scope"),
+        _evidence("SCORE", f"{target.admission_track_id}-score"),
+    )
+    unavailable = AdmissionResultComparison(
+        AdmissionResultComparisonStatus.NOT_AVAILABLE,
+        None,
+        "합성 공개 평균등급 자료가 없습니다.",
+    )
+    if not eligibility.allows_score_calculation:
+        return ConsultationResult(
+            ConsultationStatus.ELIGIBILITY_BLOCKED,
+            target,
+            eligibility,
+            None,
+            None,
+            None,
+            (evidence[0],),
+            unavailable,
+            (DEMO_WARNING, "지원자격 판정 뒤 합성 성적 조회·계산을 차단했습니다."),
+        )
+    records = _academic_records()
+    score_input = select_score_inputs_for_verification(
+        records=records,
+        payload={"schema_version": 1, "policy": scope_policy},
+        eligibility=eligibility,
+        rule_id=f"{target.admission_track_id}-scope",
+        rule_version=DEMO_RULE_VERSION,
+    )
+    course_values = {
+        course.course_record_id: ComparableCourseValue(
+            course.course_record_id,
+            course.rank_grade,
+            "DEMO_SYNTHETIC_RANK_GRADE",
+            frozenset({"ALL", "GENERAL_SUBJECTS"}),
+        )
+        for record in records
+        for course in record.courses
+        if course.rank_grade is not None
+    }
+    selection = select_terms_and_subjects(score_input, definition, course_values)
+    reflected = calculate_reflected_grade(
+        selection,
+        definition,
+        rule_id=f"{target.admission_track_id}-score",
+        rule_version=DEMO_RULE_VERSION,
+    )
+    return ConsultationResult(
+        ConsultationStatus.READY,
+        target,
+        eligibility,
+        score_input,
+        selection,
+        None,
+        evidence,
+        _variant_admission_result(target, request.admission_result_year),
+        (DEMO_WARNING,),
+        reflected,
+    )
+
+
+def _variant_admission_result(
+    target: ConsultationTarget, result_year: int | None
+) -> AdmissionResultComparison:
+    if result_year != 2026 or target.program_code is None:
+        return AdmissionResultComparison(
+            AdmissionResultComparisonStatus.NOT_AVAILABLE,
+            None,
+            "2026 합성 입시결과를 선택한 경우에만 비교 예시를 표시합니다.",
+        )
+    result = AdmissionResultAnalysisInput(
+        key=AdmissionResultKey(
+            2026,
+            f"{target.program_code}_U",
+            "DEMO_MAIN",
+            target.admission_round_code,
+            target.admission_track_code,
+            target.program_code,
+        ),
+        publication_version="demo-synthetic-result-v1",
+        applicant_count=90,
+        admitted_count=30,
+        competition_rate=Decimal("3.00"),
+        highest_score=Decimal("1.40"),
+        average_score=Decimal("2.80"),
+        lowest_score=Decimal("4.20"),
+        score_basis="DEMO_SYNTHETIC_RANK_GRADE",
+        historical_rule=HistoricalRuleReference(
+            f"{target.admission_track_id}-score-2026", "demo-synthetic-2026-v1", 2026
+        ),
+    )
+    return AdmissionResultComparison(
+        AdmissionResultComparisonStatus.REFERENCE_ONLY,
+        result,
+        "합성 예시이며 현재 규칙 연도와 달라 참고용으로만 표시합니다.",
+    )
+
+
+def _all_semester_definition() -> ScoreRuleDefinition:
+    return replace(
+        _score_definition(),
+        home_grade_3_semester_1_included=True,
+        vocational_grade_included=True,
+        vocational_semester_1_included=True,
+        semester_selection_method="ALL",
+        best_semester_count=None,
+    )
+
+
+def _grade_weighted_definition() -> ScoreRuleDefinition:
+    return replace(
+        _score_definition(),
+        semester_selection_method="ALL",
+        best_semester_count=None,
+        weighting_mode="GRADE_ONLY",
+        grade_weight_1=Decimal("0.40"),
+        grade_weight_2=Decimal("0.60"),
     )
 
 
@@ -229,7 +550,7 @@ def _academic_records() -> tuple[AcademicRecordInput, ...]:
         (2, 1, ("3", "4")),
         (2, 2, ("2", "2")),
     )
-    return tuple(
+    home_records = tuple(
         AcademicRecordInput(
             academic_record_id=f"demo-record-{grade}-{semester}",
             academic_year=2024 + grade,
@@ -245,6 +566,20 @@ def _academic_records() -> tuple[AcademicRecordInput, ...]:
         )
         for grade, semester, values in grades
     )
+    vocational = AcademicRecordInput(
+        academic_record_id="demo-record-3-1-vocational",
+        academic_year=2027,
+        grade=3,
+        semester=1,
+        record_source="VOCATIONAL_TRAINING_RECORD",
+        is_vocational_training_semester=True,
+        verification_status="USER_VERIFIED",
+        courses=(
+            _course("demo-3-1-vocational-practice", "가상 전공실습", "4", "1"),
+            _course("demo-3-1-vocational-theory", "가상 전공이론", "2", "2"),
+        ),
+    )
+    return home_records + (vocational,)
 
 
 def _score_definition() -> ScoreRuleDefinition:
@@ -343,9 +678,13 @@ def _demo_admission_result() -> AdmissionResultComparison:
 
 __all__ = [
     "DEMO_CONSULTATION_DEFAULTS",
+    "DEMO_DEFAULT_PROGRAM_IDS",
+    "DEMO_PROGRAMS",
     "DEMO_STUDENT_ID",
     "DEMO_TARGET",
     "DEMO_TRACK_ID",
+    "demo_consultation_programs",
     "demo_consultation_targets",
+    "run_demo_batch_consultation",
     "run_demo_consultation",
 ]

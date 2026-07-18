@@ -175,6 +175,9 @@ def test_consultation_requires_admin_auth_and_renders_separate_print_views(
 ) -> None:
     with Session(postgres_engine) as database_session:
         track_id = _seed(database_session)
+        track = database_session.get(AdmissionTrack, track_id)
+        assert track is not None
+        program_id = track.program_id
 
     app = create_app(
         {
@@ -204,9 +207,15 @@ def test_consultation_requires_admin_auth_and_renders_separate_print_views(
     assert form_page.headers["Cache-Control"] == "no-store, max-age=0"
     assert "단계형 상담 시작" in form_page.get_data(as_text=True)
 
+    batch_form = {
+        **_form(track_id, _csrf(form_page.get_data(as_text=True))),
+        "academic_year": "2027",
+        "program_ids": program_id,
+        "admission_track_id": "",
+    }
     submitted = client.post(
         "/admin/consultations/new",
-        data=_form(track_id, _csrf(form_page.get_data(as_text=True))),
+        data=batch_form,
     )
     body = submitted.get_data(as_text=True)
     assert submitted.status_code == 200
@@ -215,9 +224,10 @@ def test_consultation_requires_admin_auth_and_renders_separate_print_views(
     assert "직접 비교하지 않습니다" in body or "게시 승인된 동일 업무키" in body
     assert all(word not in body for word in ("합격 확률", "안정", "적정", "소신", "위험"))
 
+    student_form = {**batch_form, "csrf_token": _csrf(body)}
     student_print = client.post(
         "/admin/consultations/print/student",
-        data=_form(track_id, _csrf(body)),
+        data=student_form,
     )
     student_body = student_print.get_data(as_text=True)
     assert student_print.status_code == 200
@@ -225,15 +235,16 @@ def test_consultation_requires_admin_auth_and_renders_separate_print_views(
     assert "합성 교사용 상담 메모" not in student_body
     assert "조건 평가 trace" not in student_body
 
+    teacher_form = {**batch_form, "csrf_token": _csrf(body)}
     teacher_print = client.post(
         "/admin/consultations/print/teacher",
-        data=_form(track_id, _csrf(body)),
+        data=teacher_form,
     )
     teacher_body = teacher_print.get_data(as_text=True)
     assert teacher_print.status_code == 200
     assert "교사용 상담 결과" in teacher_body
     assert "합성 교사용 상담 메모" in teacher_body
-    assert "조건 평가 trace" in teacher_body
+    assert "지원자격 trace" in teacher_body
     assert "성적 범위 trace" in teacher_body
     assert "계산 trace" in teacher_body
 

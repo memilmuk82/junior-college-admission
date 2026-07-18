@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from decimal import Decimal
 from enum import StrEnum
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -32,7 +35,11 @@ from app.services.published_rules import (
     load_published_score_rule,
     to_eligibility_rule,
 )
-from app.services.score_calculation import ScoreCalculationResult, calculate_selected_score
+from app.services.score_calculation import (
+    ReflectedGradeResult,
+    ScoreCalculationResult,
+    calculate_reflected_grade,
+)
 from app.services.score_inputs import (
     ScoreInputSelection,
     ScoreInputStatus,
@@ -51,6 +58,9 @@ class ConsultationError(ValueError):
     pass
 
 
+PUBLIC_AVERAGE_GRADE_SCALES = frozenset({"RANK_GRADE", "DEMO_SYNTHETIC_RANK_GRADE"})
+
+
 class ConsultationStatus(StrEnum):
     READY = "READY"
     ELIGIBILITY_BLOCKED = "ELIGIBILITY_BLOCKED"
@@ -61,7 +71,14 @@ class ConsultationStatus(StrEnum):
 class AdmissionResultComparisonStatus(StrEnum):
     COMPARABLE = "COMPARABLE"
     REFERENCE_ONLY = "REFERENCE_ONLY"
+    INCOMPATIBLE_SCALE = "INCOMPATIBLE_SCALE"
     NOT_AVAILABLE = "NOT_AVAILABLE"
+
+
+class ConsultationItemStatus(StrEnum):
+    EVALUATED = "EVALUATED"
+    PREPARING = "PREPARING"
+    ERROR = "ERROR"
 
 
 @dataclass(frozen=True)
@@ -81,6 +98,31 @@ class ConsultationRequest:
 
 
 @dataclass(frozen=True)
+class BatchConsultationRequest:
+    student_id: str
+    program_ids: tuple[str, ...]
+    academic_year: int
+    facts: StudentFacts
+    admission_result_year: int | None = None
+
+    def __post_init__(self) -> None:
+        if not self.student_id.strip():
+            raise ConsultationError("내부 학생 식별자가 필요합니다.")
+        normalized = tuple(dict.fromkeys(item.strip() for item in self.program_ids if item.strip()))
+        if not normalized:
+            raise ConsultationError("희망 대학·학과를 하나 이상 선택해야 합니다.")
+        if normalized != self.program_ids:
+            object.__setattr__(self, "program_ids", normalized)
+        if not 2000 <= self.academic_year <= 2100:
+            raise ConsultationError("모집학년도가 유효하지 않습니다.")
+        if (
+            self.admission_result_year is not None
+            and not 2000 <= self.admission_result_year <= 2100
+        ):
+            raise ConsultationError("입시결과 기준연도가 유효하지 않습니다.")
+
+
+@dataclass(frozen=True)
 class ConsultationTarget:
     admission_track_id: str
     academic_year: int
@@ -92,6 +134,16 @@ class ConsultationTarget:
     admission_round_code: str
     admission_track_name: str
     admission_track_code: str
+
+
+@dataclass(frozen=True)
+class ConsultationProgram:
+    program_id: str
+    academic_year: int
+    institution_name: str
+    campus_name: str
+    program_name: str
+    program_code: str | None
 
 
 @dataclass(frozen=True)
@@ -112,6 +164,16 @@ class AdmissionResultComparison:
     result: AdmissionResultAnalysisInput | None
     warning: str | None
 
+    @property
+    def display_average_grade(self) -> Decimal | None:
+        if (
+            self.status is AdmissionResultComparisonStatus.INCOMPATIBLE_SCALE
+            or self.result is None
+            or self.result.score_basis not in PUBLIC_AVERAGE_GRADE_SCALES
+        ):
+            return None
+        return self.result.average_score
+
 
 @dataclass(frozen=True)
 class ConsultationResult:
@@ -124,9 +186,33 @@ class ConsultationResult:
     evidence: tuple[ConsultationEvidence, ...]
     admission_result: AdmissionResultComparison
     warnings: tuple[str, ...]
+    reflected_grade: ReflectedGradeResult | None = None
+    multiple_application_status: str = "NOT_EVALUATED"
 
 
-def run_consultation(session: Session, request: ConsultationRequest) -> ConsultationResult:
+@dataclass(frozen=True)
+class BatchConsultationItem:
+    program: ConsultationProgram
+    target: ConsultationTarget | None
+    status: ConsultationItemStatus
+    result: ConsultationResult | None
+    message: str | None = None
+
+
+@dataclass(frozen=True)
+class BatchConsultationResult:
+    academic_year: int
+    selected_programs: tuple[ConsultationProgram, ...]
+    items: tuple[BatchConsultationItem, ...]
+    warnings: tuple[str, ...] = ()
+
+
+def run_consultation(
+    session: Session,
+    request: ConsultationRequest,
+    *,
+    records_loader: Callable[[], tuple] | None = None,
+) -> ConsultationResult:
     target = load_consultation_target(session, request.admission_track_id)
     eligibility_rule = load_published_eligibility_rule(session, request.admission_track_id)
     eligibility = evaluate_eligibility(request.facts, to_eligibility_rule(eligibility_rule))
@@ -161,7 +247,11 @@ def run_consultation(session: Session, request: ConsultationRequest) -> Consulta
             _load_evidence(session, "SCORE", score_rule),
         )
     )
-    records = load_academic_record_inputs(session, request.student_id)
+    records = (
+        load_academic_record_inputs(session, request.student_id)
+        if records_loader is None
+        else records_loader()
+    )
     score_input = select_score_inputs(
         records=records,
         rule=scope_rule,
@@ -211,19 +301,7 @@ def run_consultation(session: Session, request: ConsultationRequest) -> Consulta
             admission_result=unavailable,
             warnings=("학기·과목 선택 결과를 검토해야 합니다.",),
         )
-    if definition.attendance_included is True:
-        return ConsultationResult(
-            status=ConsultationStatus.SCORE_NEEDS_REVIEW,
-            target=target,
-            eligibility=eligibility,
-            score_input=score_input,
-            score_selection=score_selection,
-            score=None,
-            evidence=tuple(evidence),
-            admission_result=unavailable,
-            warnings=("출결 반영 규칙에는 별도로 검증된 출결 입력과 변환표가 필요합니다.",),
-        )
-    score = calculate_selected_score(
+    reflected_grade = calculate_reflected_grade(
         score_selection,
         definition,
         rule_id=score_rule.rule_id,
@@ -241,10 +319,15 @@ def run_consultation(session: Session, request: ConsultationRequest) -> Consulta
         eligibility=eligibility,
         score_input=score_input,
         score_selection=score_selection,
-        score=score,
+        score=None,
         evidence=tuple(evidence),
         admission_result=admission_result,
-        warnings=(),
+        warnings=(
+            ("출결 배점은 평균등급과 분리되며 별도 검증 입력이 필요합니다.",)
+            if definition.attendance_included is True
+            else ()
+        ),
+        reflected_grade=reflected_grade,
     )
 
 
@@ -298,13 +381,144 @@ def list_consultation_targets(session: Session) -> tuple[ConsultationTarget, ...
     return tuple(load_consultation_target(session, track_id) for track_id in track_ids)
 
 
+def list_consultation_programs(
+    session: Session, academic_year: int = 2027
+) -> tuple[ConsultationProgram, ...]:
+    """List every program with a track in the year, including rule-preparation states."""
+
+    rows = tuple(
+        session.execute(
+            select(Program, Campus, Institution)
+            .join(Campus, Program.campus_id == Campus.id)
+            .join(Institution, Campus.institution_id == Institution.id)
+            .join(AdmissionTrack, AdmissionTrack.program_id == Program.id)
+            .join(AdmissionRound, AdmissionTrack.admission_round_id == AdmissionRound.id)
+            .where(AdmissionRound.academic_year == academic_year)
+            .distinct()
+            .order_by(Institution.name, Campus.name, Program.name, Program.id)
+        )
+    )
+    return tuple(
+        ConsultationProgram(
+            program_id=program.id,
+            academic_year=academic_year,
+            institution_name=institution.name,
+            campus_name=campus.name,
+            program_name=program.name,
+            program_code=program.code,
+        )
+        for program, campus, institution in rows
+    )
+
+
+def run_batch_consultation(
+    session: Session, request: BatchConsultationRequest
+) -> BatchConsultationResult:
+    available = {
+        item.program_id: item for item in list_consultation_programs(session, request.academic_year)
+    }
+    invalid = tuple(program_id for program_id in request.program_ids if program_id not in available)
+    if invalid:
+        raise ConsultationError("선택한 학과에 허용되지 않은 ID가 포함되어 있습니다.")
+    selected = tuple(available[program_id] for program_id in request.program_ids)
+    cached_records: tuple | None = None
+
+    def records_loader() -> tuple:
+        nonlocal cached_records
+        if cached_records is None:
+            cached_records = load_academic_record_inputs(session, request.student_id)
+        return cached_records
+
+    items: list[BatchConsultationItem] = []
+    for program in selected:
+        track_ids = tuple(
+            session.scalars(
+                select(AdmissionTrack.id)
+                .join(AdmissionRound, AdmissionTrack.admission_round_id == AdmissionRound.id)
+                .where(
+                    AdmissionTrack.program_id == program.program_id,
+                    AdmissionRound.academic_year == request.academic_year,
+                )
+                .order_by(AdmissionRound.code, AdmissionTrack.code, AdmissionTrack.id)
+            )
+        )
+        for track_id in track_ids:
+            target: ConsultationTarget | None = None
+            try:
+                with session.begin_nested():
+                    target = load_consultation_target(session, track_id)
+                    result = run_consultation(
+                        session,
+                        ConsultationRequest(
+                            student_id=request.student_id,
+                            admission_track_id=track_id,
+                            facts=request.facts,
+                            admission_result_year=request.admission_result_year,
+                        ),
+                        records_loader=records_loader,
+                    )
+            except LookupError as error:
+                items.append(
+                    BatchConsultationItem(
+                        program,
+                        target,
+                        ConsultationItemStatus.PREPARING,
+                        None,
+                        f"계산 기준 준비 중: {error}",
+                    )
+                )
+            except ValueError as error:
+                items.append(
+                    BatchConsultationItem(
+                        program,
+                        target,
+                        ConsultationItemStatus.ERROR,
+                        None,
+                        f"항목을 계산하지 못했습니다: {error}",
+                    )
+                )
+            except SQLAlchemyError:
+                items.append(
+                    BatchConsultationItem(
+                        program,
+                        target,
+                        ConsultationItemStatus.ERROR,
+                        None,
+                        "항목을 계산하지 못했습니다: 데이터 조회 오류가 발생했습니다.",
+                    )
+                )
+            else:
+                items.append(
+                    BatchConsultationItem(
+                        program,
+                        result.target,
+                        ConsultationItemStatus.EVALUATED,
+                        result,
+                    )
+                )
+    return BatchConsultationResult(
+        request.academic_year,
+        selected,
+        tuple(items),
+        ("복수지원 가능 여부는 전형별 지원자격과 별도이며 대학별 모집요강 확인이 필요합니다.",),
+    )
+
+
 def classify_admission_result(
     result: AdmissionResultAnalysisInput,
     *,
     current_rule_id: str,
     current_rule_version: str,
     current_academic_year: int,
+    expected_grade_scale: str = "RANK_GRADE",
 ) -> AdmissionResultComparison:
+    if result.score_basis != expected_grade_scale:
+        return AdmissionResultComparison(
+            AdmissionResultComparisonStatus.INCOMPATIBLE_SCALE,
+            result,
+            "공개 자료의 성적 척도가 학생 반영 평균등급과 달라 "
+            "숫자를 표시하거나 직접 비교하지 않습니다.",
+        )
     historical = result.historical_rule
     comparable = (
         result.key.academic_year == current_academic_year
@@ -318,7 +532,7 @@ def classify_admission_result(
     return AdmissionResultComparison(
         AdmissionResultComparisonStatus.REFERENCE_ONLY,
         result,
-        "모집학년도 또는 성적 규칙 버전이 달라 직접적인 점수 비교에는 사용하지 않습니다.",
+        "모집학년도 또는 성적 규칙 버전이 달라 참고용으로만 표시합니다.",
     )
 
 
@@ -452,14 +666,21 @@ def _score_unready_result(
 __all__ = [
     "AdmissionResultComparison",
     "AdmissionResultComparisonStatus",
+    "BatchConsultationItem",
+    "BatchConsultationRequest",
+    "BatchConsultationResult",
     "ConsultationError",
     "ConsultationEvidence",
+    "ConsultationItemStatus",
+    "ConsultationProgram",
     "ConsultationRequest",
     "ConsultationResult",
     "ConsultationStatus",
     "ConsultationTarget",
     "classify_admission_result",
+    "list_consultation_programs",
     "list_consultation_targets",
     "load_consultation_target",
+    "run_batch_consultation",
     "run_consultation",
 ]

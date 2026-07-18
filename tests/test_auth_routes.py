@@ -241,7 +241,8 @@ def test_public_demo_member_is_idempotent_active_and_cannot_use_mutating_feature
     assert "DEMO_SYNTHETIC" in result_body
     assert "가상 미래전문대" in result_body
     assert "합성 예시" in result_body
-    assert "1.75 / 9" in result_body
+    assert "1.75등급" in result_body
+    assert "환산점수" not in result_body
     assert "3.00" in result_body
     assert "BYOK 키 설정" not in result_body
 

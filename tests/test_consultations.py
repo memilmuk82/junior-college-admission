@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -325,9 +326,16 @@ def test_eligible_consultation_calculates_only_verified_rank_grade(session: Sess
     program = session.get(Program, track.program_id)
     assert program is not None
     program.code = "P1"
+    score_payload = _score_payload()
+    score_payload["attendance"] = {
+        "attendance_included": True,
+        "table_code": "SYNTHETIC_ATTENDANCE_V1",
+        "source": "UNIVERSITY_OFFICIAL",
+        "minor_event_conversion_unit": 3,
+    }
     score_rule = ScoreRule(
         version="score-v1",
-        rule_payload=_score_payload(),
+        rule_payload=score_payload,
         admission_year=2027,
         university_code="SYNTHETIC_U",
         university_name="합성 상담 전문대",
@@ -475,9 +483,10 @@ def test_eligible_consultation_calculates_only_verified_rank_grade(session: Sess
     )
 
     assert result.status is ConsultationStatus.READY
-    assert result.score is not None
-    assert result.score.display_score == Decimal("2.00")
-    assert result.score.trace.rule_version == "score-v1"
+    assert result.score is None
+    assert result.reflected_grade is not None
+    assert result.reflected_grade.display_average_grade == Decimal("2.00")
+    assert result.reflected_grade.trace.rule_version == "score-v1"
     assert result.score_selection is not None
     assert result.score_input is not None
     assert result.score_selection.trace.selected_semesters[0].selected_course_ids == (
@@ -487,6 +496,7 @@ def test_eligible_consultation_calculates_only_verified_rank_grade(session: Sess
     assert result.admission_result.result is not None
     assert result.admission_result.result.applicant_count == 0
     assert result.admission_result.result.competition_rate == Decimal("0")
+    assert any("출결 배점은 평균등급과 분리" in warning for warning in result.warnings)
 
 
 def test_admission_result_is_directly_compared_only_with_same_rule_and_year() -> None:
@@ -516,9 +526,18 @@ def test_admission_result_is_directly_compared_only_with_same_rule_and_year() ->
         current_rule_version="score-v2",
         current_academic_year=2027,
     )
+    different_scale = classify_admission_result(
+        replace(published, score_basis="POINT_SCORE"),
+        current_rule_id="score-rule",
+        current_rule_version="score-v1",
+        current_academic_year=2027,
+    )
 
     assert matched.status is AdmissionResultComparisonStatus.COMPARABLE
     assert matched.result is not None
     assert matched.result.applicant_count == 0
     assert matched.result.competition_rate == Decimal("0")
     assert reference_only.status is AdmissionResultComparisonStatus.REFERENCE_ONLY
+    assert different_scale.status is AdmissionResultComparisonStatus.INCOMPATIBLE_SCALE
+    assert reference_only.display_average_grade == Decimal("2.5")
+    assert different_scale.display_average_grade is None

@@ -20,6 +20,11 @@ class ScoreCalculationError(ValueError):
     pass
 
 
+REFLECTED_GRADE_SCALES = frozenset({"RANK_GRADE", "DEMO_SYNTHETIC_RANK_GRADE"})
+MINIMUM_RANK_GRADE = Decimal("1")
+MAXIMUM_RANK_GRADE = Decimal("9")
+
+
 @dataclass(frozen=True)
 class WeightedComponentTrace:
     key: str
@@ -61,6 +66,48 @@ class ScoreCalculationResult:
     trace: ScoreCalculationTrace
 
 
+@dataclass(frozen=True)
+class ReflectedCourseTrace:
+    course_record_id: str
+    academic_year: int
+    grade: int
+    semester: int
+    record_source: str
+    subject_name: str
+    credits: Decimal | None
+    rank_grade: Decimal | None
+
+
+@dataclass(frozen=True)
+class ReflectedGradeTrace:
+    rule_id: str
+    rule_version: str
+    grade_scale: str
+    weighting_mode: str
+    components: tuple[WeightedComponentTrace, ...]
+    selected_semesters: tuple[SelectedSemesterTrace, ...]
+    selected_courses: tuple[ReflectedCourseTrace, ...]
+    semester_rounding_mode: str | None
+    semester_rounding_scale: int | None
+    grade_rounding_mode: str | None
+    grade_rounding_scale: int | None
+    rounding_mode: str
+    rounding_stage: str
+    rounding_scale: int | None
+    display_scale: int | None
+
+
+@dataclass(frozen=True)
+class ReflectedGradeResult:
+    """A grade-scale result that is intentionally separate from point conversion."""
+
+    unrounded_average_grade: Decimal
+    final_average_grade: Decimal
+    display_average_grade: Decimal
+    grade_scale: str
+    trace: ReflectedGradeTrace
+
+
 def calculate_selected_score(
     selection: ScoreSelectionResult,
     definition: ScoreRuleDefinition,
@@ -78,49 +125,8 @@ def calculate_selected_score(
     maximum_score = definition.maximum_score
     if maximum_score is None or maximum_score <= 0:
         raise ScoreCalculationError("양의 maximum_score가 필요합니다.")
-    grade_weights = {
-        1: definition.grade_weight_1,
-        2: definition.grade_weight_2,
-        3: definition.grade_weight_3,
-    }
-    semester_weights = {
-        (1, 1): definition.semester_weight_1_1,
-        (1, 2): definition.semester_weight_1_2,
-        (2, 1): definition.semester_weight_2_1,
-        (2, 2): definition.semester_weight_2_2,
-        (3, 1): definition.semester_weight_3_1,
-        (3, 2): definition.semester_weight_3_2,
-    }
+    components = _weighted_components(selection, definition)
     mode = definition.weighting_mode
-    if mode == "GRADE_ONLY":
-        _reject_present_weights(semester_weights.values(), "GRADE_ONLY 학기")
-        components = _grade_components(
-            selection,
-            grade_weights,
-            definition.grade_rounding_mode,
-            definition.grade_rounding_scale,
-        )
-    elif mode == "GLOBAL_SEMESTER":
-        _reject_present_weights(grade_weights.values(), "GLOBAL_SEMESTER 학년")
-        components = _semester_components(selection, semester_weights)
-    elif mode == "GRADE_WITHIN_SEMESTER":
-        components = _grade_within_semester_components(selection, grade_weights, semester_weights)
-    elif mode == "EQUAL":
-        _reject_present_weights(grade_weights.values(), "EQUAL 학년")
-        _reject_present_weights(semester_weights.values(), "EQUAL 학기")
-        count = Decimal(len(selection.trace.selected_semesters))
-        weight = Decimal(1) / count
-        components = tuple(
-            WeightedComponentTrace(
-                key=f"grade_{term.grade}_semester_{term.semester}",
-                value=term.comparison_value,
-                weight=weight,
-                contribution=term.comparison_value * weight,
-            )
-            for term in selection.trace.selected_semesters
-        )
-    else:
-        raise ScoreCalculationError(f"허용되지 않은 weighting_mode입니다: {mode}")
 
     aggregate_value = sum((component.contribution for component in components), Decimal(0))
     academic_score = _transform_score(aggregate_value, definition)
@@ -177,6 +183,162 @@ def calculate_selected_score(
             non_predictive_components=non_predictive,
         ),
     )
+
+
+def calculate_reflected_grade(
+    selection: ScoreSelectionResult,
+    definition: ScoreRuleDefinition,
+    *,
+    rule_id: str,
+    rule_version: str,
+) -> ReflectedGradeResult:
+    """Calculate the reflected average on the input grade scale, before point conversion."""
+
+    if not rule_id or not rule_version:
+        raise ScoreCalculationError("평균등급 trace에 규칙 ID와 버전이 필요합니다.")
+    if selection.status is not ScoreInputStatus.READY or not selection.trace.selected_semesters:
+        raise ScoreCalculationError("READY 상태의 선택 결과만 평균등급을 계산할 수 있습니다.")
+    grade_scale = selection.trace.value_scale
+    if grade_scale not in REFLECTED_GRADE_SCALES:
+        raise ScoreCalculationError("등급 척도로 검증된 비교값만 평균등급으로 계산할 수 있습니다.")
+    _validate_reflected_grade_inputs(selection)
+    components = _weighted_components(selection, definition)
+    for component in components:
+        _require_rank_grade(component.value, f"가중 구성요소 {component.key}")
+    unrounded = sum((component.contribution for component in components), Decimal(0))
+    _require_rank_grade(unrounded, "반올림 전 평균등급")
+    final_grade = unrounded
+    display_grade = (
+        unrounded
+        if definition.display_scale is None
+        else _round_score(unrounded, definition.rounding_mode, definition.display_scale)
+    )
+    selected_term_keys = {
+        (term.academic_year, term.grade, term.semester, term.record_source)
+        for term in selection.trace.selected_semesters
+    }
+    return ReflectedGradeResult(
+        unrounded_average_grade=unrounded,
+        final_average_grade=final_grade,
+        display_average_grade=display_grade,
+        grade_scale=grade_scale,
+        trace=ReflectedGradeTrace(
+            rule_id=rule_id,
+            rule_version=rule_version,
+            grade_scale=grade_scale,
+            weighting_mode=definition.weighting_mode,
+            components=components,
+            selected_semesters=selection.trace.selected_semesters,
+            selected_courses=tuple(
+                ReflectedCourseTrace(
+                    course.course_record_id,
+                    record.academic_year,
+                    record.grade,
+                    record.semester,
+                    record.record_source,
+                    course.subject_name,
+                    course.credits,
+                    course.rank_grade,
+                )
+                for record in selection.records
+                if (
+                    record.academic_year,
+                    record.grade,
+                    record.semester,
+                    record.record_source,
+                )
+                in selected_term_keys
+                for course in record.courses
+            ),
+            semester_rounding_mode=definition.semester_rounding_mode,
+            semester_rounding_scale=definition.semester_rounding_scale,
+            grade_rounding_mode=definition.grade_rounding_mode,
+            grade_rounding_scale=definition.grade_rounding_scale,
+            rounding_mode=definition.rounding_mode,
+            rounding_stage="DISPLAY_ONLY",
+            rounding_scale=definition.display_scale,
+            display_scale=definition.display_scale,
+        ),
+    )
+
+
+def _validate_reflected_grade_inputs(selection: ScoreSelectionResult) -> None:
+    selected_course_ids = {
+        course_id
+        for semester in selection.trace.selected_semesters
+        for course_id in semester.selected_course_ids
+    }
+    for semester in selection.trace.selected_semesters:
+        _require_rank_grade(
+            semester.comparison_value,
+            f"{semester.grade}학년 {semester.semester}학기 비교값",
+        )
+    found_course_ids: set[str] = set()
+    for record in selection.records:
+        for course in record.courses:
+            if course.course_record_id not in selected_course_ids:
+                continue
+            found_course_ids.add(course.course_record_id)
+            if course.rank_grade is None:
+                raise ScoreCalculationError("선택 과목에 검증된 석차등급이 필요합니다.")
+            _require_rank_grade(course.rank_grade, f"선택 과목 {course.course_record_id}")
+    if found_course_ids != selected_course_ids:
+        raise ScoreCalculationError("선택 과목 trace와 성적 레코드가 일치하지 않습니다.")
+
+
+def _require_rank_grade(value: Decimal, label: str) -> None:
+    if not value.is_finite() or not MINIMUM_RANK_GRADE <= value <= MAXIMUM_RANK_GRADE:
+        raise ScoreCalculationError(f"{label}은 1~9 등급 범위여야 합니다.")
+
+
+def _weighted_components(
+    selection: ScoreSelectionResult, definition: ScoreRuleDefinition
+) -> tuple[WeightedComponentTrace, ...]:
+    grade_weights = {
+        1: definition.grade_weight_1,
+        2: definition.grade_weight_2,
+        3: definition.grade_weight_3,
+    }
+    semester_weights = {
+        (1, 1): definition.semester_weight_1_1,
+        (1, 2): definition.semester_weight_1_2,
+        (2, 1): definition.semester_weight_2_1,
+        (2, 2): definition.semester_weight_2_2,
+        (3, 1): definition.semester_weight_3_1,
+        (3, 2): definition.semester_weight_3_2,
+    }
+    mode = definition.weighting_mode
+    if mode == "GRADE_ONLY":
+        _reject_present_weights(semester_weights.values(), "GRADE_ONLY 학기")
+        components = _grade_components(
+            selection,
+            grade_weights,
+            definition.grade_rounding_mode,
+            definition.grade_rounding_scale,
+        )
+    elif mode == "GLOBAL_SEMESTER":
+        _reject_present_weights(grade_weights.values(), "GLOBAL_SEMESTER 학년")
+        components = _semester_components(selection, semester_weights)
+    elif mode == "GRADE_WITHIN_SEMESTER":
+        components = _grade_within_semester_components(selection, grade_weights, semester_weights)
+    elif mode == "EQUAL":
+        _reject_present_weights(grade_weights.values(), "EQUAL 학년")
+        _reject_present_weights(semester_weights.values(), "EQUAL 학기")
+        count = Decimal(len(selection.trace.selected_semesters))
+        weight = Decimal(1) / count
+        components = tuple(
+            WeightedComponentTrace(
+                key=f"grade_{term.grade}_semester_{term.semester}",
+                value=term.comparison_value,
+                weight=weight,
+                contribution=term.comparison_value * weight,
+            )
+            for term in selection.trace.selected_semesters
+        )
+    else:
+        raise ScoreCalculationError(f"허용되지 않은 weighting_mode입니다: {mode}")
+
+    return components
 
 
 def _grade_components(
@@ -389,9 +551,13 @@ def _round_intermediate(
 
 
 __all__ = [
+    "ReflectedCourseTrace",
+    "ReflectedGradeResult",
+    "ReflectedGradeTrace",
     "ScoreCalculationError",
     "ScoreCalculationResult",
     "ScoreCalculationTrace",
     "WeightedComponentTrace",
+    "calculate_reflected_grade",
     "calculate_selected_score",
 ]

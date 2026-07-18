@@ -20,7 +20,7 @@
 
 ## 복수지원과 결격
 
-복수지원 상태는 `ALLOWED`, `BLOCKED`, `NEEDS_REVIEW`다. 이는 한 전형 자체의 지원자격과 독립적이며 지원 이력 조합만 설명한다.
+복수지원 상태는 `ALLOWED`, `BLOCKED`, `NEEDS_REVIEW`다. 상담에서 복수지원 규칙을 실행하지 않은 경우에는 `NOT_EVALUATED`로 명시한다. 이는 한 전형 자체의 지원자격과 독립적이며 지원 이력 조합만 설명한다.
 
 결격 상태는 `CLEAR`, `DISQUALIFIED`, `NEEDS_REVIEW`, `INSUFFICIENT_DATA`다. 민감 결격 사실은 학생 사실 모델이나 영구 DB 행에 합치지 않고 판정 요청의 세션 전용 입력으로만 사용한다. 결격과 점수 감점은 서로 다른 규칙 유형이다.
 
@@ -42,3 +42,11 @@
 - `LOWER_IS_BETTER`·`HIGHER_IS_BETTER`: 등급과 점수처럼 우수 방향이 다른 값을 명시한다.
 
 Z점수의 `UNIVERSITY_OFFICIAL`, `VERIFIED_REFERENCE`, `INTERNAL_CALCULATION`, `MANUAL_REVIEW`는 계산식 자체가 아니라 근거 수준을 나타낸다. 계산 trace는 공식 버전, 반올림 전후 값, 절단값, 변환표 코드·버전과 근거 위치를 보존한다.
+
+## 반영 평균등급
+
+`ReflectedGradeResult`는 배점 환산 결과와 분리된 등급 척도 결과다. 반올림 전 평균, 표시 평균, 등급 척도, 선택 학기·과목·이수단위, 학년·학기 가중치, 중간·표시 반올림, 규칙 ID·버전을 보존한다. 점수 변환용 `score_base`·`score_multiplier`·`maximum_score`는 평균등급 자체를 바꾸지 않는다.
+
+`계산 기준 준비 중`은 학과·전형 기준정보는 있으나 실행 가능한 게시 자격·성적 범위·성적 규칙이 완성되지 않은 항목 상태다. 지원 불가와 같은 의미로 해석하지 않는다.
+
+공개 입시결과의 `INCOMPATIBLE_SCALE`은 `score_basis`가 학생 반영 평균등급 척도와 다른 상태다. 배점 등 다른 척도의 평균 숫자는 결과 화면·출력·AI payload에서 숨기고 직접 비교 불가 사유만 표시한다.
