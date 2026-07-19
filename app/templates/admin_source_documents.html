@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>출처 문서·검증 센터</title><link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}"></head>
+  <body class="admin-page">
+    <header class="admin-header"><div><p class="admin-eyebrow">SOURCE CONTROL</p><a href="{{ url_for('source_admin.index') }}">출처 문서·검증 센터</a></div><nav><a href="{{ url_for('admin.catalog') }}">기준정보</a><a href="{{ url_for('admission_result_imports.index') }}">입시결과</a></nav></header>
+    <main class="admin-shell">
+      <div class="admin-heading"><div><h1>출처 문서와 검증 결정</h1><p>공개 원문을 메타데이터·버전과 함께 연결하고, 현재 값·포털 값·문서 값을 한 화면에서 확정합니다.</p></div></div>
+      {% if error %}<div class="admin-alert" role="alert"><h2>처리할 수 없습니다</h2><p>{{ error }}</p></div>{% endif %}
+
+      <section class="admin-section">
+        <div class="admin-section__heading"><h2>출처 문서 등록</h2><span>PDF·PNG·JPG·CSV·XLSX</span></div>
+        <form method="post" action="{{ url_for('source_admin.upload') }}" enctype="multipart/form-data" class="source-document-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>학년도<input name="academic_year" type="number" min="2000" max="2100" value="2027" required></label>
+          <label>문서 유형<select name="document_type" required><option value="ADMISSION_GUIDE">모집요강</option><option value="ADMISSION_RESULT">입시결과</option><option value="NOTICE">공지</option><option value="OTHER">기타 공식문서</option></select></label>
+          <label>대학<select name="institution_id"><option value="">공통/미지정</option>{% for institution in institutions %}<option value="{{ institution.id }}">{{ institution.name }}</option>{% endfor %}</select></label>
+          <label>모집시기<select name="admission_round_id"><option value="">미지정</option>{% for round in rounds %}<option value="{{ round.id }}">{{ round.name }}</option>{% endfor %}</select></label>
+          <label>발표일<input name="announced_at" type="date"></label>
+          <label>개정 표시<input name="revision_label" maxlength="120" placeholder="예: 최초 공고"></label>
+          <label class="source-document-form__wide">공식 원문 URL<input name="original_url" type="url" maxlength="1000" placeholder="https://..."></label>
+          <label class="source-document-form__wide">출처 파일<input name="source_file" type="file" accept=".pdf,.png,.jpg,.jpeg,.csv,.xlsx" required></label>
+          <button type="submit">문서 등록</button>
+        </form>
+        <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>학년도·유형</th><th>파일</th><th>버전</th><th>상태</th><th>공식 원문</th></tr></thead><tbody>{% for document in documents %}<tr><td>{{ document.academic_year }} · {{ document.document_type }}</td><td>{{ document.original_filename or '기존 등록 자료' }}<small>{{ document.page_count }}쪽 · SHA-256 {{ document.file_hash[:12] }}…</small></td><td>{{ document.revision_label or '-' }}<small>{{ document.announced_at.date() if document.announced_at else '발표일 미입력' }}</small></td><td>{% if document.is_current %}현재 버전{% else %}이전 버전{% endif %}<small>{{ document.verification_status }}</small></td><td>{% if document.original_url %}<a href="{{ document.original_url }}" rel="noreferrer">원문 열기</a>{% else %}미등록{% endif %}</td></tr>{% else %}<tr><td colspan="5">등록된 출처 문서가 없습니다.</td></tr>{% endfor %}</tbody></table></div>
+      </section>
+
+      <section class="admin-section">
+        <div class="admin-section__heading"><h2>검증 항목 추가</h2><span>현재값 ↔ 포털 ↔ 문서</span></div>
+        <form method="post" action="{{ url_for('source_admin.add_validation') }}" class="source-validation-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>출처 문서<select name="source_document_id" required><option value="">선택하세요</option>{% for document in documents %}<option value="{{ document.id }}">{{ document.academic_year }} · {{ document.original_filename or document.document_type }}</option>{% endfor %}</select></label>
+          <label>대상 유형<select name="entity_type"><option value="CATALOG">기준정보</option><option value="RULE">전형 규칙</option><option value="ADMISSION_RESULT">입시결과</option></select></label>
+          <label>대상 식별자<input name="entity_reference" maxlength="160" required></label>
+          <label>필드명<input name="field_name" maxlength="120" required></label>
+          <label>현재 앱 값<textarea name="current_value" maxlength="4000" rows="3"></textarea></label>
+          <label>포털 값<textarea name="portal_value" maxlength="4000" rows="3"></textarea></label>
+          <label>공식 문서 값<textarea name="document_value" maxlength="4000" rows="3"></textarea></label>
+          <button type="submit">검증 대기 등록</button>
+        </form>
+      </section>
+
+      <section class="admin-section">
+        <div class="admin-section__heading"><h2>검증 결정</h2><span>{{ decisions|length }}건</span></div>
+        {% for decision in decisions %}<article class="validation-decision"><header><strong>{{ decision.entity_type }} · {{ decision.entity_reference }} · {{ decision.field_name }}</strong><span class="status-badge">{{ decision.resolution_status }}</span></header><div><p><span>현재 앱</span>{{ decision.current_value or '없음' }}</p><p><span>포털</span>{{ decision.portal_value or '없음' }}</p><p><span>공식 문서</span>{{ decision.document_value or '없음' }}</p></div>{% if decision.resolution_status == 'PENDING' %}<form method="post" action="{{ url_for('source_admin.resolve_validation', decision_id=decision.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>결정<select name="resolution_status"><option value="CONFIRMED">확정</option><option value="REJECTED">반려</option></select></label><label>확정 값<input name="resolved_value" maxlength="4000" required></label><label>결정 이유<input name="resolution_reason" maxlength="2000" required></label><button type="submit">결정 저장</button></form>{% else %}<p><strong>확정 값:</strong> {{ decision.resolved_value }} · {{ decision.resolution_reason }}</p>{% endif %}</article>{% else %}<p class="admin-empty">검증 항목이 없습니다.</p>{% endfor %}
+      </section>
+    </main>
+  </body>
+</html>

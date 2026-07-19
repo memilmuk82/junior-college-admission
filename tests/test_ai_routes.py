@@ -138,17 +138,23 @@ def test_admin_can_review_edit_and_confirm_only_owned_draft(postgres_engine: Eng
     )
 
     assert confirmed.status_code == 200
-    assert "TEACHER_CONFIRMED" in confirmed.get_data(as_text=True)
+    confirmed_body = confirmed.get_data(as_text=True)
+    assert "TEACHER_CONFIRMED" in confirmed_body
     with Session(postgres_engine) as database_session:
         loaded = database_session.get(AiConsultationDraft, draft_id)
         assert loaded is not None
         assert loaded.teacher_text == "교사가 검토하고 수정한 합성 상담 문장입니다."
         assert loaded.confirmed_by == "synthetic-admin"
         assert loaded.confirmed_at is not None
-        database_session.execute(
-            delete(AiConsultationDraft).where(AiConsultationDraft.id == draft_id)
-        )
-        database_session.commit()
+
+    deleted = client.post(
+        f"/admin/ai/drafts/{draft_id}/delete",
+        data={"csrf_token": _csrf(confirmed_body)},
+        follow_redirects=True,
+    )
+    assert deleted.status_code == 200
+    with Session(postgres_engine) as database_session:
+        assert database_session.get(AiConsultationDraft, draft_id) is None
 
 
 def test_admin_can_reject_an_unconfirmed_draft(postgres_engine: Engine) -> None:

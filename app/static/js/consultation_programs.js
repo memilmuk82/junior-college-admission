@@ -3,12 +3,37 @@
   const picker = document.querySelector("[data-program-picker]");
   if (!picker) return;
   const search = picker.querySelector("[data-program-search]");
-  const count = picker.querySelector("[data-selection-count]");
+  const institutionFilter = picker.querySelector("[data-institution-filter]");
+  const count = document.querySelector("[data-selection-count]");
+  const chips = picker.querySelector("[data-selection-chips]");
+  const dockCount = document.querySelector("[data-dock-count]");
+  const dockLabels = document.querySelector("[data-dock-labels]");
   const programInputs = [...picker.querySelectorAll('input[name="program_ids"]')];
   const normalize = (value) => value.toLocaleLowerCase("ko-KR").trim();
 
   const updateCount = () => {
-    count.textContent = `${programInputs.filter((input) => input.checked).length}개 선택`;
+    const selected = programInputs.filter((input) => input.checked);
+    if (count) count.textContent = `${selected.length}개 선택`;
+    if (dockCount) dockCount.textContent = `${selected.length}개 학과`;
+    if (dockLabels) {
+      dockLabels.textContent = selected.length
+        ? selected.slice(0, 3).map((input) => input.dataset.label).join(" · ")
+        : "선택한 학과가 여기에 표시됩니다.";
+    }
+    if (chips) {
+      chips.replaceChildren();
+      selected.forEach((input) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "selection-chip";
+        button.textContent = `${input.dataset.label} ×`;
+        button.addEventListener("click", () => {
+          input.checked = false;
+          updateCount();
+        });
+        chips.appendChild(button);
+      });
+    }
     picker.querySelectorAll("[data-program-group]").forEach((group) => {
       const inputs = [...group.querySelectorAll('input[name="program_ids"]')];
       const toggle = group.querySelector("[data-institution-toggle]");
@@ -19,8 +44,11 @@
 
   const filter = () => {
     const query = normalize(search.value);
+    const institution = institutionFilter?.value || "";
     picker.querySelectorAll("[data-program-option]").forEach((option) => {
-      option.hidden = Boolean(query) && !normalize(option.dataset.searchText).includes(query);
+      const queryMismatch = Boolean(query) && !normalize(option.dataset.searchText).includes(query);
+      const institutionMismatch = Boolean(institution) && option.dataset.institution !== institution;
+      option.hidden = queryMismatch || institutionMismatch;
     });
     picker.querySelectorAll("[data-program-group]").forEach((group) => {
       group.hidden = [...group.querySelectorAll("[data-program-option]")].every(
@@ -43,5 +71,6 @@
   });
   programInputs.forEach((input) => input.addEventListener("change", updateCount));
   search.addEventListener("input", filter);
+  institutionFilter?.addEventListener("change", filter);
   updateCount();
 })();

@@ -10,12 +10,8 @@ class AppTestCase(unittest.TestCase):
     def test_index_renders_current_phase_screen(self):
         response = self.client.get("/")
 
-        self.assertEqual(response.status_code, 200)
-        body = response.get_data(as_text=True)
-        self.assertIn("로그인 없이 성적 계산하기", body)
-        self.assertIn("예시 성적으로 체험하기", body)
-        self.assertIn("실제 대학·학과의 지원자격", body)
-        self.assertIn('media="print"', body)
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.headers["Location"].endswith("/calculate"))
 
     def test_health_endpoint(self):
         response = self.client.get("/health")

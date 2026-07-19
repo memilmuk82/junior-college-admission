@@ -158,6 +158,47 @@ class SourceDocument(TimestampMixin, Base):
     detected_years: Mapped[list[int]] = mapped_column(JSON, nullable=False, default=list)
     year_consistency_status: Mapped[str] = mapped_column(String(30), nullable=False)
     verification_status: Mapped[str] = mapped_column(String(30), nullable=False, default="PENDING")
+    admission_round_id: Mapped[str | None] = mapped_column(
+        ForeignKey("admission_rounds.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    original_url: Mapped[str | None] = mapped_column(String(1000))
+    announced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    original_filename: Mapped[str | None] = mapped_column(String(255))
+    storage_path: Mapped[str | None] = mapped_column(String(500))
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+
+
+class DataValidationDecision(TimestampMixin, Base):
+    __tablename__ = "data_validation_decisions"
+    __table_args__ = (
+        CheckConstraint(
+            "entity_type IN ('CATALOG', 'RULE', 'ADMISSION_RESULT')",
+            name="entity_type_valid",
+        ),
+        CheckConstraint(
+            "resolution_status IN ('PENDING', 'CONFIRMED', 'REJECTED')",
+            name="resolution_status_valid",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    source_document_id: Mapped[str] = mapped_column(
+        ForeignKey("source_documents.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    entity_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    entity_reference: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    field_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    current_value: Mapped[str | None] = mapped_column(Text)
+    portal_value: Mapped[str | None] = mapped_column(Text)
+    document_value: Mapped[str | None] = mapped_column(Text)
+    resolution_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="PENDING", index=True
+    )
+    resolved_value: Mapped[str | None] = mapped_column(Text)
+    resolution_reason: Mapped[str | None] = mapped_column(Text)
+    reviewed_by_user_account_id: Mapped[str | None] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
 
 class SourceDocumentPage(TimestampMixin, Base):
@@ -1066,6 +1107,62 @@ class SavedConsultation(TimestampMixin, Base):
     counselor_note: Mapped[str | None] = mapped_column(Text)
 
 
+class InstitutionApplicationOutcome(TimestampMixin, Base):
+    """교사가 관리하는 비식별 지원·합격 결과.
+
+    공식 공개 입시결과나 학생 개인 저장자료와 섞지 않는 별도 내부 데이터다.
+    """
+
+    __tablename__ = "institution_application_outcomes"
+    __table_args__ = (
+        UniqueConstraint(
+            "managed_by_user_account_id",
+            "anonymous_student_code",
+            "academic_year",
+            "admission_track_id",
+            name="uq_institution_outcome_teacher_student_track",
+        ),
+        CheckConstraint("academic_year BETWEEN 2000 AND 2100", name="academic_year_valid"),
+        CheckConstraint(
+            "outcome_status IN ('INITIAL_ACCEPTED', 'WAITLIST_ACCEPTED', 'REJECTED', 'UNKNOWN')",
+            name="outcome_status_valid",
+        ),
+        CheckConstraint(
+            "source_status IN ('STUDENT_REPORTED', 'TEACHER_CONFIRMED', "
+            "'OFFICIAL_CONFIRMED', 'UNCONFIRMED')",
+            name="source_status_valid",
+        ),
+        CheckConstraint(
+            "reflected_grade IS NULL OR reflected_grade BETWEEN 1 AND 9",
+            name="reflected_grade_valid",
+        ),
+        CheckConstraint(
+            "initial_waitlist_number IS NULL OR initial_waitlist_number > 0",
+            name="initial_waitlist_number_positive",
+        ),
+        CheckConstraint(
+            "final_waitlist_number IS NULL OR final_waitlist_number > 0",
+            name="final_waitlist_number_positive",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    managed_by_user_account_id: Mapped[str] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    anonymous_student_code: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    academic_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    admission_track_id: Mapped[str] = mapped_column(
+        ForeignKey("admission_tracks.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    reflected_grade: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+    outcome_status: Mapped[str] = mapped_column(String(30), nullable=False, default="UNKNOWN")
+    initial_waitlist_number: Mapped[int | None] = mapped_column(Integer)
+    final_waitlist_number: Mapped[int | None] = mapped_column(Integer)
+    source_status: Mapped[str] = mapped_column(String(30), nullable=False, default="UNCONFIRMED")
+    notes: Mapped[str | None] = mapped_column(Text)
+
+
 class VerifiedSourceRuleConfirmation(TimestampMixin, Base):
     __tablename__ = "verified_source_rule_confirmations"
     __table_args__ = (
@@ -1341,11 +1438,13 @@ __all__ = [
     "AdmissionTrack",
     "AssessmentComponent",
     "Campus",
+    "DataValidationDecision",
     "DisqualificationRule",
     "DocumentRequirement",
     "ExternalIdentity",
     "GradeSourceScopeRule",
     "ImportBatch",
+    "InstitutionApplicationOutcome",
     "Institution",
     "MultipleApplicationRule",
     "Program",

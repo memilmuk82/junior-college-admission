@@ -108,6 +108,7 @@
               <p><strong>{{ target.get('institution_name', '대학 정보 없음') }} · {{ target.get('program_name', '학과 정보 없음') }}</strong> · 지원자격 {{ eligibility.get('status', '검토 필요') if eligibility else '검토 필요' }} · 반영등급 {{ average_grade.get('display_average_grade', '계산하지 않음') if average_grade else '계산하지 않음' }} · 비교연도 {{ admission_result.get('academic_year', '없음') }}</p>
             {% endfor %}
             <details><summary>저장 출력 스냅샷</summary><p>학생용 {{ consultation.student_print_snapshot.audience }} · 교사용 {{ consultation.teacher_print_snapshot.audience }} · 저장 당시 결과 {{ consultation.result_snapshot.results|length }}건</p><p><a href="{{ url_for('account.print_saved_consultation', consultation_id=consultation.id, audience='student') }}">학생용 A4 다시 열기</a> · <a href="{{ url_for('account.print_saved_consultation', consultation_id=consultation.id, audience='teacher') }}">교사용 A4 다시 열기</a></p></details>
+            <p><a class="button-link button-link--secondary" href="{{ url_for('account.clone_consultation', consultation_id=consultation.id) }}">이 상담을 복제해 조건 바꾸기</a></p>
             {% if current_user.role == 'TEACHER' %}
               <form method="post" action="{{ url_for('account.edit_consultation_note', consultation_id=consultation.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -122,6 +123,7 @@
           </article>
         {% else %}<p class="empty-state">저장된 상담 결과가 없습니다.</p>{% endfor %}
       </section>
+      <section class="admin-section"><div class="admin-section__heading"><h2>개인 AI 상담 문장</h2><span>선택 기능</span></div><p>본인 API 키를 사용해 비식별 상담 결과만 문장으로 정리할 수 있습니다. 자격·점수·합격 가능성은 AI가 결정하지 않습니다.</p><a class="button-link button-link--secondary" href="{{ url_for('admin.ai_settings') }}">내 BYOK 설정과 저장 분석</a></section>
     </main>
   </body>
 </html>

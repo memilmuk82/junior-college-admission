@@ -290,6 +290,61 @@ def get_saved_consultation(
     return consultation
 
 
+def saved_consultation_input_rows(
+    session: Session, *, user: UserAccount, consultation_id: str
+) -> tuple[dict[str, str], ...]:
+    consultation = get_saved_consultation(session, user=user, consultation_id=consultation_id)
+    records = tuple(
+        session.scalars(
+            select(StudentAcademicRecord)
+            .where(StudentAcademicRecord.student_id == consultation.student_reference)
+            .order_by(
+                StudentAcademicRecord.academic_year,
+                StudentAcademicRecord.grade,
+                StudentAcademicRecord.semester,
+                StudentAcademicRecord.id,
+            )
+        )
+    )
+    rows: list[dict[str, str]] = []
+    for record in records:
+        courses = tuple(
+            session.scalars(
+                select(StudentCourseRecord)
+                .where(StudentCourseRecord.academic_record_id == record.id)
+                .order_by(StudentCourseRecord.id)
+            )
+        )
+        for course in courses:
+            rows.append(
+                {
+                    "academic_year": str(record.academic_year),
+                    "grade": str(record.grade),
+                    "semester": str(record.semester),
+                    "subject_group": course.subject_group or "",
+                    "subject_name": course.subject_name,
+                    "credits": _display_optional(course.credits),
+                    "raw_score": course.raw_score_label or _display_optional(course.raw_score),
+                    "course_mean": _display_optional(course.course_mean),
+                    "standard_deviation": _display_optional(course.standard_deviation),
+                    "achievement_level": course.achievement_level or "",
+                    "enrollment_count": _display_optional(course.enrollment_count),
+                    "rank_grade": _display_optional(course.rank_grade),
+                    "record_source": record.record_source,
+                    "is_vocational_training_semester": (
+                        "TRUE" if record.is_vocational_training_semester else "FALSE"
+                    ),
+                }
+            )
+    if not rows:
+        raise StudentRecordAccessError("복제할 저장 성적을 찾을 수 없습니다.")
+    return tuple(rows)
+
+
+def _display_optional(value: object | None) -> str:
+    return "" if value is None else str(value)
+
+
 def update_consultation_note(
     session: Session,
     *,
@@ -334,6 +389,7 @@ __all__ = [
     "delete_academic_record",
     "delete_saved_consultation",
     "get_saved_consultation",
+    "saved_consultation_input_rows",
     "update_academic_record_courses",
     "update_consultation_note",
     "visible_academic_records",

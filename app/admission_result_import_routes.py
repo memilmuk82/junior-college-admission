@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import csv
 import json
 from datetime import UTC, datetime
+from io import StringIO
 from pathlib import Path
 from typing import cast
 
@@ -21,8 +23,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth import actor_ref, admin_required, csrf_token, require_csrf
+from app.crawlers.procollege import PROCOLLEGE_COLUMNS, ProcollegeAdapter, RequestsFormTransport
 from app.database import db
 from app.models import AdmissionResultImportDataset, AdmissionResultImportRow
+from app.services.admission_result_collection_store import persist_raw_collection
 from app.services.admission_result_file_imports import (
     AdmissionResultUploadError,
     AdmissionResultUploadPreview,
@@ -36,6 +40,10 @@ from app.services.admission_result_imports import (
     persist_admission_result_preview,
     publish_admission_result_dataset,
     retarget_admission_result_dataset,
+)
+from app.services.admission_results import (
+    AdmissionResultCollectionError,
+    collect_admission_result_raw,
 )
 from app.services.temporary_uploads import TemporaryUploadStore
 
@@ -147,6 +155,87 @@ def upload() -> Response:
         if temporary_session_id is not None:
             _upload_store().purge_session(temporary_session_id)
         return _render_index(error=str(error), status=400)
+
+
+@bp.post("/collect/procollege")
+@admin_required
+def collect_procollege() -> Response:
+    require_csrf()
+    temporary_session_id: str | None = None
+    try:
+        result_year = int(request.form.get("result_academic_year", ""))
+        target_year = int(request.form.get("target_academic_year", ""))
+        page_count = int(request.form.get("page_count", ""))
+        if target_year != result_year + 1:
+            raise ValueError("포털 결과의 상담 대상연도는 결과연도 + 1로 확인하세요.")
+        adapter = ProcollegeAdapter(page_count=page_count)
+        collection = collect_admission_result_raw(
+            adapter, RequestsFormTransport(), academic_year=result_year
+        )
+        if collection.row_count <= 0:
+            raise AdmissionResultCollectionError("포털에서 수집된 결과 행이 없습니다.")
+        csv_buffer = StringIO()
+        fieldnames = ("모집학년도", *PROCOLLEGE_COLUMNS)
+        writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
+        writer.writeheader()
+        for page in collection.pages:
+            for raw_row in page.rows:
+                writer.writerow(raw_row.as_dict())
+        source = csv_buffer.getvalue().encode("utf-8-sig")
+        preview = parse_admission_result_upload(
+            source,
+            filename="procollege-results.csv",
+            result_academic_year=result_year,
+            target_academic_year=target_year,
+            catalog=DatabaseCatalogResolver(cast(Session, db.session)),
+        )
+        raw_batch = persist_raw_collection(cast(Session, db.session), collection)
+        metadata = _validated_upload_metadata(
+            source_code=adapter.source_code,
+            source_dataset_version=f"{result_year}-{collection.collection_digest[:12]}",
+            source_reference=(
+                f"전문대학포털 공개 입시결과 · raw_batch:{raw_batch.id} · "
+                "https://www.procollege.kr/web/entrance/webEntrancePreResult.do"
+            ),
+            result_academic_year=result_year,
+            target_academic_year=target_year,
+            suffix=".csv",
+        )
+        store = _upload_store()
+        store.purge_expired_sessions()
+        temporary_session_id = store.create_session()
+        store.write_artifact(temporary_session_id, source, kind="original", suffix=".csv")
+        store.write_artifact(
+            temporary_session_id,
+            json.dumps(metadata, ensure_ascii=False).encode("utf-8"),
+            kind="derived",
+            suffix=".json",
+        )
+        db.session.commit()
+        return _render_mapping_preview(temporary_session_id, preview)
+    except (
+        AdmissionResultCollectionError,
+        AdmissionResultUploadError,
+        AdmissionResultImportError,
+        OSError,
+        ValueError,
+    ) as error:
+        db.session.rollback()
+        if temporary_session_id is not None:
+            _upload_store().purge_session(temporary_session_id)
+        datasets = tuple(
+            cast(Session, db.session).scalars(
+                select(AdmissionResultImportDataset).order_by(
+                    AdmissionResultImportDataset.created_at.desc()
+                )
+            )
+        )
+        return _render_index(datasets=datasets, error=str(error), status=400)
+    except IntegrityError:
+        db.session.rollback()
+        if temporary_session_id is not None:
+            _upload_store().purge_session(temporary_session_id)
+        return _render_index(error="동일한 포털 raw 수집본이 이미 등록되어 있습니다.", status=409)
 
 
 @bp.post("/preview")

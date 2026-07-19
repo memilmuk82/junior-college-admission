@@ -247,6 +247,12 @@ def create_app(test_config: dict | None = None) -> Flask:
     from app.account_routes import bp as account_bp
 
     app.register_blueprint(account_bp)
+    from app.teacher_routes import bp as teacher_bp
+
+    app.register_blueprint(teacher_bp)
+    from app.source_document_routes import bp as source_admin_bp
+
+    app.register_blueprint(source_admin_bp)
     from app.member_routes import bp as member_bp
 
     app.register_blueprint(member_bp)

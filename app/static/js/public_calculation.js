@@ -28,3 +28,23 @@
     row.hidden = true;
   });
 })();
+
+(() => {
+  "use strict";
+  const alternative = document.querySelector(".alternative-input");
+  document.querySelectorAll('input[name="input_mode"]').forEach((input) => {
+    input.addEventListener("change", () => {
+      if (alternative && input.checked && input.value !== "manual") alternative.open = true;
+    });
+  });
+  const search = document.querySelector("[data-preview-search]");
+  const programs = [...document.querySelectorAll("[data-preview-program]")];
+  if (!search || !programs.length) return;
+  search.addEventListener("input", () => {
+    const query = search.value.toLocaleLowerCase("ko-KR").trim();
+    programs.forEach((program) => {
+      program.hidden = Boolean(query)
+        && !program.dataset.searchText.toLocaleLowerCase("ko-KR").includes(query);
+    });
+  });
+})();

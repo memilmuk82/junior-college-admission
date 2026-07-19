@@ -181,6 +181,13 @@ def test_account_records_edit_and_consultation_history_are_owner_scoped(
                 manager=None,
                 subject="다른 학생 과목",
             )
+            student_consultation = _consultation(
+                database_session,
+                calculation_id="phase15-student-consultation",
+                owner=student.id,
+                manager=None,
+                student_reference=f"account:{student.id}",
+            )
             teacher_consultation = _consultation(
                 database_session,
                 calculation_id="phase14-teacher-consultation",
@@ -219,6 +226,14 @@ def test_account_records_edit_and_consultation_history_are_owner_scoped(
         assert page.status_code == 200
         assert "학생 본인 과목" in body
         assert "다른 학생 과목" not in body
+        cloned = student_client.get(f"/account/consultations/{student_consultation.id}/clone")
+        assert cloned.status_code == 200
+        assert "학생 본인 과목" in cloned.get_data(as_text=True)
+        assert "저장 상담을 새 입력으로 복제했습니다." in cloned.get_data(as_text=True)
+        forbidden_clone = student_client.get(
+            f"/account/consultations/{teacher_consultation.id}/clone"
+        )
+        assert forbidden_clone.status_code == 404
         edit_data = {
             "csrf_token": csrf,
             "academic_year": "2026",

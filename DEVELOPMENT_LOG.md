@@ -1,5 +1,18 @@
 # 개발 기록
 
+## 2026-07-19 · Phase 15 기본 구조 재설계
+
+- 승인된 사전 점검 범위에 따라 별도 홍보 랜딩을 제거하고 `/`에서 로그인 없는 2027 공개 상담 입력으로 바로 이동하도록 했다. 성적 입력 우선과 대학 검색 우선 경로를 한 화면에 두고, 고정 학생군 사실의 반복 입력은 서버에서 canonical 값으로 강제했다.
+- 입력·대학 선택·결과 템플릿을 차분한 네이비·코발트·틸 계열의 업무 화면으로 재구성했다. 대학·학과 검색, 대학 필터, 선택 칩과 비교 dock을 추가하되 checkbox·POST 기반 핵심 기능과 기존 학생용·교사용 A4를 JavaScript 없이도 유지했다.
+- 결과 상태를 `지원 가능`, `지원 불가`, `추가 확인 필요`로 표시하고 공식 근거·계산 trace·공개 과거 결과와 자료 없음 상태를 분리했다. 합격 예측이나 공식 근거 없는 규칙은 추가하지 않았다.
+- 학생 역할의 계정 자료 접근을 명시하고, 저장 상담을 원본 변경 없이 공개 입력으로 복제하는 경로를 추가했다. 개인 BYOK 설정·저장 초안 조회와 소유자별 초안 삭제를 연결했으며 기존 암호화·비식별 payload 계약을 재사용했다.
+- 공식 공개 입시결과와 분리된 `InstitutionApplicationOutcome`에 교내 익명 코드·학년도·전형·환산등급·최초/충원 결과를 저장하고, 교사·관리자만 등록·필터·집계·CSV 내보내기·삭제하도록 했다.
+- `SourceDocument`에 모집시기·원본 URL·공고일·파일명·보관 경로·현재 버전을 추가하고, 현재 데이터·포털 데이터·문서 데이터의 비교와 관리자 검증 결정을 별도 테이블에 기록했다. PDF·PNG/JPEG·CSV·XLSX는 기존 라이브러리로 형식·크기·hash를 검증하며 자동 게시하지 않는다.
+- 기존 전문대학포털 노트북에서 확인한 POST endpoint·필드·15열 표를 제한형 crawler로 옮겼다. timeout·재시도·rate limit·페이지·응답·행 상한을 고정하고 기존 raw collection 테이블과 Phase 14 mapping/review/publish로 연결했다. 실제 포털 네트워크 수집은 실행하지 않았다.
+- migration은 기존 head `2f8a4c6e91d3` 뒤에 추가했으며 운영 DB에는 적용하지 않았다. 새 패키지, Docker·Compose·환경변수·Nginx 변경도 없고 기존 데이터·컨테이너·named volume을 삭제하거나 변경하지 않았다.
+- 합성 fixture로 고정 학생군·crawler raw→staging 계약을 검증하고, 격리 PostgreSQL에서 교내 결과 ACL·집계와 근거 문서 버전·검증 결정을 확인했다. Chromium은 데스크톱·390px·무JavaScript 공개 흐름, 결과 `1.71→2.00`, 학생·교사 A4와 console/page error 0건을 통과했다.
+- 사용자 기존 변경 `codex_cli_admission_refactor_prompt.md`, `run_admission_codex_background.sh`를 수정하지 않고 보존했다. 커밋·push·배포·DNS·Cloudflare·호스트 Nginx 작업은 수행하지 않았다.
+
 ## 2026-07-19 · Phase 14 엑셀 업무 흐름 중심 재구축
 
 - 기준 XLSX의 size·SHA-256과 네 시트를 읽기 전용으로 확인하고, 학생 성적 시트 값은 출력·seed·DB 입시결과에서 제외했다.

@@ -56,7 +56,12 @@ from app.services.ai_credentials import (
     delete_provider_credential,
     save_provider_credential,
 )
-from app.services.ai_drafts import AiDraftError, confirm_ai_draft, reject_ai_draft
+from app.services.ai_drafts import (
+    AiDraftError,
+    confirm_ai_draft,
+    delete_ai_draft,
+    reject_ai_draft,
+)
 from app.services.ai_http_providers import provider_adapter
 from app.services.ai_narratives import AiNarrativeError, generate_consultation_narrative
 from app.services.ai_providers import PROVIDER_CODES, NarrativeProviderError
@@ -636,6 +641,21 @@ def reject_ai_draft_route(draft_id: str) -> Response | Any:
         record = _owned_ai_draft(draft_id)
         return _render_ai_draft(record, error=str(error), status=400)
     return redirect(url_for("admin.ai_draft_detail", draft_id=record.id))
+
+
+@bp.post("/ai/drafts/<draft_id>/delete")
+@member_required
+@non_demo_required
+def delete_ai_draft_route(draft_id: str) -> Response | Any:
+    _require_csrf()
+    record = _owned_ai_draft(draft_id)
+    try:
+        delete_ai_draft(cast(Session, db.session), draft_id=record.id, actor_ref=_actor_ref())
+        db.session.commit()
+    except AiDraftError as error:
+        db.session.rollback()
+        return _render_ai_draft(record, error=str(error), status=400)
+    return redirect(url_for("admin.ai_settings"))
 
 
 @bp.post("/consultations/print/<audience>")

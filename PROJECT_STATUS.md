@@ -1,10 +1,10 @@
 # 프로젝트 상태
 
 - 기준일: 2026-07-19
-- 현재 단계: Phase 14 엑셀 업무 흐름 중심 재구축
-- 단계 판정: `LIVE_VERIFIED_PHASE_14` — 공개 계산·실제 공개 데이터·연도 import·계정 저장 경계와 독립 검증, PostgreSQL 보존 배포와 공인 HTTPS smoke 완료
-- 현재 작업: Phase 14 구현·운영 배포 완료
-- 다음 게이트: 실제 상담 피드백 관찰과 추가 대학 공식 규칙의 관리자 최종확인
+- 현재 단계: Phase 15 기본 구조 재설계
+- 단계 판정: `PASS_NONPROD_PHASE_15` — 공개 상담 진입·역할 경계·비식별 교내 결과·근거 문서 검증·제한형 포털 수집을 로컬 작업 트리에서 검증, 운영 미적용
+- 현재 작업: 승인된 Phase 15 구현과 핵심 회귀 완료
+- 다음 게이트: 변경 검토 후 별도 승인에 따른 백업·migration·배포와 실제 포털 소량 수집 수동 확인
 
 ## 저장소 인벤토리
 
@@ -311,3 +311,20 @@ Phase 12 회귀는 단위 290건, PostgreSQL 통합 127건과 합성 백업·격
 - `https://admission.memilmuk82.com`에서 TLS·health·보안 헤더, loopback health, 공개 Chromium 3건, JavaScript 비활성, 390px, 학생·교사 A4, 결과 변화 `1.71→2.00`, 완료 후 임시 세션 404 삭제와 console/page error 0건을 확인했다.
 - 운영 관리자 자격으로 import SSR 화면 접근을 비밀값 출력 없이 확인했다. CSV/XLSX 게시 변경은 격리 PostgreSQL Playwright 2건으로 검증해 live에 합성 dataset을 추가하지 않았다.
 - 최종 웹 로그에서 5xx·traceback·fatal 패턴은 0건이며 DB와 웹 컨테이너가 모두 `healthy`다.
+
+## Phase 15 완료 항목
+
+- [x] `/`에서 로그인 없는 2027 공개 상담으로 바로 진입하고 성적 우선·대학 검색 우선 시작점 통합
+- [x] 고정 학생군 조건의 중복 입력 제거와 대학·학과 검색·필터·비교 선택, 사람 친화적 결과 상태로 UI 재구성
+- [x] 핵심 흐름의 JavaScript 비의존 SSR과 학생용·교사용 A4 경계 유지
+- [x] 학생 저장 상담의 원본 보존 복제, 개인 BYOK 설정·초안 조회·소유자 삭제 연결
+- [x] 교사·관리자 전용 비식별 교내 지원 결과 등록·필터·집계·CSV 내보내기
+- [x] 공식 공개 데이터와 교내 관찰 결과의 테이블·조회·공개 경계 분리
+- [x] 관리자 근거 문서 업로드·hash 중복·버전 current 관리와 현재값/포털값/문서값 비교·검증 결정
+- [x] 기존 전문대학포털 노트북의 POST·15열 표 계약을 timeout·재시도·rate limit·크기 상한이 있는 어댑터로 재사용
+- [x] 포털 응답을 기존 raw 수집·staging·관리자 review/publish 흐름에 연결하고 자동 게시 금지
+- [x] 기존 migration `2f8a4c6e91d3` 위 비파괴 Phase 15 migration과 PostgreSQL 모델 계약 검증
+- [x] 새 Python·Node·시스템 의존성 없이 기존 Flask·Jinja2·SQLAlchemy·requests·openpyxl·pypdf·Pillow 재사용
+- [x] 데스크톱·390px·JavaScript 비활성 공개 핵심 흐름과 결과 변화 `1.71→2.00`, A4, console/page error 0건 확인
+
+Phase 15에서는 포털 네트워크 전체 수집, live migration, Docker 이미지 재빌드, 운영 컨테이너·volume 변경, 배포, DNS·Cloudflare·호스트 Nginx 변경을 수행하지 않았다. 기존 Phase 14 운영 상태와 사용자 작성 파일 `codex_cli_admission_refactor_prompt.md`, `run_admission_codex_background.sh`를 보존했다.

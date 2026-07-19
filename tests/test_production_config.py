@@ -402,6 +402,6 @@ def test_public_demo_account_is_optional_and_bootstrapped_before_server_start() 
     assert rollback.index(rollback_gate) < rollback.index("PRODUCTION_BOOTSTRAP_ADMIN_ON_STARTUP")
 
     readme = Path("README.md").read_text(encoding="utf-8")
-    assert "예시 성적으로 체험하기" in readme
-    assert "수정 가능한 합성 학생 성적" in readme
+    assert "공개 상담은 로그인 없이 끝까지 이용" in readme
+    assert "성적 우선 또는 대학 검색 우선으로 시작" in readme
     assert "공개 계산의 필수 입구가 아닙니다" in readme

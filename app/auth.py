@@ -136,9 +136,9 @@ def roles_required(
     return decorate
 
 
-member_required = roles_required("ADMIN", "ASSISTANT_ADMIN", "MEMBER", "TEACHER")
+member_required = roles_required("ADMIN", "ASSISTANT_ADMIN", "MEMBER", "TEACHER", "STUDENT")
 student_required = roles_required("STUDENT", allow_legacy=False)
-teacher_required = roles_required("ADMIN", "MEMBER", "TEACHER", allow_legacy=False)
+teacher_required = roles_required("ADMIN", "TEACHER", allow_legacy=False)
 admin_required = roles_required("ADMIN")
 approval_required = roles_required("ADMIN", "ASSISTANT_ADMIN", allow_legacy=False)
 

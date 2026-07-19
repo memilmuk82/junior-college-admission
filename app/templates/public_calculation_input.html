@@ -3,50 +3,121 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>로그인 없이 성적 계산하기</title>
+    <title>2027 전문대 입시상담</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   </head>
-  <body class="admin-page public-calculation-page">
-    <header class="admin-header"><a href="{{ url_for('main.index') }}">전문대 입시 상담</a><span>로그인 없는 1회 계산 · 저장 안 됨</span></header>
-    <main class="admin-shell consultation-shell">
-      <nav class="public-steps" aria-label="계산 단계"><strong aria-current="step">1. 성적 입력</strong><span>2. 입력 확인</span><span>3. 대학·학과 선택</span><span>4. 결과와 근거</span></nav>
-      <div class="admin-heading"><div><h1>학생 성적 입력</h1><p>이름·학번·학교명 없이 입력하며, 원본과 임시 입력은 30분 뒤 또는 완료 시 삭제됩니다.</p></div><span class="step-indicator">저장 안 됨</span></div>
-      {% if example %}<div class="public-notice" role="status"><strong>합성 예시 성적을 불러왔습니다.</strong> 값은 자유롭게 바꿀 수 있으며 실제 대학의 일반 계산 서비스에 전달됩니다.</div>{% endif %}
+  <body class="product-page public-calculation-page">
+    <header class="product-header">
+      <a class="product-brand" href="{{ url_for('main.index') }}">진학상담 2027 <span>공공 상담</span></a>
+      <nav aria-label="사용자 메뉴">
+        <strong>2027학년도</strong>
+        {% if current_user %}
+          <a href="{{ url_for('account.records') }}">내 저장자료</a>
+          {% if current_user.role == 'TEACHER' %}<a href="{{ url_for('teacher.outcomes') }}">교사 업무</a>{% endif %}
+        {% else %}
+          <a href="{{ url_for('auth.login') }}">저장/로그인</a>
+        {% endif %}
+      </nav>
+    </header>
+
+    <main class="product-shell">
+      <section class="product-intro" aria-labelledby="page-title">
+        <div>
+          <span class="eyebrow">로그인 없이 바로 시작</span>
+          <h1 id="page-title">성적을 입력하고 지원 가능한 전형을 확인하세요</h1>
+          <p>2027년 졸업예정인 일반고 직업위탁 재학생 기준입니다. 지원자격을 먼저 확인한 뒤 근거가 있는 전형만 계산합니다.</p>
+        </div>
+        <div class="target-facts" aria-label="고정 상담 대상">
+          <span>일반고 재학</span><span>2027년 졸업예정</span><span>직업위탁 참여</span>
+        </div>
+      </section>
+
+      <nav class="public-steps" aria-label="상담 단계">
+        <strong aria-current="step"><span>1</span> 성적 입력</strong>
+        <span><b>2</b> 입력 확인</span>
+        <span><b>3</b> 대학·학과 선택</span>
+        <span><b>4</b> 결과 비교</span>
+      </nav>
+
+      <section class="start-rail" aria-label="상담 시작 방법">
+        <a href="#grade-input"><span>1</span><strong>성적 입력으로 시작</strong><small>내신을 입력하고 대학별 반영 방식을 계산합니다.</small></a>
+        <a href="#program-search"><span>2</span><strong>대학·학과부터 찾아보기</strong><small>현재 상담 가능한 대학과 학과를 먼저 확인합니다.</small></a>
+      </section>
+
+      {% if example %}<div class="public-notice" role="status"><strong>합성 예시 성적을 불러왔습니다.</strong> 자유롭게 바꿔 계산할 수 있습니다.</div>{% endif %}
+      {% if cloned_from %}<div class="public-notice" role="status"><strong>저장 상담을 새 입력으로 복제했습니다.</strong> 원본은 유지되며, 아래 성적과 이후 대학·학과 조건을 자유롭게 바꿀 수 있습니다.</div>{% endif %}
       {% if errors %}<div class="admin-alert" role="alert"><h2>입력을 확인하세요</h2><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
-      <form method="post" action="{{ url_for('main.start_public_calculation') }}" enctype="multipart/form-data" class="consultation-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <section class="admin-section">
-          <div class="admin-section__heading"><h2>입력 방식</h2><span>한 가지를 선택하세요</span></div>
-          <div class="public-mode-grid">
-            <label><input type="radio" name="input_mode" value="manual" checked> 직접 입력</label>
-            <label><input type="radio" name="input_mode" value="paste"> 표 붙여넣기</label>
-            <label><input type="radio" name="input_mode" value="upload"> CSV/XLSX 업로드</label>
+
+      <div class="public-workspace">
+        <form id="grade-input" method="post" action="{{ url_for('main.start_public_calculation') }}" enctype="multipart/form-data" class="consultation-form workspace-main">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <section class="workspace-panel">
+            <div class="panel-heading">
+              <div><span class="eyebrow">STEP 1</span><h2>학생부 성적 입력</h2></div>
+              <a class="text-link" href="{{ url_for('main.public_calculation_input', example=1) }}">합성 예시 불러오기</a>
+            </div>
+
+            <fieldset class="input-mode-tabs">
+              <legend>입력 방식</legend>
+              <label><input type="radio" name="input_mode" value="manual" checked><span>직접 입력</span></label>
+              <label><input type="radio" name="input_mode" value="paste"><span>표 붙여넣기</span></label>
+              <label><input type="radio" name="input_mode" value="upload"><span>CSV/XLSX</span></label>
+            </fieldset>
+
+            <div class="source-controls">
+              <label for="record-source">성적 출처
+                <select id="record-source" name="record_source">
+                  {% for code, label in [('MANUAL_INPUT','직접 입력'),('HOME_SCHOOL_RECORD','학교생활기록부'),('VOCATIONAL_TRAINING_RECORD','직업위탁 성적')] %}<option value="{{ code }}" {% if example and code == 'HOME_SCHOOL_RECORD' %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+              </label>
+              <label class="check-control"><input type="checkbox" name="is_vocational_training_semester" value="TRUE"> 현재 입력을 위탁학기 성적으로 표시</label>
+            </div>
+
+            <div class="course-list" data-course-list>
+              {% for row in rows %}{% set index = loop.index0 %}
+                <fieldset class="course-row" data-score-row>
+                  <legend>{{ row.grade }}학년 {{ row.semester }}학기 · {{ loop.index }}번째 과목</legend>
+                  <div class="course-row__term">
+                    {% for field, label, kind in [('academic_year','학년도','number'),('grade','학년','number'),('semester','학기','number')] %}<label for="rows-{{ index }}-{{ field }}">{{ label }}<input id="rows-{{ index }}-{{ field }}" name="rows-{{ index }}-{{ field }}" type="{{ kind }}" value="{{ row[field] }}" {% if field == 'grade' %}min="1" max="3"{% elif field == 'semester' %}min="1" max="2"{% endif %}></label>{% endfor %}
+                  </div>
+                  <div class="course-row__core">
+                    {% for field, label in [('subject_group','교과'),('subject_name','과목명'),('credits','이수단위'),('rank_grade','석차등급')] %}<label for="rows-{{ index }}-{{ field }}">{{ label }}<input id="rows-{{ index }}-{{ field }}" name="rows-{{ index }}-{{ field }}" value="{{ row[field] }}"></label>{% endfor %}
+                    <button type="button" class="score-row-delete" data-delete-score-row aria-label="{{ loop.index }}번째 성적 행 삭제">삭제</button>
+                  </div>
+                  <details class="course-row__more">
+                    <summary>원점수·성취도 등 추가 성적</summary>
+                    <div>
+                      {% for field, label in [('raw_score','원점수 또는 P'),('course_mean','과목평균'),('standard_deviation','표준편차'),('achievement_level','성취도'),('enrollment_count','수강자수')] %}<label for="rows-{{ index }}-{{ field }}">{{ label }}<input id="rows-{{ index }}-{{ field }}" name="rows-{{ index }}-{{ field }}" value="{{ row[field] }}"></label>{% endfor %}
+                      <label for="rows-{{ index }}-record_source">행 성적 출처<select id="rows-{{ index }}-record_source" name="rows-{{ index }}-record_source">{% for code,label in [('HOME_SCHOOL_RECORD','학교생활기록부'),('VOCATIONAL_TRAINING_RECORD','직업위탁'),('MANUAL_INPUT','직접 입력')] %}<option value="{{ code }}" {% if row.record_source == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+                      <label for="rows-{{ index }}-is_vocational_training_semester">위탁학기<select id="rows-{{ index }}-is_vocational_training_semester" name="rows-{{ index }}-is_vocational_training_semester"><option value="FALSE">아니오</option><option value="TRUE" {% if row.is_vocational_training_semester == 'TRUE' %}selected{% endif %}>예</option></select></label>
+                    </div>
+                  </details>
+                </fieldset>
+              {% endfor %}
+            </div>
+            <button type="button" class="button-link button-link--secondary" data-add-score-row>과목 행 추가</button>
+            <noscript><p class="form-help">JavaScript 없이도 준비된 성적 행을 입력하고 제출할 수 있습니다.</p></noscript>
+
+            <details class="alternative-input">
+              <summary>표 붙여넣기 또는 파일 업로드</summary>
+              <div class="alternative-input__grid">
+                <label for="pasted-table">표 붙여넣기<textarea id="pasted-table" name="pasted_table" rows="7" placeholder="학년도&#9;학년&#9;학기&#9;과목&#9;이수단위&#9;석차등급"></textarea></label>
+                <label for="score-file">CSV/XLSX 파일<input id="score-file" type="file" name="score_file" accept=".csv,.xlsx"><small>원본은 확인 완료 또는 30분 뒤 삭제됩니다.</small></label>
+              </div>
+            </details>
+            <div class="form-submit-bar"><p><strong>개인정보를 입력하지 마세요.</strong><br>이름·학번·학교명은 필요하지 않습니다.</p><button type="submit">입력값 확인하기</button></div>
+          </section>
+        </form>
+
+        <aside id="program-search" class="workspace-panel program-preview">
+          <div class="panel-heading"><div><span class="eyebrow">2027 CATALOG</span><h2>상담 가능 대학·학과</h2></div><span>{{ programs|length }}개</span></div>
+          <label class="program-preview__search">대학명 또는 학과명 검색<input type="search" data-preview-search placeholder="예: 컴퓨터, 동양미래"></label>
+          <div class="program-preview__list" data-preview-list>
+            {% for program in programs %}<article data-preview-program data-search-text="{{ program.institution_name }} {{ program.campus_name }} {{ program.program_name }}"><span>{{ program.institution_name }}</span><strong>{{ program.program_name }}</strong><small>{{ program.campus_name }}</small></article>{% else %}<p class="empty-state">현재 선택 가능한 기준정보가 없습니다.</p>{% endfor %}
           </div>
-          <label class="public-source" for="record-source">성적 출처
-            <select id="record-source" name="record_source">
-              {% for code, label in [('MANUAL_INPUT','직접 입력'),('HOME_SCHOOL_RECORD','학교생활기록부'),('VOCATIONAL_TRAINING_RECORD','직업위탁 성적'),('GED_RECORD','검정고시 자료')] %}<option value="{{ code }}" {% if example and code == 'HOME_SCHOOL_RECORD' %}selected{% endif %}>{{ label }}</option>{% endfor %}
-            </select>
-          </label>
-          <label class="public-vocational"><input type="checkbox" name="is_vocational_training_semester" value="TRUE"> 위탁학기 성적으로 표시</label>
-        </section>
-        <section class="admin-section" aria-labelledby="manual-title">
-          <div class="admin-section__heading"><h2 id="manual-title">1·2학년 4개 학기와 3학년 1학기</h2><a class="button-link button-link--secondary" href="{{ url_for('main.public_calculation_input', example=1) }}">예시 성적 다시 불러오기</a></div>
-          <p class="form-help">과목이 빈 행은 제출하지 않습니다. 0, 빈 값, P는 서로 다르게 보존하며 표준편차가 0이거나 비어 있으면 Z점수를 임의 계산하지 않습니다.</p>
-          <div class="public-grade-grid-wrap">
-            <div class="public-grade-grid public-grade-grid--head" aria-hidden="true"><span>학년도</span><span>학년</span><span>학기</span><span>교과</span><span>과목</span><span>이수단위</span><span>석차등급</span><span>원점수</span><span>평균</span><span>표준편차</span><span>성취도</span><span>수강자수</span><span>성적 출처</span><span>위탁학기</span><span>작업</span></div>
-            {% for row in rows %}{% set index = loop.index0 %}<fieldset class="public-grade-grid" data-score-row><legend>{{ row.grade }}학년 {{ row.semester }}학기 성적 행 {{ loop.index }}</legend>
-              {% for field, label, kind in [('academic_year','학년도','number'),('grade','학년','number'),('semester','학기','number'),('subject_group','교과','text'),('subject_name','과목','text'),('credits','이수단위','text'),('rank_grade','석차등급','text'),('raw_score','원점수','text'),('course_mean','평균','text'),('standard_deviation','표준편차','text'),('achievement_level','성취도','text'),('enrollment_count','수강자수','number')] %}<label for="rows-{{ index }}-{{ field }}"><span>{{ label }}</span><input id="rows-{{ index }}-{{ field }}" name="rows-{{ index }}-{{ field }}" type="{{ kind }}" value="{{ row[field] }}" aria-label="{{ index + 1 }}행 {{ label }}" {% if field == 'grade' %}min="1" max="3"{% elif field == 'semester' %}min="1" max="2"{% endif %}></label>{% endfor %}<label for="rows-{{ index }}-record_source"><span>성적 출처</span><select id="rows-{{ index }}-record_source" name="rows-{{ index }}-record_source" aria-label="{{ index + 1 }}행 성적 출처">{% for code,label in [('HOME_SCHOOL_RECORD','학교생활기록부'),('VOCATIONAL_TRAINING_RECORD','직업위탁'),('GED_RECORD','검정고시'),('MANUAL_INPUT','직접 입력')] %}<option value="{{ code }}" {% if row.record_source == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label><label for="rows-{{ index }}-is_vocational_training_semester"><span>위탁학기</span><select id="rows-{{ index }}-is_vocational_training_semester" name="rows-{{ index }}-is_vocational_training_semester" aria-label="{{ index + 1 }}행 위탁학기"><option value="FALSE">아니오</option><option value="TRUE" {% if row.is_vocational_training_semester == 'TRUE' %}selected{% endif %}>예</option></select></label><button type="button" class="score-row-delete" data-delete-score-row>삭제</button>
-            </fieldset>{% endfor %}
-          </div>
-          <button type="button" class="button-link button-link--secondary" data-add-score-row>성적 행 추가</button>
-          <noscript><p class="form-help">JavaScript 없이도 기본 5개 학기 행을 직접 입력하고 제출할 수 있습니다.</p></noscript>
-        </section>
-        <section class="admin-section public-alternative-inputs">
-          <div><h2>표 붙여넣기</h2><p class="form-help">첫 행에 학년도, 학년, 학기, 과목, 이수단위, 석차등급 등의 머리글을 포함하세요.</p><label class="sr-only" for="pasted-table">붙여넣을 성적표</label><textarea id="pasted-table" name="pasted_table" rows="8" placeholder="학년도&#9;학년&#9;학기&#9;과목&#9;이수단위&#9;석차등급"></textarea></div>
-          <div><h2>CSV/XLSX 업로드</h2><p class="form-help">파일은 임시 보관하고 입력 확인이 끝나면 원본을 즉시 삭제합니다.</p><label for="score-file">성적표 파일</label><input id="score-file" type="file" name="score_file" accept=".csv,.xlsx"></div>
-        </section>
-        <div class="admin-actions"><button type="submit">추출값 확인·수정하기</button></div>
-      </form>
+          <p class="form-help">성적 확인 다음 단계에서 여러 대학·학과를 선택해 비교할 수 있습니다.</p>
+        </aside>
+      </div>
     </main>
     <script src="{{ url_for('static', filename='js/public_calculation.js') }}" defer></script>
   </body>

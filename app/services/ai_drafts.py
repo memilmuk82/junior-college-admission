@@ -95,9 +95,24 @@ def reject_ai_draft(
     return record
 
 
+def delete_ai_draft(session: Session, *, draft_id: str, actor_ref: str) -> AiConsultationDraft:
+    _validate_actor(actor_ref)
+    record = session.get(AiConsultationDraft, draft_id)
+    if record is None or record.actor_ref != actor_ref:
+        raise AiDraftError("AI 상담 초안을 찾을 수 없습니다.")
+    session.delete(record)
+    return record
+
+
 def _validate_actor(actor_ref: str) -> None:
     if not actor_ref or actor_ref != actor_ref.strip() or len(actor_ref) > 120:
         raise AiDraftError("관리자 식별자가 유효하지 않습니다.")
 
 
-__all__ = ["AiDraftError", "confirm_ai_draft", "create_ai_draft", "reject_ai_draft"]
+__all__ = [
+    "AiDraftError",
+    "confirm_ai_draft",
+    "create_ai_draft",
+    "delete_ai_draft",
+    "reject_ai_draft",
+]

@@ -21,7 +21,6 @@ from sqlalchemy.orm import Session
 from werkzeug.datastructures import MultiDict
 
 from app.auth import actor_ref, session_user
-from app.auth import csrf_token as auth_csrf_token
 from app.database import db
 from app.services.ai_payloads import (
     build_anonymous_consultation_payload,
@@ -202,13 +201,8 @@ def _render_review(
 
 @bp.get("/")
 def index() -> Response:
-    return _private_response(
-        render_template(
-            "index.html",
-            current_user=session_user(),
-            csrf_token=auth_csrf_token(),
-        )
-    )
+    # 공개 상담이 제품의 기본 진입점이다. 로그인은 저장 기능에서만 요구한다.
+    return cast(Response, redirect(url_for("main.public_calculation_input")))
 
 
 def _manual_preview(form: MultiDict[str, str]) -> StructuredImportPreview:
@@ -276,11 +270,18 @@ def _input_defaults(*, example: bool) -> tuple[dict[str, str], ...]:
 def _render_public_input(
     *, errors: tuple[str, ...] = (), status: int = 200, example: bool = False
 ) -> Response:
+    programs = (
+        list_consultation_programs(cast(Session, db.session), 2027)
+        if current_app.config.get("DATABASE_URL")
+        else ()
+    )
     return _private_response(
         render_template(
             "public_calculation_input.html",
             csrf_token=_csrf_token(),
             rows=_input_defaults(example=example),
+            programs=programs,
+            current_user=session_user(),
             errors=errors,
             example=example,
         ),
@@ -373,8 +374,15 @@ def _public_target_values(form: MultiDict[str, str] | None = None) -> dict[str, 
         "ged",
     )
     values = {field: source.get(field, "") for field in fields}
-    values["academic_year"] = values["academic_year"] or "2027"
+    # 이 서비스의 2027 상담 대상은 일반고 직업위탁 재학생으로 고정되어 있다.
+    # 화면에서 다시 묻지 않더라도 서버 계약에서 같은 값을 강제한다.
+    values["academic_year"] = "2027"
     values["admission_result_year"] = values["admission_result_year"] or "2025"
+    values["home_school_type"] = "GENERAL"
+    values["final_school_type"] = "GENERAL"
+    values["graduation_status"] = "EXPECTED"
+    values["vocational_training_status"] = "PARTICIPATING"
+    values["ged"] = "FALSE"
     return values
 
 

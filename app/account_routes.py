@@ -7,12 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.auth import csrf_token, require_csrf, roles_required, session_user
 from app.database import db
+from app.services.consultations import list_consultation_programs
 from app.services.student_record_access import (
     StudentRecordAccessError,
     academic_record_courses,
     delete_academic_record,
     delete_saved_consultation,
     get_saved_consultation,
+    saved_consultation_input_rows,
     update_academic_record_courses,
     update_consultation_note,
     visible_academic_records,
@@ -134,6 +136,31 @@ def delete_consultation(consultation_id: str) -> Any:
         db.session.rollback()
         return _render_records(error=str(error), status=404)
     return redirect(url_for("account.records"))
+
+
+@bp.get("/consultations/<consultation_id>/clone")
+@roles_required("STUDENT", "TEACHER", "ADMIN", allow_legacy=False)
+def clone_consultation(consultation_id: str) -> Response:
+    user = session_user()
+    assert user is not None
+    try:
+        rows = saved_consultation_input_rows(
+            cast(Session, db.session), user=user, consultation_id=consultation_id
+        )
+    except StudentRecordAccessError as error:
+        return _render_records(error=str(error), status=404)
+    return _private(
+        render_template(
+            "public_calculation_input.html",
+            csrf_token=csrf_token(),
+            rows=rows,
+            programs=list_consultation_programs(cast(Session, db.session), 2027),
+            current_user=user,
+            errors=(),
+            example=False,
+            cloned_from=consultation_id,
+        )
+    )
 
 
 @bp.get("/consultations/<consultation_id>/print/<audience>")
