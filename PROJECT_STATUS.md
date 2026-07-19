@@ -2,9 +2,9 @@
 
 - 기준일: 2026-07-19
 - 현재 단계: Phase 15 기본 구조 재설계
-- 단계 판정: `PASS_NONPROD_PHASE_15` — 공개 상담 진입·역할 경계·비식별 교내 결과·근거 문서 검증·제한형 포털 수집을 로컬 작업 트리에서 검증, 운영 미적용
-- 현재 작업: 승인된 Phase 15 구현과 핵심 회귀 완료
-- 다음 게이트: 변경 검토 후 별도 승인에 따른 백업·migration·배포와 실제 포털 소량 수집 수동 확인
+- 단계 판정: `PASS_PRODUCTION_PHASE_15` — 공개 상담 진입·역할 경계·비식별 교내 결과·근거 문서 검증·제한형 포털 수집 구현을 검증하고 운영 적용 완료
+- 현재 작업: Phase 15 운영 migration·웹 이미지 재빌드·공인 HTTPS 핵심 회귀 완료
+- 다음 게이트: 실제 전문대학포털 소량 수집의 관리자 수동 확인과 공개 전 사람 검수
 
 ## 저장소 인벤토리
 
@@ -327,4 +327,12 @@ Phase 12 회귀는 단위 290건, PostgreSQL 통합 127건과 합성 백업·격
 - [x] 새 Python·Node·시스템 의존성 없이 기존 Flask·Jinja2·SQLAlchemy·requests·openpyxl·pypdf·Pillow 재사용
 - [x] 데스크톱·390px·JavaScript 비활성 공개 핵심 흐름과 결과 변화 `1.71→2.00`, A4, console/page error 0건 확인
 
-Phase 15에서는 포털 네트워크 전체 수집, live migration, Docker 이미지 재빌드, 운영 컨테이너·volume 변경, 배포, DNS·Cloudflare·호스트 Nginx 변경을 수행하지 않았다. 기존 Phase 14 운영 상태와 사용자 작성 파일 `codex_cli_admission_refactor_prompt.md`, `run_admission_codex_background.sh`를 보존했다.
+### Phase 15 운영 배포
+
+- 구현 커밋 `5a8036b`을 `origin/main`에 push했으며 로컬·원격 SHA 일치를 확인했다.
+- 배포 전 백업 `admission_20260719_221535_1739324.dump`의 SHA-256 `a46eab1ed42b96710aa4f5493a4b445d1abf611e6d25e2e224c6dcf5a349072d`, archive와 network-none/tmpfs 격리 복원을 검증했다.
+- `junior-college-admission-live`의 기존 `db-production` 컨테이너와 PostgreSQL·업로드 volume을 유지하고 `web-production`만 재빌드·재생성했다.
+- migration은 `2f8a4c6e91d3 → 4a7c9e12d5f0 (head)`로 적용했고, 이전 이미지 `sha256:74edf6f9e007cfc70c5f1ff58f4a2177ebee40a902b8768d8928fbfdd83ae19c`를 rollback 태그로 보존했다.
+- 최종 이미지는 `sha256:a2a04b05fd56f83c73b93c139d1d9261fb9d751cd79f9b8a93a4959599c3db9b`이며 웹·DB 모두 `healthy`다.
+- loopback origin과 공인 HTTPS health·보안 헤더를 확인하고, 운영 Chromium에서 합성 익명 계산 `1.71→2.00`, 학생·교사 A4, JavaScript 비활성 SSR, 390px 모바일 3건을 통과했다.
+- 전문대학포털 전체 네트워크 수집과 DNS·Cloudflare·호스트 Nginx 변경은 수행하지 않았다. 사용자 작성 파일 `codex_cli_admission_refactor_prompt.md`, `run_admission_codex_background.sh`는 수정·커밋하지 않고 보존했다.

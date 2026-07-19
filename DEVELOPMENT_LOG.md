@@ -9,9 +9,14 @@
 - 공식 공개 입시결과와 분리된 `InstitutionApplicationOutcome`에 교내 익명 코드·학년도·전형·환산등급·최초/충원 결과를 저장하고, 교사·관리자만 등록·필터·집계·CSV 내보내기·삭제하도록 했다.
 - `SourceDocument`에 모집시기·원본 URL·공고일·파일명·보관 경로·현재 버전을 추가하고, 현재 데이터·포털 데이터·문서 데이터의 비교와 관리자 검증 결정을 별도 테이블에 기록했다. PDF·PNG/JPEG·CSV·XLSX는 기존 라이브러리로 형식·크기·hash를 검증하며 자동 게시하지 않는다.
 - 기존 전문대학포털 노트북에서 확인한 POST endpoint·필드·15열 표를 제한형 crawler로 옮겼다. timeout·재시도·rate limit·페이지·응답·행 상한을 고정하고 기존 raw collection 테이블과 Phase 14 mapping/review/publish로 연결했다. 실제 포털 네트워크 수집은 실행하지 않았다.
-- migration은 기존 head `2f8a4c6e91d3` 뒤에 추가했으며 운영 DB에는 적용하지 않았다. 새 패키지, Docker·Compose·환경변수·Nginx 변경도 없고 기존 데이터·컨테이너·named volume을 삭제하거나 변경하지 않았다.
+- migration은 기존 head `2f8a4c6e91d3` 뒤에 추가했다. 새 패키지와 Docker·Compose·환경변수·Nginx 변경 없이 구현했으며 운영 적용 시에도 기존 데이터·DB 컨테이너·named volume을 삭제하거나 재생성하지 않았다.
 - 합성 fixture로 고정 학생군·crawler raw→staging 계약을 검증하고, 격리 PostgreSQL에서 교내 결과 ACL·집계와 근거 문서 버전·검증 결정을 확인했다. Chromium은 데스크톱·390px·무JavaScript 공개 흐름, 결과 `1.71→2.00`, 학생·교사 A4와 console/page error 0건을 통과했다.
-- 사용자 기존 변경 `codex_cli_admission_refactor_prompt.md`, `run_admission_codex_background.sh`를 수정하지 않고 보존했다. 커밋·push·배포·DNS·Cloudflare·호스트 Nginx 작업은 수행하지 않았다.
+- 사용자 기존 변경 `codex_cli_admission_refactor_prompt.md`, `run_admission_codex_background.sh`를 수정·커밋하지 않고 보존했다.
+- 단위 337건, Phase 15 계약 2건, PostgreSQL 변경 영향 통합 21건, Ruff·포맷·mypy·규칙·민감자료 검사를 통과하고 구현 커밋 `5a8036b`을 `origin/main`에 push했다.
+- 운영 전 `admission_20260719_221535_1739324.dump` 백업의 SHA-256 `a46eab1ed42b96710aa4f5493a4b445d1abf611e6d25e2e224c6dcf5a349072d`, archive와 network-none/tmpfs 격리 복원을 검증했다.
+- `junior-college-admission-live`의 DB 컨테이너와 PostgreSQL·업로드 volume을 유지한 채 web만 이미지 `sha256:a2a04b05fd56f83c73b93c139d1d9261fb9d751cd79f9b8a93a4959599c3db9b`로 교체했다. 이전 이미지 `sha256:74edf6f9e007cfc70c5f1ff58f4a2177ebee40a902b8768d8928fbfdd83ae19c`는 rollback 태그로 보존했다.
+- live migration을 `4a7c9e12d5f0 (head)`로 적용하고 web·DB `healthy`, loopback·공인 HTTPS health와 보안 헤더를 확인했다. 운영 Chromium 합성 익명 흐름 3건에서 결과 `1.71→2.00`, 학생·교사 A4, JavaScript 비활성 SSR, 390px 모바일과 console/page error 0건을 재확인했다.
+- 전문대학포털 전체 네트워크 수집과 DNS·Cloudflare·호스트 Nginx 변경은 수행하지 않았다.
 
 ## 2026-07-19 · Phase 14 엑셀 업무 흐름 중심 재구축
 
