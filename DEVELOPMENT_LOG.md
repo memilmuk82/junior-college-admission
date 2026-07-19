@@ -11,7 +11,11 @@
 - 보조 관리자의 BYOK·상담·입시결과·출처 문서 경로를 서버에서도 403으로 제한했다. 주 관리자는 기존 입시결과 import·제한형 전문대학포털 수집·PDF/PNG/JPG/CSV/XLSX 근거 문서 업로드를 사용하며 손상 PDF/XLSX와 ZIP은 유효하지만 내부 XML이 손상된 XLSX도 500이 아닌 검증 오류 400으로 처리한다.
 - 합성 익명 데이터로 역할별 메뉴·권한, 암호화 키 격리, 학급/성적/연결/상담 공유·해제, 코드 만료, 교사 정지, 파일 검증을 테스트했다. 단위 342건, PostgreSQL 통합 159건과 합성 백업·격리 복원, Phase 16 Playwright 3건, Ruff·포맷·mypy 146개 소스, 규칙·민감자료·기준 XLSX 검증을 통과했다.
 - Chromium에서 데스크톱 교사 학급 관리와 학생 연결 성적표, JavaScript 비활성 SSR, 390px 모바일의 핵심 요소·저장 데이터·읽기 전용 경계와 console/page error 0건을 확인했다.
-- 사용자 작성 파일 `codex_cli_admission_refactor_prompt.md`, `run_admission_codex_background.sh`는 수정·커밋하지 않고 보존한다. 운영 백업·격리 복원과 `web-production` 비파괴 재빌드 결과는 배포 완료 뒤 이 절에 추가한다.
+- 사용자 작성 파일 `codex_cli_admission_refactor_prompt.md`, `run_admission_codex_background.sh`는 수정·커밋하지 않고 보존했다. 구현 커밋 `5fbe150`을 `origin/main`에 push하고 로컬·원격 SHA 일치를 확인했다.
+- 운영 전 `admission_20260720_080035_3225129.dump` 백업의 SHA-256 `12fdcd743b5fa1b8923d50b69093625ec419ac4fa5165648e9aadfb75493029a`, archive와 network-none/tmpfs 격리 복원을 검증했다. 복원 source migration은 `4a7c9e12d5f0`, 저장소 head는 `8e31b7c4d2a6`, 공개 테이블은 45개였다.
+- 기존 이미지 `sha256:a2a04b05fd56f83c73b93c139d1d9261fb9d751cd79f9b8a93a4959599c3db9b`를 rollback 태그로 보존하고, 기존 DB 컨테이너와 PostgreSQL·업로드 volume을 유지한 채 web만 이미지 `sha256:378fa56bcfe8d8f29a871301a864d84062df3d66a03d97bbb6c95d6d06e22bbb`로 교체했다.
+- live migration을 `8e31b7c4d2a6 (head)`로 적용하고 웹·DB healthy, 웹 restart 0건, loopback·공인 HTTPS TLS/health/보안 헤더를 확인했다. 새 학급·연결·감사 테이블은 운영 합성 자료를 만들지 않아 0건이다.
+- 공개 `/calculate` 200에서 기준 50칸을 확인하고 비로그인 `/account/records`·`/dashboard`는 로그인으로 302 응답했다. 실제 주 관리자 비파괴 Chromium 3건은 역할 대시보드 메뉴, 규칙 CSV 오류, 390px, JavaScript 비활성 SSR과 console error 0건을 통과했다. 배포 뒤 web 로그의 5xx·traceback·fatal·critical·exception 패턴은 0건이다.
 
 ## 2026-07-19 · Phase 15 기본 구조 재설계
 

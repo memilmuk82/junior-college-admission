@@ -2,9 +2,9 @@
 
 - 기준일: 2026-07-20
 - 현재 단계: Phase 16 역할별 업무공간과 학생·교사 연동
-- 단계 판정: `PASS_VERIFIED_PENDING_PRODUCTION_PHASE_16` — 역할별 메뉴·BYOK·학급/성적/상담 공유·관리자 권한 경계와 엑셀 기준 성적 입력 화면을 로컬·격리 PostgreSQL·Chromium에서 검증했으며 운영 백업·배포 대기
-- 현재 작업: Phase 16 구현·전체 회귀 완료, 운영 백업·복원 검증과 `web-production` 비파괴 재빌드 준비
-- 다음 게이트: 운영 custom-format 백업·격리 복원 검증 후 migration `8e31b7c4d2a6` 적용, 공인 HTTPS 역할별 핵심 화면 확인
+- 단계 판정: `PASS_PRODUCTION_PHASE_16` — 역할별 메뉴·BYOK·학급/성적/상담 공유·관리자 권한 경계와 엑셀 기준 50과목 입력을 검증하고 운영 백업·migration·웹 재빌드·공인 HTTPS smoke 완료
+- 현재 작업: Phase 16 구현 커밋·push, 운영 migration `8e31b7c4d2a6`, `web-production` 비파괴 재빌드와 역할별 핵심 회귀 완료
+- 다음 게이트: 실제 학생자료 없이 교사·학생 계정 승인/연결 절차를 운영자가 수동 확인하고 전문대학포털 소량 수집은 공개 전 사람 검수
 
 ## 저장소 인벤토리
 
@@ -352,7 +352,17 @@ Phase 12 회귀는 단위 290건, PostgreSQL 통합 127건과 합성 백업·격
 - [x] JavaScript 없는 생성·연결·성적 추가 흐름, 390px 가로 넘침 없음, 브라우저 오류 0건
 - [x] 단위 342건, PostgreSQL 통합 159건과 합성 백업·격리 복원, Phase 16 Playwright 3건 통과
 - [x] Ruff·포맷·mypy 146개 소스·규칙·민감자료·기준 XLSX 읽기 전용 검증 통과
-- [ ] 운영 custom-format 백업·archive·checksum·격리 복원 검증
-- [ ] 기존 DB·volume 보존, `web-production`만 재빌드하고 migration·공인 HTTPS 확인
+- [x] 운영 custom-format 백업·archive·checksum·격리 복원 검증
+- [x] 기존 DB·volume 보존, `web-production`만 재빌드하고 migration·공인 HTTPS 확인
 
 사용자 작성 파일 `codex_cli_admission_refactor_prompt.md`, `run_admission_codex_background.sh`는 Phase 16 변경 범위에서 제외해 수정·커밋하지 않는다. 실제 학생 자료나 원본 XLSX/PDF는 Git에 추가하지 않았고 테스트는 합성 비식별 자료만 사용했다.
+
+### Phase 16 운영 배포
+
+- 구현 커밋 `5fbe150`을 `origin/main`에 push하고 로컬·원격 SHA 일치를 확인했다.
+- 배포 전 백업 `admission_20260720_080035_3225129.dump`의 SHA-256 `12fdcd743b5fa1b8923d50b69093625ec419ac4fa5165648e9aadfb75493029a`, archive와 network-none/tmpfs 격리 복원을 검증했다. 복원 source migration은 `4a7c9e12d5f0`, 저장소 head는 `8e31b7c4d2a6`, 공개 테이블은 45개였다.
+- 이전 웹 이미지 `sha256:a2a04b05fd56f83c73b93c139d1d9261fb9d751cd79f9b8a93a4959599c3db9b`를 `junior-college-admission-production-app:rollback-phase16-5fbe150-20260720`으로 보존했다. schema 변경 뒤 image-only rollback은 수행하지 않는다.
+- 기존 `db-production` 컨테이너 ID와 `production_postgres_data`·`production_uploads` volume 이름을 전후 대조해 그대로 유지했고, `web-production`만 최종 이미지 `sha256:378fa56bcfe8d8f29a871301a864d84062df3d66a03d97bbb6c95d6d06e22bbb`로 교체했다.
+- live migration을 `4a7c9e12d5f0 → 8e31b7c4d2a6 (head)`로 적용했고 웹·DB가 모두 `healthy`, 웹 restart 0건이다. 새 학급·연결·감사 테이블은 합성 운영 데이터를 만들지 않아 각각 0건이다.
+- loopback·공인 HTTPS TLS/health/보안 헤더, 공개 `/calculate` 200과 기준 50칸, 비로그인 `/account/records`·`/dashboard` 302를 확인했다. 실제 주 관리자 비파괴 Chromium 3건에서 새 대시보드 메뉴, 규칙 CSV 검증, 390px, JavaScript 비활성 SSR과 console error 0건을 확인했다.
+- 배포 시점 이후 web 로그의 5xx·traceback·fatal·critical·unhandled·exception 패턴은 0건이다. 실제 학생·교사 계정이나 학급·성적·상담 합성 자료는 운영 DB에 추가하지 않았다.
