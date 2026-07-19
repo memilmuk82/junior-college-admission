@@ -50,6 +50,10 @@ from app.models import (
     StudentAcademicRecord,
     UserAccount,
 )
+from app.services.account_consultations import (
+    AccountConsultationError,
+    save_account_consultation,
+)
 from app.services.ai_credentials import (
     ByokCredentialCipher,
     ByokCredentialError,
@@ -130,6 +134,7 @@ from app.services.score_rule_schema import (
     score_rule_form_values,
     write_score_rule_csv,
 )
+from app.services.student_record_access import can_read_academic_record
 from app.services.temporary_uploads import TemporaryUploadStore
 from app.services.verified_source_rules import (
     VerifiedSourceRuleError,
@@ -276,6 +281,7 @@ def _render_consultation_form(
             csrf_token=_csrf_token(),
             actor_ref=_actor_ref(),
             demo_mode=demo_mode,
+            current_user=session_user(),
         ),
         status,
     )
@@ -309,14 +315,12 @@ def _authorized_records_loader(student_id: str) -> Callable[[], tuple]:
             select(StudentAcademicRecord).where(StudentAcademicRecord.student_id == student_id)
         )
     )
-    if user.role == "STUDENT":
-        if student_id != f"account:{user.id}" or any(
-            record.owner_user_account_id != user.id for record in records
+    if user.role in {"STUDENT", "TEACHER"}:
+        if not records or any(
+            not can_read_academic_record(database_session, user=user, record=record)
+            for record in records
         ):
-            raise ConsultationError("본인 소유 성적만 상담에 사용할 수 있습니다.")
-    elif user.role == "TEACHER":
-        if not records or any(record.managed_by_user_account_id != user.id for record in records):
-            raise ConsultationError("담당자로 지정된 학생 성적만 상담에 사용할 수 있습니다.")
+            raise ConsultationError("연결되었거나 직접 관리하는 학생 성적만 사용할 수 있습니다.")
     elif user.role != "ADMIN":
         raise ConsultationError("기존 일반 회원은 저장 성적 DB 상담을 사용할 수 없습니다.")
     return lambda: load_academic_record_inputs(database_session, student_id)
@@ -352,6 +356,7 @@ def _render_consultation_result(
     result: ConsultationResult | BatchConsultationResult,
     *,
     ai_error: str | None = None,
+    save_error: str | None = None,
     status: int = 200,
 ) -> Response:
     actor_ref = _actor_ref()
@@ -377,19 +382,32 @@ def _render_consultation_result(
             actor_ref=actor_ref,
             credentials=credentials,
             ai_error=ai_error,
+            save_error=save_error,
             demo_mode=demo_mode,
+            current_user=session_user(),
         ),
         status,
     )
 
 
 @bp.route("/consultations/new", methods=["GET", "POST"])
-@roles_required("ADMIN", "ASSISTANT_ADMIN", "MEMBER", "TEACHER", "STUDENT")
+@roles_required("ADMIN", "MEMBER", "TEACHER", "STUDENT")
 def new_consultation() -> Response:
     if is_demo_user():
         return cast(Response, redirect(url_for("main.public_calculation_input", example="1")))
     if request.method == "GET":
-        return _render_consultation_form(dict(CONSULTATION_DEFAULTS))
+        values = dict(CONSULTATION_DEFAULTS)
+        user = session_user()
+        requested_student_id = request.args.get("student_id", "").strip()
+        if requested_student_id:
+            try:
+                _authorized_records_loader(requested_student_id)
+            except ValueError:
+                abort(404)
+            values["student_id"] = requested_student_id
+        elif user is not None and user.role == "STUDENT":
+            values["student_id"] = f"account:{user.id}"
+        return _render_consultation_form(values)
     _require_csrf()
     parsed = parse_consultation_form(request.form)
     if parsed.program_ids:
@@ -401,6 +419,44 @@ def new_consultation() -> Response:
     except ValueError as error:
         return _render_consultation_form(parsed.values, errors=(str(error),), status=400)
     return _render_consultation_result(parsed, result)
+
+
+@bp.post("/consultations/save")
+@roles_required("TEACHER", "STUDENT", allow_legacy=False)
+def save_consultation_result() -> Response | Any:
+    _require_csrf()
+    parsed = parse_consultation_form(request.form)
+    if parsed.program_ids:
+        parsed.values["program_ids"] = ",".join(parsed.program_ids)
+    if parsed.errors:
+        return _render_consultation_form(parsed.values, errors=parsed.errors, status=400)
+    try:
+        result = _evaluate_consultation_form(parsed)
+    except ValueError as error:
+        return _render_consultation_form(parsed.values, errors=(str(error),), status=400)
+    user = session_user()
+    assert user is not None
+    try:
+        save_account_consultation(
+            cast(Session, db.session),
+            user=user,
+            student_reference=parsed.values["student_id"],
+            result=_batch_result(result),
+            counselor_note=parsed.consultation_note,
+        )
+        db.session.commit()
+    except AccountConsultationError as error:
+        db.session.rollback()
+        return _render_consultation_result(parsed, result, save_error=str(error), status=400)
+    except IntegrityError:
+        db.session.rollback()
+        return _render_consultation_result(
+            parsed,
+            result,
+            save_error="상담자료를 저장하지 못했습니다. 다시 시도하세요.",
+            status=409,
+        )
+    return redirect(url_for("account.records", message="consultation_saved"))
 
 
 @bp.get("/verified-source-rules")
@@ -520,6 +576,7 @@ def _render_ai_settings(*, error: str | None = None, status: int = 200) -> Respo
             providers=tuple(sorted(PROVIDER_CODES)),
             encryption_available=encryption_available,
             error=error,
+            current_user=session_user(),
         ),
         status,
     )
@@ -589,6 +646,7 @@ def _render_ai_draft(
             csrf_token=_csrf_token(),
             draft=record,
             error=error,
+            current_user=session_user(),
         ),
         status,
     )

@@ -236,8 +236,8 @@ def test_role_specific_local_registration_preserves_requested_account_type(
 @pytest.mark.parametrize(
     ("account_type", "expected_role", "destination"),
     (
-        ("student", "STUDENT", "/account/records"),
-        ("teacher", "TEACHER", "/admin/consultations/new"),
+        ("student", "STUDENT", "/dashboard"),
+        ("teacher", "TEACHER", "/dashboard"),
     ),
 )
 def test_admin_approves_role_specific_registration_through_member_route(
@@ -319,6 +319,9 @@ def test_public_demo_member_is_idempotent_active_and_cannot_use_mutating_feature
     assert form_page.status_code == 200
     assert "합성 예시 성적을 불러왔습니다" in body
     assert "가상 미래전문대" not in body
+    records_page = client.get("/account/records")
+    assert records_page.status_code == 200
+    assert "데모 계정은 성적과 상담 결과를 저장하지 않습니다" in records_page.get_data(as_text=True)
     assert (
         client.get("/admin/consultations/new").headers["Location"].endswith("/calculate?example=1")
     )
@@ -784,7 +787,7 @@ def test_admin_approves_member_then_member_can_use_consultation(postgres_engine:
     assert logout.status_code == 302
     member_login = _login(client, "phase11-approved-member", "phase11-member-password")
     assert member_login.status_code == 302
-    assert member_login.headers["Location"].endswith("/admin/consultations/new")
+    assert member_login.headers["Location"].endswith("/dashboard")
     consultation = client.get("/admin/consultations/new")
     assert consultation.status_code == 200
     consultation_body = consultation.get_data(as_text=True)
@@ -1288,7 +1291,7 @@ def test_approved_google_identity_can_log_in_without_creating_another_account(
     second = second_client.get("/auth/google/callback?code=second&state=second")
 
     assert second.status_code == 302
-    assert second.headers["Location"].endswith("/admin/consultations/new")
+    assert second.headers["Location"].endswith("/dashboard")
     with Session(postgres_engine) as database_session:
         accounts = tuple(
             database_session.scalars(

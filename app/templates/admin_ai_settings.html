@@ -8,11 +8,11 @@
   </head>
   <body class="admin-page">
     <header class="admin-header">
-      <div><p class="admin-eyebrow">OPTIONAL BYOK</p><a href="{{ url_for('main.index') }}">공개 상담</a></div>
+      <div><p class="admin-eyebrow">OPTIONAL BYOK</p><a href="{{ url_for('main.dashboard') if current_user else url_for('main.index') }}">{{ '내 업무공간' if current_user else '공개 상담' }}</a></div>
       <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><span>{{ actor_ref }}</span><button class="text-action" type="submit">로그아웃</button></form>
     </header>
     <main class="admin-shell">
-      <div class="admin-heading"><div><h1>선택적 AI 상담 초안</h1><p>AI는 검증된 결과를 문장화할 뿐 자격·점수·합격 가능성을 판단하지 않습니다.</p></div><a class="button-link button-link--secondary" href="{{ url_for('admin.new_consultation') }}">상담으로 돌아가기</a></div>
+      <div class="admin-heading"><div><h1>{{ '내 BYOK 검증 결과 상담 문장' if current_user and current_user.role == 'STUDENT' else '선택적 AI 상담 초안' }}</h1><p>AI는 검증된 결과를 문장화할 뿐 자격·점수·추천·합격 가능성을 판단하지 않습니다.</p></div><a class="button-link button-link--secondary" href="{{ url_for('admin.new_consultation') }}">{{ '내 성적으로 새 문장 준비' if current_user and current_user.role == 'STUDENT' else '상담자료 만들기' }}</a></div>
       {% if error %}<div class="form-errors" role="alert"><p>{{ error }}</p></div>{% endif %}
       {% if not encryption_available %}<div class="form-errors" role="status"><p>BYOK 키 암호화 설정이 없어 공급자 키 저장 기능이 비활성화되었습니다. 자격·계산·출력은 계속 사용할 수 있습니다.</p></div>{% endif %}
       <section class="admin-section" aria-labelledby="credential-heading">
@@ -26,8 +26,8 @@
         {% if credentials %}<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>공급자</th><th>마스킹</th><th>관리</th></tr></thead><tbody>{% for credential in credentials %}<tr><td>{{ credential.provider }}</td><td>{{ credential.masked_hint }}</td><td><form method="post" action="{{ url_for('admin.delete_ai_credential', provider=credential.provider) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">키 삭제</button></form></td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="admin-empty">저장된 공급자 키가 없습니다. AI 없이 모든 핵심 기능을 사용할 수 있습니다.</p>{% endif %}
       </section>
       <section class="admin-section" aria-labelledby="draft-heading">
-        <div class="admin-section__heading"><h2 id="draft-heading">내 저장 분석</h2><span>최근 20건</span></div>
-        {% if drafts %}<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>공급자</th><th>모델</th><th>상태</th><th>관리</th></tr></thead><tbody>{% for draft in drafts %}<tr><td>{{ draft.provider }}</td><td>{{ draft.model_name }}</td><td>{{ draft.status }}</td><td><a href="{{ url_for('admin.ai_draft_detail', draft_id=draft.id) }}">열기</a> <form method="post" action="{{ url_for('admin.delete_ai_draft_route', draft_id=draft.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="danger-link" type="submit">삭제</button></form></td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="admin-empty">생성된 상담 초안이 없습니다.</p>{% endif %}
+        <div class="admin-section__heading"><h2 id="draft-heading">내 저장 상담 초안</h2><span>최근 20건</span></div>
+        {% if drafts %}<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>공급자</th><th>모델</th><th>상태</th><th>관리</th></tr></thead><tbody>{% set draft_status_labels = {'GENERATED_DRAFT':'검토 대기','TEACHER_CONFIRMED':'사용자 확정','REJECTED':'사용 안 함'} %}{% for draft in drafts %}<tr><td>{{ draft.provider }}</td><td>{{ draft.model_name }}</td><td>{{ draft_status_labels.get(draft.status, draft.status) }}</td><td><a href="{{ url_for('admin.ai_draft_detail', draft_id=draft.id) }}">열기</a> <form method="post" action="{{ url_for('admin.delete_ai_draft_route', draft_id=draft.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="danger-link" type="submit">삭제</button></form></td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="admin-empty">생성된 상담 초안이 없습니다.</p>{% endif %}
       </section>
     </main>
   </body>

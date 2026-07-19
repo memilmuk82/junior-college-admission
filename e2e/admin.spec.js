@@ -10,7 +10,12 @@ async function login(page) {
   await page.getByLabel('관리자 ID').fill(adminUsername);
   await page.getByLabel('비밀번호').fill(adminPassword);
   await page.getByRole('button', { name: '검수 화면으로 이동' }).click();
-  await expect(page.getByRole('heading', { name: '규칙 검수 대기열' })).toBeVisible();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByRole('heading', { name: '주 관리자 업무공간' })).toBeVisible();
+  await expect(page.getByRole('link', { name: '회원 역할·상태 관리' })).toBeVisible();
+  await expect(page.getByRole('link', { name: '입시결과 등록' })).toBeVisible();
+  await expect(page.getByRole('link', { name: '전문대학포털 수집' })).toBeVisible();
+  await expect(page.getByRole('link', { name: '모집요강 자료 등록' })).toBeVisible();
 }
 
 test('admin reviews CSV validation without unnamed controls or console errors', async ({ page }) => {
@@ -23,6 +28,8 @@ test('admin reviews CSV validation without unnamed controls or console errors', 
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await login(page);
+  await page.getByRole('link', { name: '입시 규칙 검수·게시' }).click();
+  await expect(page.getByRole('heading', { name: '규칙 검수 대기열' })).toBeVisible();
   await page.getByRole('link', { name: '성적 규칙 CSV 검토' }).click();
   await expect(page.getByRole('heading', { name: '성적 규칙 CSV 검토' })).toBeVisible();
 
@@ -61,17 +68,17 @@ test('admin mobile page has no horizontal overflow', async ({ page }) => {
     () => document.documentElement.scrollWidth > window.innerWidth
   );
   expect(hasHorizontalOverflow).toBe(false);
-  await expect(page.getByRole('link', { name: '성적 규칙 CSV 검토' })).toBeVisible();
+  await expect(page.getByRole('link', { name: '입시 규칙 검수·게시' })).toBeVisible();
 });
 
 test.describe('admin without JavaScript', () => {
   test.use({ javaScriptEnabled: false });
 
-  test('server-rendered login and rule queue remain usable', async ({ page }) => {
+  test('server-rendered login and role workspace remain usable', async ({ page }) => {
     if (!adminUrl || !adminUsername || !adminPassword) {
       test.skip(true, 'ADMIN_URL, ADMIN_USERNAME, and ADMIN_PASSWORD are required');
     }
     await login(page);
-    await expect(page.getByRole('link', { name: '성적 규칙 CSV 검토' })).toBeVisible();
+    await expect(page.getByRole('link', { name: '입시 규칙 검수·게시' })).toBeVisible();
   });
 });

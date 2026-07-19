@@ -6,11 +6,19 @@ import secrets
 import unicodedata
 from datetime import datetime
 
-from sqlalchemy import select, text
+from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app.models import ExternalIdentity, UserAccount, UserAccountAuditEvent, new_id
+from app.models import (
+    ClassroomLinkAuditEvent,
+    ClassroomStudent,
+    ExternalIdentity,
+    TeacherClassroom,
+    UserAccount,
+    UserAccountAuditEvent,
+    new_id,
+)
 
 USER_ROLES = frozenset({"ADMIN", "ASSISTANT_ADMIN", "MEMBER", "STUDENT", "TEACHER"})
 USER_STATUSES = frozenset({"PENDING_APPROVAL", "ACTIVE", "REJECTED", "SUSPENDED"})
@@ -128,6 +136,49 @@ def _lock_membership_mutation_accounts(
         ):
             locked[account.id] = account
     return locked, active_admins
+
+
+def _revoke_classroom_links(
+    session: Session,
+    *,
+    target: UserAccount,
+    actor: UserAccount,
+    occurred_at: datetime,
+    reason: str,
+) -> None:
+    students = tuple(
+        session.scalars(
+            select(ClassroomStudent)
+            .join(TeacherClassroom, TeacherClassroom.id == ClassroomStudent.classroom_id)
+            .where(
+                or_(
+                    TeacherClassroom.teacher_user_account_id == target.id,
+                    ClassroomStudent.linked_user_account_id == target.id,
+                )
+            )
+            .order_by(ClassroomStudent.id)
+            .with_for_update()
+        )
+    )
+    for student in students:
+        was_linked = student.linked_user_account_id is not None
+        had_pending_code = student.link_code_digest is not None
+        if not was_linked and not had_pending_code:
+            continue
+        student.linked_user_account_id = None
+        student.linked_at = None
+        student.link_code_digest = None
+        student.link_code_hint = None
+        student.link_code_expires_at = None
+        session.add(
+            ClassroomLinkAuditEvent(
+                classroom_student_id=student.id,
+                actor_user_account_id=actor.id,
+                event_type="STUDENT_UNLINKED" if was_linked else "LINK_CODE_REVOKED",
+                occurred_at=occurred_at,
+                details={"reason": reason},
+            )
+        )
 
 
 def register_local_member(
@@ -681,6 +732,13 @@ def change_member_role(
     if locked.role == "ADMIN" and new_role != "ADMIN" and len(active_admins) <= 1:
         raise MembershipError("마지막 활성 관리자는 강등할 수 없습니다.")
     before_role = locked.role
+    _revoke_classroom_links(
+        session,
+        target=locked,
+        actor=locked_actor,
+        occurred_at=occurred_at,
+        reason="ACCOUNT_ROLE_CHANGED",
+    )
     locked.role = new_role
     locked.auth_version += 1
     _audit(
@@ -737,6 +795,14 @@ def change_member_status(
     if (locked.status, new_status) not in allowed:
         raise MembershipError("현재 상태에서 요청한 회원 상태로 변경할 수 없습니다.")
     before_status = locked.status
+    if before_status == "ACTIVE" and new_status != "ACTIVE":
+        _revoke_classroom_links(
+            session,
+            target=locked,
+            actor=locked_actor,
+            occurred_at=occurred_at,
+            reason="ACCOUNT_STATUS_CHANGED",
+        )
     locked.status = new_status
     if new_status in {"PENDING_APPROVAL", "REJECTED"}:
         locked.approved_by_user_id = None

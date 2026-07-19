@@ -5,10 +5,14 @@ from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path, PurePath
 from urllib.parse import urlparse
+from xml.etree.ElementTree import ParseError
+from zipfile import BadZipFile
 
 from openpyxl import load_workbook
+from openpyxl.utils.exceptions import InvalidFileException
 from PIL import Image
 from pypdf import PdfReader
+from pypdf.errors import PdfReadError
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
@@ -184,7 +188,17 @@ def _validate_and_count(body: bytes, suffix: str) -> int:
         if suffix == ".csv":
             body.decode("utf-8-sig")
             return 1
-    except (OSError, UnicodeError, ValueError) as error:
+    except (
+        BadZipFile,
+        EOFError,
+        InvalidFileException,
+        KeyError,
+        OSError,
+        ParseError,
+        PdfReadError,
+        UnicodeError,
+        ValueError,
+    ) as error:
         raise SourceDocumentError("출처 파일 내용이 확장자와 일치하지 않습니다.") from error
     raise SourceDocumentError("PDF, PNG, JPG, CSV, XLSX 출처 파일만 등록할 수 있습니다.")
 

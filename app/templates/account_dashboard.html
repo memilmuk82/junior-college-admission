@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>역할별 업무공간 · 진학상담 2027</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="admin-page role-dashboard-page">
+    <header class="admin-header">
+      <div><p class="admin-eyebrow">ROLE WORKSPACE</p><a href="{{ url_for('main.dashboard') }}">진학상담 업무공간</a></div>
+      <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><span>{{ current_user.display_name }} · {{ current_user.role }}</span><button class="text-action" type="submit">로그아웃</button></form>
+    </header>
+
+    <main class="admin-shell role-dashboard">
+      <section class="role-dashboard__intro">
+        <div><span class="eyebrow">{{ current_user.role }}</span><h1>{% if current_user.role == 'STUDENT' %}학생 업무공간{% elif current_user.role == 'TEACHER' %}교사 업무공간{% elif current_user.role == 'ASSISTANT_ADMIN' %}보조 관리자 승인 업무{% elif current_user.role == 'ADMIN' %}주 관리자 업무공간{% else %}상담 업무공간{% endif %}</h1></div>
+        <a class="button-link button-link--secondary" href="{{ url_for('main.public_calculation_input') }}">공개 성적 계산</a>
+      </section>
+
+      {% if current_user.role == 'STUDENT' %}
+        <p class="role-dashboard__lead">본인 성적과 상담 결과를 관리하고, 교사 학급 연결과 개인 BYOK 상담 문장 초안을 사용할 수 있습니다.</p>
+        <div class="role-card-grid">
+          <a class="role-card" href="{{ url_for('account.records') }}"><span>RECORDS</span><h2>내 성적·상담 자료</h2><p>저장 성적과 이전 계산, 교사가 공유한 읽기 전용 자료를 확인하고 연결 코드를 입력합니다.</p></a>
+          <a class="role-card" href="{{ url_for('admin.ai_settings') }}"><span>OPTIONAL BYOK</span><h2>내 BYOK 분석</h2><p>검증된 결과만 비식별 상담 문장으로 정리합니다. 자격·점수·추천은 AI가 만들지 않습니다.</p></a>
+          <a class="role-card" href="{{ url_for('admin.new_consultation') }}"><span>COUNSELING</span><h2>내 성적으로 상담 문장 준비</h2><p>본인 소유 성적을 이용해 대학·학과별 근거 결과와 선택적 AI 초안을 만듭니다.</p></a>
+        </div>
+      {% elif current_user.role == 'TEACHER' %}
+        <p class="role-dashboard__lead">담당 학과·학급의 비식별 학생 명단과 성적을 관리하고, 학생별 상담자료와 BYOK 초안을 만듭니다.</p>
+        <div class="role-card-grid">
+          <a class="role-card" href="{{ url_for('teacher.classrooms') }}"><span>CLASSROOM</span><h2>학과·학급 학생 관리</h2><p>비식별 학생을 추가하고 성적을 입력·확인하며 학생 계정 연결 코드를 발급합니다.</p></a>
+          <a class="role-card" href="{{ url_for('admin.new_consultation') }}"><span>COUNSELING</span><h2>학생 상담자료 만들기</h2><p>담당 학생의 성적으로 자격과 대학별 계산 근거, 학생용·교사용 자료를 만듭니다.</p></a>
+          <a class="role-card" href="{{ url_for('admin.ai_settings') }}"><span>OPTIONAL BYOK</span><h2>BYOK AI 설정</h2><p>개인 API 키를 암호화 저장하고 비식별 상담 문장 초안을 검토·확정합니다.</p></a>
+          <a class="role-card" href="{{ url_for('teacher.outcomes') }}"><span>OUTCOMES</span><h2>지원·합격 결과 관리</h2><p>기관 내부 비식별 지원 결과를 공식 공개 입시결과와 분리해 관리합니다.</p></a>
+          <a class="role-card" href="{{ url_for('account.records') }}"><span>SAVED</span><h2>저장 성적·상담 확인</h2><p>직접 관리하거나 연결 학생이 공유한 성적과 상담자료를 확인합니다.</p></a>
+        </div>
+      {% elif current_user.role == 'ASSISTANT_ADMIN' %}
+        <p class="role-dashboard__lead">보조 관리자의 관리 권한은 승인 대기 중인 일반·학생·교사 계정 승인으로 제한됩니다.</p>
+        <div class="role-card-grid role-card-grid--single">
+          <a class="role-card" href="{{ url_for('members.index') }}"><span>APPROVAL ONLY</span><h2>계정 승인 요청</h2><p>가입 승인 대기 계정만 확인하고 승인합니다. 역할·상태·입시자료·규칙은 변경할 수 없습니다.</p></a>
+        </div>
+      {% elif current_user.role == 'ADMIN' %}
+        <p class="role-dashboard__lead">주 관리자는 계정 역할·상태, 기준정보·규칙, 공개 입시결과, 공식 근거 문서와 제한형 포털 수집을 관리합니다.</p>
+        <div class="role-card-grid">
+          <a class="role-card" href="{{ url_for('members.index') }}"><span>ACCOUNTS</span><h2>회원 역할·상태 관리</h2><p>승인, 학생·교사·보조 관리자·주 관리자 역할, 사용 상태를 감사 기록과 함께 관리합니다.</p></a>
+          <a class="role-card" href="{{ url_for('admission_result_imports.index') }}"><span>RESULT IMPORT</span><h2>입시결과 등록</h2><p>CSV·XLSX 결과를 미리보기·열 매핑·사람 검수 후 게시합니다.</p></a>
+          <a class="role-card" href="{{ url_for('admission_result_imports.index') }}#procollege-collection"><span>BOUNDED CRAWLER</span><h2>전문대학포털 수집</h2><p>페이지 상한과 지연을 지정해 raw → staging으로 수집합니다. 자동 게시하지 않습니다.</p></a>
+          <a class="role-card" href="{{ url_for('source_admin.index') }}"><span>SOURCE DOCUMENTS</span><h2>모집요강 자료 등록</h2><p>PDF·PNG·JPG·CSV·XLSX 공식 자료를 해시·학년도·버전과 함께 등록하고 검증합니다.</p></a>
+          <a class="role-card" href="{{ url_for('admin.catalog') }}"><span>CATALOG</span><h2>대학·학과·전형 기준정보</h2><p>대학, 캠퍼스, 학과, 모집시기와 전형 업무키를 관리합니다.</p></a>
+          <a class="role-card" href="{{ url_for('admin.rules') }}"><span>RULE GOVERNANCE</span><h2>입시 규칙 검수·게시</h2><p>근거·독립 검증·골든 테스트·사람 승인 게이트를 통과한 규칙만 게시합니다.</p></a>
+        </div>
+      {% else %}
+        <div class="role-card-grid role-card-grid--single"><a class="role-card" href="{{ url_for('admin.new_consultation') }}"><span>LEGACY MEMBER</span><h2>상담 시작</h2><p>기존 승인 회원 상담 화면으로 이동합니다.</p></a></div>
+      {% endif %}
+    </main>
+  </body>
+</html>

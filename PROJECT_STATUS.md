@@ -1,10 +1,10 @@
 # 프로젝트 상태
 
-- 기준일: 2026-07-19
-- 현재 단계: Phase 15 기본 구조 재설계
-- 단계 판정: `PASS_PRODUCTION_PHASE_15` — 공개 상담 진입·역할 경계·비식별 교내 결과·근거 문서 검증·제한형 포털 수집 구현을 검증하고 운영 적용 완료
-- 현재 작업: Phase 15 운영 migration·웹 이미지 재빌드·공인 HTTPS 핵심 회귀 완료
-- 다음 게이트: 실제 전문대학포털 소량 수집의 관리자 수동 확인과 공개 전 사람 검수
+- 기준일: 2026-07-20
+- 현재 단계: Phase 16 역할별 업무공간과 학생·교사 연동
+- 단계 판정: `PASS_VERIFIED_PENDING_PRODUCTION_PHASE_16` — 역할별 메뉴·BYOK·학급/성적/상담 공유·관리자 권한 경계와 엑셀 기준 성적 입력 화면을 로컬·격리 PostgreSQL·Chromium에서 검증했으며 운영 백업·배포 대기
+- 현재 작업: Phase 16 구현·전체 회귀 완료, 운영 백업·복원 검증과 `web-production` 비파괴 재빌드 준비
+- 다음 게이트: 운영 custom-format 백업·격리 복원 검증 후 migration `8e31b7c4d2a6` 적용, 공인 HTTPS 역할별 핵심 화면 확인
 
 ## 저장소 인벤토리
 
@@ -336,3 +336,23 @@ Phase 12 회귀는 단위 290건, PostgreSQL 통합 127건과 합성 백업·격
 - 최종 이미지는 `sha256:a2a04b05fd56f83c73b93c139d1d9261fb9d751cd79f9b8a93a4959599c3db9b`이며 웹·DB 모두 `healthy`다.
 - loopback origin과 공인 HTTPS health·보안 헤더를 확인하고, 운영 Chromium에서 합성 익명 계산 `1.71→2.00`, 학생·교사 A4, JavaScript 비활성 SSR, 390px 모바일 3건을 통과했다.
 - 전문대학포털 전체 네트워크 수집과 DNS·Cloudflare·호스트 Nginx 변경은 수행하지 않았다. 사용자 작성 파일 `codex_cli_admission_refactor_prompt.md`, `run_admission_codex_background.sh`는 수정·커밋하지 않고 보존했다.
+
+## Phase 16 검증 완료 항목
+
+- [x] `/account/records`의 공유 데모 403 제거와 계정 로그인 경계 복구
+- [x] 기준 XLSX의 1-1~3-1 다섯 학기·학기당 10행·총 50과목 구조에 맞춘 성적 입력 그리드와 서버 한도·수정 가능한 합성 예시 복구
+- [x] 선택되지 않던 임시 대학 선택 UI 제거, 서버 POST 기반 대학·학과 선택과 성적 상태 동기화
+- [x] 학생·교사·보조 관리자·주 관리자별 업무 대시보드와 서버 권한 일치
+- [x] 학생 개인 BYOK 분석, 교사 BYOK 상담자료 저장과 사용자별 암호화 키 격리
+- [x] 교사의 학과·학급·비식별 학생·성적 관리와 학생의 명시적 전체 자료 공유 동의
+- [x] 24시간 만료·원문 미저장·일회 사용 연결 코드와 연결/해제/정지/역할 변경 감사 이력
+- [x] 연결 중 양방향 성적·학생용 상담 읽기와 상대방 자료 수정·삭제·복제 차단, 학생의 교사용 A4·상담 메모 비노출, 해제 즉시 공유 중단
+- [x] 보조 관리자의 승인 대기 계정 승인 전용 경계와 주 관리자의 역할·입시결과·제한형 수집·근거 문서 관리
+- [x] 손상 PDF/XLSX·malformed OOXML의 400 처리와 주 관리자 PDF·PNG·JPG·CSV·XLSX 업로드 경계
+- [x] JavaScript 없는 생성·연결·성적 추가 흐름, 390px 가로 넘침 없음, 브라우저 오류 0건
+- [x] 단위 342건, PostgreSQL 통합 159건과 합성 백업·격리 복원, Phase 16 Playwright 3건 통과
+- [x] Ruff·포맷·mypy 146개 소스·규칙·민감자료·기준 XLSX 읽기 전용 검증 통과
+- [ ] 운영 custom-format 백업·archive·checksum·격리 복원 검증
+- [ ] 기존 DB·volume 보존, `web-production`만 재빌드하고 migration·공인 HTTPS 확인
+
+사용자 작성 파일 `codex_cli_admission_refactor_prompt.md`, `run_admission_codex_background.sh`는 Phase 16 변경 범위에서 제외해 수정·커밋하지 않는다. 실제 학생 자료나 원본 XLSX/PDF는 Git에 추가하지 않았고 테스트는 합성 비식별 자료만 사용했다.

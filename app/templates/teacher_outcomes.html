@@ -2,7 +2,7 @@
 <html lang="ko">
   <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>기관 지원·합격 결과 · 진학상담 2027</title><link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}"></head>
   <body class="admin-page teacher-workspace">
-    <header class="admin-header"><div><p class="admin-eyebrow">INSTITUTION DATA</p><a href="{{ url_for('teacher.outcomes') }}">교사 상담 업무</a></div><nav><a href="{{ url_for('main.index') }}">공개 상담</a><a href="{{ url_for('account.records') }}">저장 상담</a></nav></header>
+    <header class="admin-header"><div><p class="admin-eyebrow">INSTITUTION DATA</p><a href="{{ url_for('teacher.outcomes') }}">교사 상담 업무</a></div><nav><a href="{{ url_for('main.dashboard') }}">업무공간</a><a href="{{ url_for('teacher.classrooms') }}">학급·학생</a><a href="{{ url_for('admin.ai_settings') }}">BYOK 상담 초안</a><a href="{{ url_for('account.records') }}">저장 상담</a></nav></header>
     <main class="admin-shell">
       <div class="admin-heading"><div><h1>기관 지원·합격 결과</h1><p>학생 이름 대신 기관 내부 익명 코드만 저장합니다. 공식 공개 결과와 학생 개인 자료에는 합쳐지지 않습니다.</p></div><a class="button-link button-link--secondary" href="{{ url_for('teacher.outcomes_csv', **filters) }}">현재 조회 CSV</a></div>
       {% if error %}<div class="admin-alert" role="alert"><h2>처리할 수 없습니다</h2><p>{{ error }}</p></div>{% endif %}

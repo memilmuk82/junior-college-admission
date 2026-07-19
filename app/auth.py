@@ -136,7 +136,7 @@ def roles_required(
     return decorate
 
 
-member_required = roles_required("ADMIN", "ASSISTANT_ADMIN", "MEMBER", "TEACHER", "STUDENT")
+member_required = roles_required("ADMIN", "MEMBER", "TEACHER", "STUDENT")
 student_required = roles_required("STUDENT", allow_legacy=False)
 teacher_required = roles_required("ADMIN", "TEACHER", allow_legacy=False)
 admin_required = roles_required("ADMIN")
@@ -164,11 +164,9 @@ def post_login_destination(user: UserAccount, requested_next: str | None = None)
         return candidate
     if user.actor_ref == DEMO_ACTOR_REF:
         return url_for("main.public_calculation_input", example="1")
-    if user.actor_ref != DEMO_ACTOR_REF and user.role == "ADMIN":
-        return url_for("admin.rules")
-    if user.role == "STUDENT":
-        return url_for("account.records")
-    return url_for("admin.new_consultation")
+    if user.role == "ASSISTANT_ADMIN":
+        return url_for("members.index")
+    return url_for("main.dashboard")
 
 
 def register_auth_cli(app: Flask) -> None:

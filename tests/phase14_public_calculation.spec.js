@@ -17,22 +17,25 @@ const pastedGrades = `학년도\t학년\t학기\t교과\t과목\t이수단위\t�
 
 async function startWithPastedGrades(page) {
   await page.goto(`${publicUrl}/calculate?example=1`);
-  await expect(page.getByRole('heading', { name: /성적을 입력하고 지원 가능한 전형/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /학생부 성적을 학기별로 입력/ })).toBeVisible();
   await expect(page.getByText('합성 예시 성적을 불러왔습니다')).toBeVisible();
+  await expect(page.locator('[data-preview-program]')).toHaveCount(0);
+  await expect(page.getByText(/성적 확인 다음 단계에서 대학·학과를 선택합니다/)).toBeVisible();
   await page.getByRole('radio', { name: '표 붙여넣기' }).check();
   await page.locator('#record-source').selectOption('HOME_SCHOOL_RECORD');
   await page.locator('#pasted-table').fill(pastedGrades);
-  await page.getByRole('button', { name: '입력값 확인하기' }).click();
+  await page.getByRole('button', { name: '입력값 확인하고 대학 선택으로' }).click();
   await expect(page.getByRole('heading', { name: '학생 성적 입력 검수' })).toBeVisible();
   await expect(page.locator('.row-checkbox:checked')).toHaveCount(10);
 }
 
 async function startWithEditedExample(page) {
   await page.goto(`${publicUrl}/calculate?example=1`);
-  await expect(page.getByRole('heading', { name: /성적을 입력하고 지원 가능한 전형/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /학생부 성적을 학기별로 입력/ })).toBeVisible();
   await expect(page.getByText('합성 예시 성적을 불러왔습니다')).toBeVisible();
+  await expect(page.locator('[data-preview-program]')).toHaveCount(0);
   await page.locator('#rows-0-rank_grade').fill('3');
-  await page.getByRole('button', { name: '입력값 확인하기' }).click();
+  await page.getByRole('button', { name: '입력값 확인하고 대학 선택으로' }).click();
   await expect(page.getByRole('heading', { name: '학생 성적 입력 검수' })).toBeVisible();
   await expect(page.locator('#rows-0-rank_grade')).toHaveValue('3');
   await expect(page.locator('.row-checkbox:checked')).toHaveCount(10);
@@ -96,7 +99,7 @@ test('anonymous actual-data calculation changes result and prints both A4 views'
     form: { csrf_token: completeCsrf },
   });
   await page.goto(publicUrl);
-  await expect(page.getByRole('heading', { name: /성적을 입력하고 지원 가능한 전형/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /학생부 성적을 학기별로 입력/ })).toBeVisible();
   const expired = await page.goto(`${publicUrl}/calculate/${calculationId}/targets`);
   expect(expired?.status()).toBe(404);
 });

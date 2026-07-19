@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 
 from sqlalchemy import Engine, delete
 from sqlalchemy.orm import Session
@@ -150,6 +151,7 @@ def _login_as(client, user: UserAccount) -> str:  # type: ignore[no-untyped-def]
 
 def test_account_records_edit_and_consultation_history_are_owner_scoped(
     postgres_engine: Engine,
+    tmp_path: Path,
 ) -> None:
     created_user_ids: tuple[str, ...] = ()
     record_ids: tuple[str, ...] = ()
@@ -217,6 +219,7 @@ def test_account_records_edit_and_consultation_history_are_owner_scoped(
                 "TESTING": True,
                 "SECRET_KEY": "test-only-secret",
                 "DATABASE_URL": postgres_engine.url.render_as_string(hide_password=False),
+                "TEMP_UPLOAD_ROOT": str(tmp_path / "uploads"),
             }
         )
         student_client = app.test_client()
@@ -228,8 +231,50 @@ def test_account_records_edit_and_consultation_history_are_owner_scoped(
         assert "다른 학생 과목" not in body
         cloned = student_client.get(f"/account/consultations/{student_consultation.id}/clone")
         assert cloned.status_code == 200
-        assert "학생 본인 과목" in cloned.get_data(as_text=True)
-        assert "저장 상담을 새 입력으로 복제했습니다." in cloned.get_data(as_text=True)
+        cloned_body = cloned.get_data(as_text=True)
+        assert "학생 본인 과목" in cloned_body
+        assert "저장 상담을 새 입력으로 복제했습니다." in cloned_body
+        assert cloned_body.count("data-score-row") == 50
+        assert 'name="rows-1-subject_name"' in cloned_body
+        clone_with_added_course = student_client.post(
+            "/calculate/input",
+            data={
+                "csrf_token": csrf,
+                "input_mode": "manual",
+                "record_source": "HOME_SCHOOL_RECORD",
+                "rows-0-academic_year": "2026",
+                "rows-0-grade": "1",
+                "rows-0-semester": "1",
+                "rows-0-subject_group": "국어",
+                "rows-0-subject_name": "학생 본인 과목",
+                "rows-0-credits": "4",
+                "rows-0-rank_grade": "2",
+                "rows-1-academic_year": "2026",
+                "rows-1-grade": "1",
+                "rows-1-semester": "1",
+                "rows-1-subject_group": "수학",
+                "rows-1-subject_name": "복제 뒤 추가한 합성 과목",
+                "rows-1-credits": "3",
+                "rows-1-rank_grade": "3",
+            },
+            follow_redirects=False,
+        )
+        assert clone_with_added_course.status_code == 302
+        other_logged_client = app.test_client()
+        _login_as(other_logged_client, other_student)
+        with other_logged_client.session_transaction() as other_browser_session:
+            other_browser_session["anonymous_calculation_owner"] = (
+                "synthetic-different-anonymous-owner"
+            )
+        assert (
+            other_logged_client.get(clone_with_added_course.headers["Location"]).status_code == 404
+        )
+        clone_review = student_client.get(clone_with_added_course.headers["Location"])
+        assert clone_review.status_code == 200
+        clone_review_body = clone_review.get_data(as_text=True)
+        assert "학생 성적 입력 검수" in clone_review_body
+        assert "학생 본인 과목" in clone_review_body
+        assert "복제 뒤 추가한 합성 과목" in clone_review_body
         forbidden_clone = student_client.get(
             f"/account/consultations/{teacher_consultation.id}/clone"
         )

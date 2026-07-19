@@ -24,7 +24,7 @@
         <button type="submit">미리보기 만들기</button>
       </form>
 
-      <section class="admin-section">
+      <section class="admin-section" id="procollege-collection">
         <h2>전문대학포털에서 수집</h2>
         <p>기존 수집기의 endpoint·필드·페이지 계약을 사용합니다. raw 응답 digest를 먼저 보존하고, 파일 업로드와 같은 열 매핑·검수·게시 절차로 이동합니다.</p>
         <form method="post" action="{{ url_for('admission_result_imports.collect_procollege') }}" class="stack">

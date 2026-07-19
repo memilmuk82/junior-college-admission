@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from decimal import Decimal, InvalidOperation
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -11,6 +11,11 @@ from app.models import (
     StudentAcademicRecord,
     StudentCourseRecord,
     UserAccount,
+)
+from app.services.classroom_links import (
+    linked_classroom_student_references,
+    linked_student_account_ids,
+    linked_teacher_user_ids,
 )
 
 
@@ -26,9 +31,18 @@ RECORD_SOURCES = frozenset(
         "MANUAL_INPUT",
     }
 )
+REFERENCE_INPUT_TERMS = (
+    (2025, "1", "1"),
+    (2025, "1", "2"),
+    (2026, "2", "1"),
+    (2026, "2", "2"),
+    (2027, "3", "1"),
+)
+REFERENCE_INPUT_ROWS_PER_TERM = 10
 
 
 def can_access_academic_record(user: UserAccount, record: StudentAcademicRecord) -> bool:
+    """자료를 수정·삭제할 수 있는 직접 소유자 또는 관리자 여부."""
     if user.status != "ACTIVE":
         return False
     if user.role == "ADMIN":
@@ -40,6 +54,24 @@ def can_access_academic_record(user: UserAccount, record: StudentAcademicRecord)
     return False
 
 
+def can_read_academic_record(
+    session: Session, *, user: UserAccount, record: StudentAcademicRecord
+) -> bool:
+    if can_access_academic_record(user, record):
+        return True
+    if user.status != "ACTIVE":
+        return False
+    if user.role == "STUDENT":
+        return record.student_id in linked_classroom_student_references(
+            session, student_user_id=user.id
+        )
+    if user.role == "TEACHER" and record.owner_user_account_id:
+        return record.owner_user_account_id in linked_student_account_ids(
+            session, teacher_user_id=user.id
+        )
+    return False
+
+
 def visible_academic_records(
     session: Session, *, user: UserAccount
 ) -> tuple[StudentAcademicRecord, ...]:
@@ -47,9 +79,21 @@ def visible_academic_records(
         raise StudentRecordAccessError("활성 계정만 저장 성적을 조회할 수 있습니다.")
     statement = select(StudentAcademicRecord)
     if user.role == "STUDENT":
-        statement = statement.where(StudentAcademicRecord.owner_user_account_id == user.id)
+        shared_references = linked_classroom_student_references(session, student_user_id=user.id)
+        statement = statement.where(
+            or_(
+                StudentAcademicRecord.owner_user_account_id == user.id,
+                StudentAcademicRecord.student_id.in_(shared_references),
+            )
+        )
     elif user.role == "TEACHER":
-        statement = statement.where(StudentAcademicRecord.managed_by_user_account_id == user.id)
+        linked_user_ids = linked_student_account_ids(session, teacher_user_id=user.id)
+        statement = statement.where(
+            or_(
+                StudentAcademicRecord.managed_by_user_account_id == user.id,
+                StudentAcademicRecord.owner_user_account_id.in_(linked_user_ids),
+            )
+        )
     elif user.role != "ADMIN":
         raise StudentRecordAccessError("저장 성적 조회 권한이 없습니다.")
     return tuple(
@@ -251,6 +295,7 @@ def _required_integer(raw: str, *, label: str, minimum: int, maximum: int) -> in
 
 
 def can_access_saved_consultation(user: UserAccount, consultation: SavedConsultation) -> bool:
+    """상담을 수정·삭제할 수 있는 직접 소유자 또는 관리자 여부."""
     if user.status != "ACTIVE":
         return False
     if user.role == "ADMIN":
@@ -262,6 +307,28 @@ def can_access_saved_consultation(user: UserAccount, consultation: SavedConsulta
     return False
 
 
+def can_read_saved_consultation(
+    session: Session, *, user: UserAccount, consultation: SavedConsultation
+) -> bool:
+    if can_access_saved_consultation(user, consultation):
+        return True
+    if user.status != "ACTIVE":
+        return False
+    if user.role == "STUDENT":
+        return consultation.student_reference in linked_classroom_student_references(
+            session, student_user_id=user.id
+        ) or (
+            consultation.student_reference == f"account:{user.id}"
+            and consultation.managed_by_user_account_id
+            in linked_teacher_user_ids(session, student_user_id=user.id)
+        )
+    if user.role == "TEACHER" and consultation.owner_user_account_id:
+        return consultation.owner_user_account_id in linked_student_account_ids(
+            session, teacher_user_id=user.id
+        )
+    return False
+
+
 def visible_saved_consultations(
     session: Session, *, user: UserAccount
 ) -> tuple[SavedConsultation, ...]:
@@ -269,9 +336,26 @@ def visible_saved_consultations(
         raise StudentRecordAccessError("활성 계정만 상담 이력을 조회할 수 있습니다.")
     statement = select(SavedConsultation)
     if user.role == "STUDENT":
-        statement = statement.where(SavedConsultation.owner_user_account_id == user.id)
+        shared_references = linked_classroom_student_references(session, student_user_id=user.id)
+        linked_teacher_ids = linked_teacher_user_ids(session, student_user_id=user.id)
+        statement = statement.where(
+            or_(
+                SavedConsultation.owner_user_account_id == user.id,
+                SavedConsultation.student_reference.in_(shared_references),
+                and_(
+                    SavedConsultation.student_reference == f"account:{user.id}",
+                    SavedConsultation.managed_by_user_account_id.in_(linked_teacher_ids),
+                ),
+            )
+        )
     elif user.role == "TEACHER":
-        statement = statement.where(SavedConsultation.managed_by_user_account_id == user.id)
+        linked_user_ids = linked_student_account_ids(session, teacher_user_id=user.id)
+        statement = statement.where(
+            or_(
+                SavedConsultation.managed_by_user_account_id == user.id,
+                SavedConsultation.owner_user_account_id.in_(linked_user_ids),
+            )
+        )
     elif user.role != "ADMIN":
         raise StudentRecordAccessError("상담 이력 조회 권한이 없습니다.")
     return tuple(
@@ -285,7 +369,9 @@ def get_saved_consultation(
     session: Session, *, user: UserAccount, consultation_id: str
 ) -> SavedConsultation:
     consultation = session.get(SavedConsultation, consultation_id)
-    if consultation is None or not can_access_saved_consultation(user, consultation):
+    if consultation is None or not can_read_saved_consultation(
+        session, user=user, consultation=consultation
+    ):
         raise StudentRecordAccessError("상담 이력을 찾을 수 없습니다.")
     return consultation
 
@@ -293,7 +379,10 @@ def get_saved_consultation(
 def saved_consultation_input_rows(
     session: Session, *, user: UserAccount, consultation_id: str
 ) -> tuple[dict[str, str], ...]:
-    consultation = get_saved_consultation(session, user=user, consultation_id=consultation_id)
+    consultation = session.get(SavedConsultation, consultation_id)
+    if consultation is None or not can_access_saved_consultation(user, consultation):
+        # 공유 자료는 읽기 전용이며 상대방 입력으로 복제하지 않는다.
+        raise StudentRecordAccessError("상담 이력을 찾을 수 없습니다.")
     records = tuple(
         session.scalars(
             select(StudentAcademicRecord)
@@ -338,7 +427,35 @@ def saved_consultation_input_rows(
             )
     if not rows:
         raise StudentRecordAccessError("복제할 저장 성적을 찾을 수 없습니다.")
-    return tuple(rows)
+    reference_keys = {(grade, semester) for _, grade, semester in REFERENCE_INPUT_TERMS}
+    if any((row["grade"], row["semester"]) not in reference_keys for row in rows):
+        raise StudentRecordAccessError("기준 입력표에 없는 학기 성적은 복제할 수 없습니다.")
+    padded_rows: list[dict[str, str]] = []
+    for academic_year, grade, semester in REFERENCE_INPUT_TERMS:
+        term_rows = [row for row in rows if row["grade"] == grade and row["semester"] == semester]
+        if len(term_rows) > REFERENCE_INPUT_ROWS_PER_TERM:
+            raise StudentRecordAccessError("상담 복제는 학기당 10과목까지 지원합니다.")
+        padded_rows.extend(term_rows)
+        padded_rows.extend(
+            {
+                "academic_year": str(academic_year),
+                "grade": grade,
+                "semester": semester,
+                "subject_group": "",
+                "subject_name": "",
+                "credits": "",
+                "raw_score": "",
+                "course_mean": "",
+                "standard_deviation": "",
+                "achievement_level": "",
+                "enrollment_count": "",
+                "rank_grade": "",
+                "record_source": "",
+                "is_vocational_training_semester": "",
+            }
+            for _ in range(REFERENCE_INPUT_ROWS_PER_TERM - len(term_rows))
+        )
+    return tuple(padded_rows)
 
 
 def _display_optional(value: object | None) -> str:
@@ -386,6 +503,8 @@ __all__ = [
     "academic_record_courses",
     "can_access_academic_record",
     "can_access_saved_consultation",
+    "can_read_academic_record",
+    "can_read_saved_consultation",
     "delete_academic_record",
     "delete_saved_consultation",
     "get_saved_consultation",

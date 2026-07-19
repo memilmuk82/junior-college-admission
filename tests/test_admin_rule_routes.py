@@ -937,7 +937,7 @@ def test_catalog_requires_admin_and_csrf(postgres_engine: Engine) -> None:
         with administrator.session_transaction() as browser_session:
             browser_session |= {"user_id": admin_id, "auth_version": 1}
         assert administrator.get("/admin/catalog").status_code == 200
-        assert 'href="/admin/catalog"' in administrator.get("/").get_data(as_text=True)
+        assert 'href="/admin/catalog"' in administrator.get("/dashboard").get_data(as_text=True)
         path, data, *_ = _catalog_case("institution", {}, prefix.upper())
         assert administrator.post(path, data=data).status_code == 400
         with Session(postgres_engine) as database_session:

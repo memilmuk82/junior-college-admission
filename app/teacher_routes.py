@@ -10,6 +10,18 @@ from sqlalchemy.orm import Session
 
 from app.auth import csrf_token, require_csrf, roles_required, session_user
 from app.database import db
+from app.services.classroom_links import (
+    ClassroomLinkError,
+    add_classroom_course,
+    add_classroom_student,
+    classroom_student_records,
+    classroom_student_reference,
+    create_classroom,
+    disconnect_student_account,
+    list_classroom_students,
+    list_teacher_classrooms,
+    rotate_connection_code,
+)
 from app.services.institutional_results import (
     InstitutionalOutcomeView,
     InstitutionalResultError,
@@ -19,6 +31,7 @@ from app.services.institutional_results import (
     list_track_options,
     summarize_outcomes,
 )
+from app.services.student_record_access import academic_record_courses
 
 bp = Blueprint("teacher", __name__, url_prefix="/teacher")
 
@@ -41,6 +54,180 @@ def _filters() -> dict[str, str]:
         "admission_track_id": request.args.get("admission_track_id", "").strip(),
         "outcome_status": request.args.get("outcome_status", "").strip(),
     }
+
+
+def _render_classrooms(
+    *,
+    error: str | None = None,
+    status: int = 200,
+    connection_code: str | None = None,
+    issued_student_id: str | None = None,
+) -> Response:
+    user = session_user()
+    assert user is not None
+    database_session = cast(Session, db.session)
+    classrooms = list_teacher_classrooms(database_session, user=user)
+    students_by_classroom = {
+        classroom.id: list_classroom_students(
+            database_session, user=user, classroom_id=classroom.id
+        )
+        for classroom in classrooms
+    }
+    selected_student_id = request.args.get("student_id", "").strip() or issued_student_id
+    selected_student = next(
+        (
+            student
+            for students in students_by_classroom.values()
+            for student in students
+            if student.id == selected_student_id
+        ),
+        None,
+    )
+    records = (
+        classroom_student_records(
+            database_session, user=user, classroom_student_id=selected_student.id
+        )
+        if selected_student is not None
+        else ()
+    )
+    return _private(
+        render_template(
+            "teacher_classrooms.html",
+            current_user=user,
+            csrf_token=csrf_token(),
+            classrooms=classrooms,
+            students_by_classroom=students_by_classroom,
+            selected_student=selected_student,
+            selected_student_reference=(
+                classroom_student_reference(selected_student.id)
+                if selected_student is not None
+                else None
+            ),
+            records=records,
+            courses_by_record=academic_record_courses(database_session, records=records),
+            error=error,
+            connection_code=connection_code,
+            issued_student_id=issued_student_id,
+            message=request.args.get("message"),
+        ),
+        status,
+    )
+
+
+@bp.get("/classrooms")
+@roles_required("TEACHER", allow_legacy=False)
+def classrooms() -> Response:
+    return _render_classrooms()
+
+
+@bp.post("/classrooms")
+@roles_required("TEACHER", allow_legacy=False)
+def create_classroom_route() -> Response | Any:
+    require_csrf()
+    user = session_user()
+    assert user is not None
+    try:
+        classroom = create_classroom(cast(Session, db.session), user=user, values=request.form)
+        db.session.commit()
+    except ClassroomLinkError as error:
+        db.session.rollback()
+        return _render_classrooms(error=str(error), status=400)
+    except IntegrityError:
+        db.session.rollback()
+        return _render_classrooms(error="같은 학년도·학과·학급이 이미 있습니다.", status=409)
+    return redirect(url_for("teacher.classrooms", classroom_id=classroom.id, message="created"))
+
+
+@bp.post("/classrooms/<classroom_id>/students")
+@roles_required("TEACHER", allow_legacy=False)
+def add_classroom_student_route(classroom_id: str) -> Response:
+    require_csrf()
+    user = session_user()
+    assert user is not None
+    try:
+        issued = add_classroom_student(
+            cast(Session, db.session),
+            user=user,
+            classroom_id=classroom_id,
+            anonymous_code=request.form.get("anonymous_code", ""),
+        )
+        db.session.commit()
+    except ClassroomLinkError as error:
+        db.session.rollback()
+        return _render_classrooms(error=str(error), status=400)
+    except IntegrityError:
+        db.session.rollback()
+        return _render_classrooms(error="같은 학급에 동일한 비식별 코드가 있습니다.", status=409)
+    return _render_classrooms(
+        connection_code=issued.connection_code,
+        issued_student_id=issued.student.id,
+        status=201,
+    )
+
+
+@bp.post("/students/<classroom_student_id>/link-code")
+@roles_required("TEACHER", allow_legacy=False)
+def rotate_student_link_code(classroom_student_id: str) -> Response:
+    require_csrf()
+    user = session_user()
+    assert user is not None
+    try:
+        issued = rotate_connection_code(
+            cast(Session, db.session),
+            user=user,
+            classroom_student_id=classroom_student_id,
+        )
+        db.session.commit()
+    except ClassroomLinkError as error:
+        db.session.rollback()
+        return _render_classrooms(error=str(error), status=400)
+    return _render_classrooms(
+        connection_code=issued.connection_code,
+        issued_student_id=issued.student.id,
+    )
+
+
+@bp.post("/students/<classroom_student_id>/disconnect")
+@roles_required("TEACHER", allow_legacy=False)
+def disconnect_student_route(classroom_student_id: str) -> Response | Any:
+    require_csrf()
+    user = session_user()
+    assert user is not None
+    try:
+        disconnect_student_account(
+            cast(Session, db.session),
+            user=user,
+            classroom_student_id=classroom_student_id,
+        )
+        db.session.commit()
+    except ClassroomLinkError as error:
+        db.session.rollback()
+        return _render_classrooms(error=str(error), status=404)
+    return redirect(url_for("teacher.classrooms", message="disconnected"))
+
+
+@bp.post("/students/<classroom_student_id>/courses")
+@roles_required("TEACHER", allow_legacy=False)
+def add_student_course(classroom_student_id: str) -> Response | Any:
+    require_csrf()
+    user = session_user()
+    assert user is not None
+    try:
+        add_classroom_course(
+            cast(Session, db.session),
+            user=user,
+            classroom_student_id=classroom_student_id,
+            values=request.form,
+        )
+        db.session.commit()
+    except ClassroomLinkError as error:
+        db.session.rollback()
+        return _render_classrooms(
+            error=str(error), status=400, issued_student_id=classroom_student_id
+        )
+    return redirect(
+        url_for("teacher.classrooms", student_id=classroom_student_id, message="course_added")
+    )
 
 
 def _filtered_rows() -> tuple[InstitutionalOutcomeView, ...]:

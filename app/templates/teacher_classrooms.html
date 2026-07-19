@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>학과·학급 학생 관리 · 진학상담 2027</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="admin-page teacher-workspace">
+    <header class="admin-header">
+      <div><p class="admin-eyebrow">TEACHER WORKSPACE</p><a href="{{ url_for('teacher.classrooms') }}">학과·학급 학생 관리</a></div>
+      <nav><a href="{{ url_for('main.dashboard') }}">업무공간</a><a href="{{ url_for('admin.ai_settings') }}">BYOK 상담 초안</a><a href="{{ url_for('teacher.outcomes') }}">지원·합격 결과</a></nav>
+    </header>
+
+    <main class="admin-shell">
+      <div class="admin-heading"><div><h1>학과·학급과 학생 성적</h1><p>학생 이름·학번 대신 교사가 정한 비식별 코드만 사용합니다. 학생 계정 연결은 학생이 일회용 코드를 직접 입력해야 완료됩니다.</p></div><a class="button-link" href="{{ url_for('admin.new_consultation') }}">새 상담자료 만들기</a></div>
+
+      {% if error %}<div class="admin-alert" role="alert"><h2>처리할 수 없습니다</h2><p>{{ error }}</p></div>{% endif %}
+      {% if message == 'created' %}<div class="members-notice" role="status">학급을 만들었습니다.</div>{% elif message == 'course_added' %}<div class="members-notice" role="status">학생 성적 과목을 추가했습니다.</div>{% elif message == 'disconnected' %}<div class="members-notice" role="status">학생 계정 연결을 해제했습니다.</div>{% endif %}
+      {% if connection_code %}
+        <section class="connection-code-panel" role="status" aria-labelledby="issued-code-heading">
+          <div><span>한 번만 표시 · 24시간 유효</span><h2 id="issued-code-heading">학생 연결 코드</h2><p>이 코드를 해당 학생에게 안전하게 전달하세요. 원문은 DB에 저장되지 않아 화면을 벗어나면 다시 확인할 수 없습니다.</p></div>
+          <code data-connection-code>{{ connection_code }}</code>
+        </section>
+      {% endif %}
+
+      <section class="admin-section" aria-labelledby="create-classroom-heading">
+        <div class="admin-section__heading"><h2 id="create-classroom-heading">학과·학급 추가</h2><span>교사 계정별 분리</span></div>
+        <form class="classroom-create-form" method="post" action="{{ url_for('teacher.create_classroom_route') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>학년도<input name="academic_year" type="number" min="2000" max="2100" value="2027" required></label>
+          <label>학과<input name="department_name" maxlength="120" placeholder="예: 스마트기계과" required></label>
+          <label>학급<input name="class_name" maxlength="80" placeholder="예: 3-A" required></label>
+          <button type="submit">학급 만들기</button>
+        </form>
+      </section>
+
+      <div class="classroom-layout">
+        <section class="admin-section classroom-list" aria-labelledby="classroom-list-heading">
+          <div class="admin-section__heading"><h2 id="classroom-list-heading">내 학급</h2><span>{{ classrooms|length }}개</span></div>
+          {% for classroom in classrooms %}
+            <article class="classroom-card">
+              <header><div><h3>{{ classroom.department_name }} · {{ classroom.class_name }}</h3><p>{{ classroom.academic_year }}학년도</p></div><span>{{ students_by_classroom[classroom.id]|length }}명</span></header>
+              <form class="classroom-student-create" method="post" action="{{ url_for('teacher.add_classroom_student_route', classroom_id=classroom.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label>비식별 학생 코드<input name="anonymous_code" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_\-]{0,39}" placeholder="예: C27-001" required></label>
+                <button type="submit">학생 추가·연결코드 발급</button>
+              </form>
+              <ul class="classroom-student-list">
+                {% for student in students_by_classroom[classroom.id] %}
+                  <li class="{% if selected_student and selected_student.id == student.id %}is-selected{% endif %}">
+                    <a href="{{ url_for('teacher.classrooms', student_id=student.id) }}"><strong>{{ student.anonymous_code }}</strong><span>{% if student.linked_user_account_id %}학생 계정 연결됨{% elif student.link_code_hint %}연결 대기 · 끝 4자리 {{ student.link_code_hint }} · 24시간 이내{% else %}연결 대기 · 코드 발급 필요{% endif %}</span></a>
+                    {% if student.linked_user_account_id %}
+                      <form method="post" action="{{ url_for('teacher.disconnect_student_route', classroom_student_id=student.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="danger-link" type="submit">연결 해제</button></form>
+                    {% else %}
+                      <form method="post" action="{{ url_for('teacher.rotate_student_link_code', classroom_student_id=student.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">코드 재발급</button></form>
+                    {% endif %}
+                  </li>
+                {% else %}<li class="empty-state">등록된 학생이 없습니다.</li>{% endfor %}
+              </ul>
+            </article>
+          {% else %}<p class="empty-state">먼저 담당 학과와 학급을 추가하세요.</p>{% endfor %}
+        </section>
+
+        <section class="admin-section classroom-student-detail" aria-labelledby="student-detail-heading">
+          {% if selected_student %}
+            <div class="admin-section__heading"><h2 id="student-detail-heading">{{ selected_student.anonymous_code }} 성적·상담</h2><span>{{ '계정 연결' if selected_student.linked_user_account_id else '교사 관리' }}</span></div>
+            <div class="student-counseling-actions">
+              <a class="button-link" href="{{ url_for('admin.new_consultation', student_id=selected_student_reference) }}">교사 입력 성적으로 상담자료 만들기</a>
+              {% if selected_student.linked_user_account_id %}<a class="button-link button-link--secondary" href="{{ url_for('admin.new_consultation', student_id='account:' ~ selected_student.linked_user_account_id) }}">학생 계정 성적으로 상담자료 만들기</a>{% endif %}
+              <a class="button-link button-link--secondary" href="{{ url_for('admin.ai_settings') }}">BYOK 키·상담 초안</a>
+            </div>
+
+            <details class="student-course-entry" open>
+              <summary>성적 과목 추가</summary>
+              <form method="post" action="{{ url_for('teacher.add_student_course', classroom_student_id=selected_student.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="student-course-grid">
+                  <label>학년도<input name="academic_year" type="number" min="2000" max="2100" value="2027" required></label>
+                  <label>학년<select name="grade" required><option value="1">1학년</option><option value="2">2학년</option><option value="3" selected>3학년</option></select></label>
+                  <label>학기<select name="semester" required><option value="1">1학기</option><option value="2">2학기</option></select></label>
+                  <label>성적 출처<select name="record_source" required><option value="HOME_SCHOOL_RECORD">학교생활기록부</option><option value="VOCATIONAL_TRAINING_RECORD">직업위탁 성적</option><option value="MANUAL_INPUT">교사 직접 입력</option><option value="GED_RECORD">검정고시</option></select></label>
+                  <label>교과<input name="subject_group" maxlength="120"></label>
+                  <label>과목명<input name="subject_name" maxlength="200" required></label>
+                  <label>이수단위<input name="credits" inputmode="decimal"></label>
+                  <label>석차등급<input name="rank_grade" inputmode="decimal"></label>
+                  <label>원점수 또는 P<input name="raw_score"></label>
+                  <label>과목평균<input name="course_mean" inputmode="decimal"></label>
+                  <label>표준편차<input name="standard_deviation" inputmode="decimal"></label>
+                  <label>성취도<input name="achievement_level" maxlength="20"></label>
+                  <label>수강자수<input name="enrollment_count" inputmode="numeric"></label>
+                  <label class="check-control"><input type="checkbox" name="is_vocational_training_semester" value="TRUE"> 위탁학기</label>
+                </div>
+                <button type="submit">검수 완료 과목으로 추가</button>
+              </form>
+            </details>
+
+            <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>소유 구분</th><th>학기</th><th>출처</th><th>과목·성적</th></tr></thead><tbody>
+              {% for record in records %}<tr><td>{{ '학생 계정 공유 · 읽기 전용' if record.owner_user_account_id else '교사 입력' }}</td><td>{{ record.academic_year }} · {{ record.grade }}-{{ record.semester }}</td><td>{{ record.record_source }}</td><td><ul class="record-course-list">{% for course in courses_by_record.get(record.id, ()) %}<li><strong>{{ course.subject_name }}</strong><span>단위 {{ course.credits if course.credits is not none else '-' }} · 등급 {{ course.rank_grade if course.rank_grade is not none else '-' }} · 원점수 {{ course.raw_score_label or course.raw_score or '-' }}</span></li>{% endfor %}</ul></td></tr>{% else %}<tr><td colspan="4">등록되거나 연결 공유된 성적이 없습니다.</td></tr>{% endfor %}
+            </tbody></table></div>
+          {% else %}
+            <div class="admin-section__heading"><h2 id="student-detail-heading">학생 성적·상담</h2><span>학생 선택</span></div>
+            <p class="empty-state">왼쪽 학급에서 학생을 선택하면 성적 추가·확인과 상담자료 생성 메뉴가 표시됩니다.</p>
+          {% endif %}
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>회원 승인 및 권한 관리 · 2027 전문대 입시 상담</title>
+    <title>{{ '계정 승인 요청' if current_user.role == 'ASSISTANT_ADMIN' else '회원 승인 및 권한 관리' }} · 2027 전문대 입시 상담</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   </head>
   <body class="admin-page members-page">
@@ -16,7 +16,7 @@
     <header class="admin-header">
       <div>
         <p class="admin-eyebrow">MEMBER GOVERNANCE</p>
-        <a href="{{ url_for('members.index') }}">회원 승인 및 권한 관리</a>
+        <a href="{{ url_for('members.index') }}">{{ '계정 승인 요청' if operator.role == 'ASSISTANT_ADMIN' else '회원 승인 및 권한 관리' }}</a>
       </div>
       <form method="post" action="{{ url_for('auth.logout') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -28,7 +28,7 @@
     <main class="admin-shell" id="main-content">
       <div class="admin-heading">
         <div>
-          <h1>회원 승인 및 권한 관리</h1>
+          <h1>{{ '계정 승인 요청' if operator.role == 'ASSISTANT_ADMIN' else '회원 승인 및 권한 관리' }}</h1>
           {% if operator.role == 'ASSISTANT_ADMIN' %}
             <p>보조 관리자는 승인 대기 일반 회원·학생·교사만 승인할 수 있습니다.</p>
           {% else %}
@@ -36,8 +36,7 @@
           {% endif %}
         </div>
         <nav class="admin-heading__actions" aria-label="관리 메뉴">
-          <a class="button-link button-link--secondary" href="{{ url_for('admin.new_consultation') }}">상담 시작</a>
-          {% if operator.role == 'ADMIN' %}<a class="button-link" href="{{ url_for('admin.rules') }}">규칙 관리자</a>{% endif %}
+          {% if operator.role == 'ADMIN' %}<a class="button-link button-link--secondary" href="{{ url_for('main.dashboard') }}">주 관리자 업무공간</a><a class="button-link" href="{{ url_for('admin.rules') }}">규칙 관리자</a>{% else %}<a class="button-link button-link--secondary" href="{{ url_for('main.dashboard') }}">승인 업무공간</a>{% endif %}
         </nav>
       </div>
 

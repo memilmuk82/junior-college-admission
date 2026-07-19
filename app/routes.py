@@ -20,7 +20,7 @@ from flask import (
 from sqlalchemy.orm import Session
 from werkzeug.datastructures import MultiDict
 
-from app.auth import actor_ref, session_user
+from app.auth import actor_ref, is_demo_user, roles_required, session_user
 from app.database import db
 from app.services.ai_payloads import (
     build_anonymous_consultation_payload,
@@ -92,6 +92,9 @@ EXAMPLE_COURSE_ROWS = (
     (2027, 3, 1, "국어", "화법과 작문", "3", "2"),
     (2027, 3, 1, "수학", "확률과 통계", "3", "2"),
 )
+REFERENCE_TERMS = ((2025, 1, 1), (2025, 1, 2), (2026, 2, 1), (2026, 2, 2), (2027, 3, 1))
+REFERENCE_ROWS_PER_TERM = 10
+MAX_MANUAL_ROWS = len(REFERENCE_TERMS) * REFERENCE_ROWS_PER_TERM
 
 
 def _upload_store() -> TemporaryUploadStore:
@@ -117,7 +120,12 @@ def _review_state(review_session_id: str) -> ReviewState:
         state = ReviewStateStore(_upload_store()).load(review_session_id)
     except (FileNotFoundError, ReviewStateError, ValueError):
         abort(404)
-    if state.owner_actor_ref != _current_review_owner_ref():
+    allowed_owner_refs = {_current_review_owner_ref()}
+    anonymous_owner = session.get(ANONYMOUS_OWNER_SESSION_KEY)
+    if isinstance(anonymous_owner, str):
+        # 공개 계산은 로그인 상태에서도 계정 DB와 분리된 일회성 세션을 사용한다.
+        allowed_owner_refs.add(f"anonymous:{anonymous_owner}")
+    if state.owner_actor_ref not in allowed_owner_refs:
         abort(404)
     return state
 
@@ -205,13 +213,29 @@ def index() -> Response:
     return cast(Response, redirect(url_for("main.public_calculation_input")))
 
 
+@bp.get("/dashboard")
+@roles_required("ADMIN", "ASSISTANT_ADMIN", "MEMBER", "TEACHER", "STUDENT", allow_legacy=False)
+def dashboard() -> Response:
+    user = session_user()
+    assert user is not None
+    if is_demo_user(user):
+        return cast(Response, redirect(url_for("main.public_calculation_input", example="1")))
+    return _private_response(
+        render_template(
+            "account_dashboard.html",
+            current_user=user,
+            csrf_token=_csrf_token(),
+        )
+    )
+
+
 def _manual_preview(form: MultiDict[str, str]) -> StructuredImportPreview:
     headers = (
         "학년도\t학년\t학기\t교과\t과목\t이수단위\t원점수\t평균\t"
         "표준편차\t성취도\t수강자수\t석차등급\t성적 출처\t위탁학기 여부"
     )
     lines = [headers]
-    for index in range(40):
+    for index in range(MAX_MANUAL_ROWS):
         subject = form.get(f"rows-{index}-subject_name", "").strip()
         if not subject:
             continue
@@ -237,13 +261,19 @@ def _manual_preview(form: MultiDict[str, str]) -> StructuredImportPreview:
 
 def _input_defaults(*, example: bool) -> tuple[dict[str, str], ...]:
     defaults: list[dict[str, str]] = []
-    source_rows: tuple[tuple[int, int, int, str, str, str, str], ...]
-    if example:
-        source_rows = EXAMPLE_COURSE_ROWS
-    else:
-        source_rows = tuple(
-            (2025 + (grade - 1), grade, semester, "", "", "", "")
-            for grade, semester in ((1, 1), (1, 2), (2, 1), (2, 2), (3, 1))
+    example_rows_by_term = {
+        (academic_year, grade, semester): tuple(
+            row for row in EXAMPLE_COURSE_ROWS if row[:3] == (academic_year, grade, semester)
+        )
+        for academic_year, grade, semester in REFERENCE_TERMS
+    }
+    source_rows: list[tuple[int, int, int, str, str, str, str]] = []
+    for academic_year, grade, semester in REFERENCE_TERMS:
+        examples = example_rows_by_term[(academic_year, grade, semester)] if example else ()
+        source_rows.extend(examples)
+        source_rows.extend(
+            (academic_year, grade, semester, "", "", "", "")
+            for _ in range(REFERENCE_ROWS_PER_TERM - len(examples))
         )
     for academic_year, grade, semester, group, subject, credits, rank_grade in source_rows:
         defaults.append(
@@ -260,30 +290,61 @@ def _input_defaults(*, example: bool) -> tuple[dict[str, str], ...]:
                 "achievement_level": "",
                 "enrollment_count": "",
                 "rank_grade": rank_grade,
-                "record_source": "HOME_SCHOOL_RECORD" if example else "MANUAL_INPUT",
-                "is_vocational_training_semester": "FALSE",
+                "record_source": "HOME_SCHOOL_RECORD" if example else "",
+                "is_vocational_training_semester": "FALSE" if example else "",
             }
         )
     return tuple(defaults)
 
 
-def _render_public_input(
-    *, errors: tuple[str, ...] = (), status: int = 200, example: bool = False
-) -> Response:
-    programs = (
-        list_consultation_programs(cast(Session, db.session), 2027)
-        if current_app.config.get("DATABASE_URL")
-        else ()
+def _submitted_manual_rows(form: MultiDict[str, str]) -> tuple[dict[str, str], ...]:
+    fields = (
+        "academic_year",
+        "grade",
+        "semester",
+        "subject_group",
+        "subject_name",
+        "credits",
+        "raw_score",
+        "course_mean",
+        "standard_deviation",
+        "achievement_level",
+        "enrollment_count",
+        "rank_grade",
+        "record_source",
+        "is_vocational_training_semester",
     )
+    rows: list[dict[str, str]] = []
+    for index in range(MAX_MANUAL_ROWS):
+        values = {field: form.get(f"rows-{index}-{field}", "") for field in fields}
+        if values["academic_year"] or values["subject_name"]:
+            rows.append(values)
+    return tuple(rows) or _input_defaults(example=False)
+
+
+def _render_public_input(
+    *,
+    errors: tuple[str, ...] = (),
+    status: int = 200,
+    example: bool = False,
+    rows: tuple[dict[str, str], ...] | None = None,
+    input_mode: str = "manual",
+    record_source: str = "HOME_SCHOOL_RECORD",
+    pasted_table: str = "",
+    is_vocational_training_semester: bool = False,
+) -> Response:
     return _private_response(
         render_template(
             "public_calculation_input.html",
             csrf_token=_csrf_token(),
-            rows=_input_defaults(example=example),
-            programs=programs,
+            rows=rows or _input_defaults(example=example),
             current_user=session_user(),
             errors=errors,
             example=example,
+            selected_input_mode=input_mode,
+            selected_record_source=record_source,
+            pasted_table=pasted_table,
+            selected_vocational_semester=is_vocational_training_semester,
         ),
         status,
     )
@@ -302,7 +363,17 @@ def start_public_calculation() -> Response:
     mode = request.form.get("input_mode", "manual")
     record_source = request.form.get("record_source", "MANUAL_INPUT")
     if record_source not in ALLOWED_RECORD_SOURCES:
-        return _render_public_input(errors=("성적 출처를 확인하세요.",), status=400)
+        return _render_public_input(
+            errors=("성적 출처를 확인하세요.",),
+            status=400,
+            rows=_submitted_manual_rows(request.form),
+            input_mode=mode,
+            record_source="HOME_SCHOOL_RECORD",
+            pasted_table=request.form.get("pasted_table", ""),
+            is_vocational_training_semester=(
+                request.form.get("is_vocational_training_semester") == "TRUE"
+            ),
+        )
     previous_id = session.get(ANONYMOUS_ID_SESSION_KEY)
     if isinstance(previous_id, str):
         _upload_store().purge_session(previous_id)
@@ -335,7 +406,17 @@ def start_public_calculation() -> Response:
         if not preview.rows:
             raise ValueError("확인할 성적 행이 없습니다. 과목과 머리글을 확인하세요.")
     except (UnicodeError, ValueError, StructuredInputLimitError) as error:
-        return _render_public_input(errors=(str(error),), status=400)
+        return _render_public_input(
+            errors=(str(error),),
+            status=400,
+            rows=_submitted_manual_rows(request.form),
+            input_mode=mode,
+            record_source=record_source,
+            pasted_table=request.form.get("pasted_table", ""),
+            is_vocational_training_semester=(
+                request.form.get("is_vocational_training_semester") == "TRUE"
+            ),
+        )
 
     calculation_id = _upload_store().create_session()
     try:

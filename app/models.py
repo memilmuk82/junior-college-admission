@@ -1299,6 +1299,109 @@ class UserAccount(TimestampMixin, Base):
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class TeacherClassroom(TimestampMixin, Base):
+    """교사가 관리하는 학과·학급 단위의 비식별 학생 명단."""
+
+    __tablename__ = "teacher_classrooms"
+    __table_args__ = (
+        UniqueConstraint(
+            "teacher_user_account_id",
+            "academic_year",
+            "department_name",
+            "class_name",
+            name="uq_teacher_classrooms_owner_year_department_class",
+        ),
+        CheckConstraint("academic_year BETWEEN 2000 AND 2100", name="academic_year_valid"),
+        CheckConstraint(
+            "department_name = btrim(department_name) "
+            "AND char_length(department_name) BETWEEN 1 AND 120",
+            name="department_name_valid",
+        ),
+        CheckConstraint(
+            "class_name = btrim(class_name) AND char_length(class_name) BETWEEN 1 AND 80",
+            name="class_name_valid",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    teacher_user_account_id: Mapped[str] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    academic_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    department_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    class_name: Mapped[str] = mapped_column(String(80), nullable=False)
+
+
+class ClassroomStudent(TimestampMixin, Base):
+    """학급의 비식별 학생 항목과 학생 계정의 명시적 연결."""
+
+    __tablename__ = "classroom_students"
+    __table_args__ = (
+        UniqueConstraint(
+            "classroom_id", "anonymous_code", name="uq_classroom_students_classroom_code"
+        ),
+        UniqueConstraint(
+            "classroom_id",
+            "linked_user_account_id",
+            name="uq_classroom_students_classroom_linked_user",
+        ),
+        UniqueConstraint("link_code_digest", name="uq_classroom_students_link_code_digest"),
+        CheckConstraint(
+            "anonymous_code = btrim(anonymous_code) "
+            "AND char_length(anonymous_code) BETWEEN 1 AND 40",
+            name="anonymous_code_valid",
+        ),
+        CheckConstraint(
+            "(linked_user_account_id IS NULL AND linked_at IS NULL "
+            "AND link_code_digest IS NOT NULL AND char_length(link_code_digest) = 64 "
+            "AND link_code_hint IS NOT NULL AND char_length(link_code_hint) = 4 "
+            "AND link_code_expires_at IS NOT NULL) OR "
+            "(linked_user_account_id IS NULL AND linked_at IS NULL "
+            "AND link_code_digest IS NULL AND link_code_hint IS NULL "
+            "AND link_code_expires_at IS NULL) OR "
+            "(linked_user_account_id IS NOT NULL AND linked_at IS NOT NULL "
+            "AND link_code_digest IS NULL AND link_code_hint IS NULL "
+            "AND link_code_expires_at IS NULL)",
+            name="link_state_consistent",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    classroom_id: Mapped[str] = mapped_column(
+        ForeignKey("teacher_classrooms.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    anonymous_code: Mapped[str] = mapped_column(String(40), nullable=False)
+    linked_user_account_id: Mapped[str | None] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    link_code_digest: Mapped[str | None] = mapped_column(String(64))
+    link_code_hint: Mapped[str | None] = mapped_column(String(4))
+    link_code_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    linked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ClassroomLinkAuditEvent(TimestampMixin, Base):
+    __tablename__ = "classroom_link_audit_events"
+    __table_args__ = (
+        CheckConstraint(
+            "event_type IN ('ROSTER_STUDENT_CREATED', 'LINK_CODE_ROTATED', "
+            "'LINK_CODE_REVOKED', 'STUDENT_LINKED', 'STUDENT_UNLINKED')",
+            name="event_type_valid",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    classroom_student_id: Mapped[str] = mapped_column(
+        ForeignKey("classroom_students.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    actor_user_account_id: Mapped[str | None] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+
 class ExternalIdentity(TimestampMixin, Base):
     __tablename__ = "external_identities"
     __table_args__ = (

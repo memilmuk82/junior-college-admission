@@ -17,7 +17,7 @@ OIDC_CHANGE_APPROVED ?=
 OIDC_HOST_GATE_CONFIRMED ?=
 OIDC_BACKUP_RESTORE_CONFIRMED ?=
 
-.PHONY: setup test-unit test-integration test-e2e test-phase13-e2e test-phase14-e2e test-phase14-import-e2e lint validate-rules check-sensitive-data check production-bootstrap production-preflight production-up production-check production-e2e production-status production-logs production-down production-origin-up production-origin-check production-origin-status production-origin-logs production-origin-down production-origin-oidc-up production-origin-oidc-check production-origin-oidc-status production-origin-oidc-disable production-origin-rollback-app production-origin-backup production-origin-backup-verify production-origin-restore-verify production-origin-metrics alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
+.PHONY: setup test-unit test-integration test-e2e test-phase13-e2e test-phase14-e2e test-phase14-import-e2e test-phase16-e2e lint validate-rules check-sensitive-data check production-bootstrap production-preflight production-up production-check production-e2e production-status production-logs production-down production-origin-up production-origin-check production-origin-status production-origin-logs production-origin-down production-origin-oidc-up production-origin-oidc-check production-origin-oidc-status production-origin-oidc-disable production-origin-rollback-app production-origin-backup production-origin-backup-verify production-origin-restore-verify production-origin-metrics alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
 
 setup:
 	uv sync --frozen
@@ -29,7 +29,7 @@ test-unit:
 test-integration:
 	$(COMPOSE_TEST_ENV) docker compose --profile test rm -f -s -v db-test
 	$(COMPOSE_TEST_ENV) docker compose --profile test up -d --wait db-test
-	@status=0; TEST_DATABASE_URL=$(TEST_DATABASE_URL) $(PYTHON) pytest tests/test_account_records_postgres.py tests/test_admin_rule_routes.py tests/test_anonymous_save_postgres.py tests/test_verified_source_rules_postgres.py tests/test_phase14_consultation_acl_postgres.py tests/test_auth_routes.py tests/test_membership.py tests/test_score_rule_csv_drafts.py tests/test_admission_result_models.py tests/test_phase14_admission_result_import_postgres.py tests/test_ai_credentials.py tests/test_ai_routes.py tests/test_rule_admin_models.py tests/test_confirmed_imports.py tests/test_consultations.py tests/test_consultation_routes.py tests/test_phase13_batch_postgres.py tests/test_database.py tests/test_migrations.py tests/test_models.py tests/test_published_rules.py tests/test_review_routes.py || status=$$?; \
+	@status=0; TEST_DATABASE_URL=$(TEST_DATABASE_URL) $(PYTHON) pytest tests/test_account_records_postgres.py tests/test_admin_rule_routes.py tests/test_anonymous_save_postgres.py tests/test_verified_source_rules_postgres.py tests/test_phase14_consultation_acl_postgres.py tests/test_auth_routes.py tests/test_membership.py tests/test_score_rule_csv_drafts.py tests/test_admission_result_models.py tests/test_phase14_admission_result_import_postgres.py tests/test_ai_credentials.py tests/test_ai_routes.py tests/test_rule_admin_models.py tests/test_confirmed_imports.py tests/test_consultations.py tests/test_consultation_routes.py tests/test_phase13_batch_postgres.py tests/test_database.py tests/test_migrations.py tests/test_models.py tests/test_published_rules.py tests/test_review_routes.py tests/test_phase15_postgres.py tests/test_phase16_classroom_links.py tests/test_phase16_role_workspaces.py tests/test_phase16_source_upload_security.py || status=$$?; \
 		if [ $$status -eq 0 ]; then $(COMPOSE_TEST_ENV) COMPOSE_FILE=docker-compose.yml DB_SERVICE=db-test ./scripts/collect_postgres_metrics.sh > /dev/null || status=$$?; fi; \
 		if [ $$status -eq 0 ]; then $(COMPOSE_TEST_ENV) COMPOSE_FILE=docker-compose.yml DB_SERVICE=db-test ./scripts/check_postgres_backup_restore.sh || status=$$?; fi; \
 		$(COMPOSE_TEST_ENV) docker compose --profile test rm -f -s -v db-test; \
@@ -46,6 +46,14 @@ test-phase14-e2e:
 
 test-phase14-import-e2e:
 	npx playwright test --config tests/playwright.phase14-import.config.js
+
+test-phase16-e2e:
+	@test -n "$$DATABASE_URL" && test -n "$$PHASE16_E2E_URL"
+	@status=0; $(PYTHON) python -m tests.seed_phase16_e2e || status=$$?; \
+		if [ $$status -eq 0 ]; then npx playwright test --config tests/playwright.phase16.config.js || status=$$?; fi; \
+		cleanup_status=0; $(PYTHON) python -m tests.seed_phase16_e2e --cleanup-only || cleanup_status=$$?; \
+		if [ $$status -eq 0 ]; then status=$$cleanup_status; fi; \
+		exit $$status
 
 lint:
 	$(PYTHON) ruff check .

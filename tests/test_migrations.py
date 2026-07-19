@@ -21,7 +21,8 @@ MEMBERSHIP_HEAD = "6c1a2e9f4b73"
 MEMBERSHIP_PARENT = CANONICAL_GATE_HEAD
 PHASE14_HEAD = "2f8a4c6e91d3"
 PHASE15_HEAD = "4a7c9e12d5f0"
-REPOSITORY_HEAD = PHASE15_HEAD
+PHASE16_HEAD = "8e31b7c4d2a6"
+REPOSITORY_HEAD = PHASE16_HEAD
 RULE_TABLE_TYPES_WITH_GOLDEN_ARTIFACT = (
     ("admission_eligibility_rules", "ADMISSION_ELIGIBILITY_RULE"),
     ("grade_source_scope_rules", "GRADE_SOURCE_SCOPE_RULE"),
@@ -524,6 +525,110 @@ def test_membership_schema_contract(postgres_engine: Engine) -> None:
     assert audit_indexes["ix_user_account_audit_events_target_occurred"] == (
         "target_user_id",
         "occurred_at",
+    )
+
+
+def test_phase16_classroom_link_schema_contract(postgres_engine: Engine) -> None:
+    inspector = inspect(postgres_engine)
+    assert {
+        "teacher_classrooms",
+        "classroom_students",
+        "classroom_link_audit_events",
+    }.issubset(inspector.get_table_names())
+
+    classroom_columns = {
+        column["name"]: column for column in inspector.get_columns("teacher_classrooms")
+    }
+    assert {
+        "id",
+        "teacher_user_account_id",
+        "academic_year",
+        "department_name",
+        "class_name",
+        "created_at",
+        "updated_at",
+    } == classroom_columns.keys()
+    assert classroom_columns["teacher_user_account_id"]["nullable"] is False
+    classroom_checks = {
+        constraint["name"] for constraint in inspector.get_check_constraints("teacher_classrooms")
+    }
+    assert {
+        "ck_teacher_classrooms_academic_year_valid",
+        "ck_teacher_classrooms_class_name_valid",
+        "ck_teacher_classrooms_department_name_valid",
+    } == classroom_checks
+    classroom_foreign_keys = inspector.get_foreign_keys("teacher_classrooms")
+    assert any(
+        tuple(foreign_key["constrained_columns"]) == ("teacher_user_account_id",)
+        and foreign_key["referred_table"] == "user_accounts"
+        and foreign_key["options"].get("ondelete") == "CASCADE"
+        for foreign_key in classroom_foreign_keys
+    )
+
+    student_columns = {
+        column["name"]: column for column in inspector.get_columns("classroom_students")
+    }
+    assert {
+        "id",
+        "classroom_id",
+        "anonymous_code",
+        "linked_user_account_id",
+        "link_code_digest",
+        "link_code_hint",
+        "link_code_expires_at",
+        "linked_at",
+        "created_at",
+        "updated_at",
+    } == student_columns.keys()
+    assert student_columns["linked_user_account_id"]["nullable"] is True
+    assert student_columns["link_code_digest"]["nullable"] is True
+    student_checks = {
+        constraint["name"] for constraint in inspector.get_check_constraints("classroom_students")
+    }
+    assert {
+        "ck_classroom_students_anonymous_code_valid",
+        "ck_classroom_students_link_state_consistent",
+    } == student_checks
+    student_foreign_keys = inspector.get_foreign_keys("classroom_students")
+    assert any(
+        tuple(foreign_key["constrained_columns"]) == ("classroom_id",)
+        and foreign_key["referred_table"] == "teacher_classrooms"
+        and foreign_key["options"].get("ondelete") == "CASCADE"
+        for foreign_key in student_foreign_keys
+    )
+    assert any(
+        tuple(foreign_key["constrained_columns"]) == ("linked_user_account_id",)
+        and foreign_key["referred_table"] == "user_accounts"
+        and foreign_key["options"].get("ondelete") == "RESTRICT"
+        for foreign_key in student_foreign_keys
+    )
+
+    audit_columns = {
+        column["name"]: column for column in inspector.get_columns("classroom_link_audit_events")
+    }
+    assert {
+        "id",
+        "classroom_student_id",
+        "actor_user_account_id",
+        "event_type",
+        "occurred_at",
+        "details",
+        "created_at",
+        "updated_at",
+    } == audit_columns.keys()
+    assert audit_columns["actor_user_account_id"]["nullable"] is True
+    audit_foreign_keys = inspector.get_foreign_keys("classroom_link_audit_events")
+    assert any(
+        tuple(foreign_key["constrained_columns"]) == ("classroom_student_id",)
+        and foreign_key["referred_table"] == "classroom_students"
+        and foreign_key["options"].get("ondelete") == "CASCADE"
+        for foreign_key in audit_foreign_keys
+    )
+    assert any(
+        tuple(foreign_key["constrained_columns"]) == ("actor_user_account_id",)
+        and foreign_key["referred_table"] == "user_accounts"
+        and foreign_key["options"].get("ondelete") == "SET NULL"
+        for foreign_key in audit_foreign_keys
     )
 
 

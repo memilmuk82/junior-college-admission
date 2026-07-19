@@ -12,7 +12,9 @@
         <div>
           <h1>저장 성적 관리</h1>
           <p>
-            {% if current_user.role == 'STUDENT' %}
+            {% if demo_mode %}
+              데모 계정은 성적과 상담 결과를 저장하지 않습니다.
+            {% elif current_user.role == 'STUDENT' %}
               본인이 저장한 성적만 표시됩니다.
             {% elif current_user.role == 'TEACHER' %}
               담당자로 지정된 학생 성적만 표시됩니다.
@@ -21,31 +23,62 @@
             {% endif %}
           </p>
         </div>
-        <a class="secondary-button" href="{{ url_for('main.index') }}">처음으로</a>
+        <nav class="page-header__actions"><a class="secondary-button" href="{{ url_for('main.dashboard') }}">내 업무공간</a><a class="secondary-button" href="{{ url_for('main.index') }}">공개 계산</a></nav>
       </header>
 
       {% if error %}<div class="error-banner" role="alert">{{ error }}</div>{% endif %}
+      {% if message == 'classroom_connected' %}<div class="public-notice" role="status"><strong>교사 학급 연결이 완료되었습니다.</strong> 담당 교사가 입력한 성적과 상담자료가 읽기 전용으로 함께 표시됩니다.</div>{% elif message == 'classroom_disconnected' %}<div class="public-notice" role="status"><strong>교사 학급 연결을 해제했습니다.</strong> 본인 소유 성적과 상담자료는 그대로 유지됩니다.</div>{% elif message == 'consultation_saved' %}<div class="public-notice" role="status"><strong>상담자료를 저장했습니다.</strong> 연결 공유 자료는 상대 계정에서 읽기 전용으로 표시됩니다.</div>{% endif %}
+      {% if demo_mode %}<div class="public-notice" role="status"><strong>읽기 전용 체험 계정입니다.</strong> 데모 계정은 성적과 상담 결과를 저장하지 않습니다. 공개 상담에서 합성 예시를 불러와 전체 계산 흐름을 확인할 수 있습니다.</div>{% endif %}
+
+      {% if current_user.role == 'STUDENT' and not demo_mode %}
+        <section class="admin-section" aria-labelledby="classroom-link-heading">
+          <div class="admin-section__heading"><h2 id="classroom-link-heading">교사 학급 연결</h2><span>학생이 직접 동의</span></div>
+          <p>담당 교사가 전달한 24시간 일회용 연결 코드를 입력하세요. 이름이나 이메일로 자동 연결하지 않습니다.</p>
+          <ul class="classroom-share-scope"><li>연결 중에는 담당 교사가 내 계정에 저장된 전체 성적·상담자료를 읽을 수 있습니다.</li><li>담당 교사가 입력·저장한 자료는 내 화면에 읽기 전용으로 표시됩니다.</li><li>연결을 해제하면 상호 공유가 즉시 중단되고 각자 소유 자료는 유지됩니다.</li></ul>
+          <form class="classroom-link-form" method="post" action="{{ url_for('account.connect_classroom') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label for="connection-code">연결 코드<input id="connection-code" name="connection_code" minlength="20" maxlength="64" autocomplete="off" spellcheck="false" required></label>
+            <label class="classroom-share-consent"><input type="checkbox" name="share_consent" value="AGREED" required> 위 공유 범위와 연결 해제 효과를 확인했습니다.</label>
+            <button type="submit">학급 연결</button>
+          </form>
+          {% for classroom_student, classroom in linked_classrooms %}
+            <article class="linked-classroom-card"><div><strong>{{ classroom.academic_year }}학년도 · {{ classroom.department_name }} · {{ classroom.class_name }}</strong><span>교사 명단 코드 {{ classroom_student.anonymous_code }}</span></div><form method="post" action="{{ url_for('account.disconnect_classroom', classroom_student_id=classroom_student.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="danger-link" type="submit">연결 해제</button></form></article>
+          {% else %}<p class="empty-state">연결된 교사 학급이 없습니다.</p>{% endfor %}
+        </section>
+      {% endif %}
 
       {% if records %}
-        <div class="table-scroll">
-          <table>
+        {% set record_source_labels = {'HOME_SCHOOL_RECORD': '학교생활기록부', 'VOCATIONAL_TRAINING_RECORD': '위탁교육 성적', 'GED_RECORD': '검정고시', 'MANUAL_INPUT': '직접 입력'} %}
+        <div class="table-scroll account-records-table-wrap">
+          <table class="account-records-table">
             <thead>
               <tr>
+                <th scope="col">학생 자료</th>
                 <th scope="col">학년도</th>
                 <th scope="col">학년</th>
                 <th scope="col">학기</th>
                 <th scope="col">성적 출처</th>
+                <th scope="col">과목·성적</th>
                 <th scope="col">관리</th>
               </tr>
             </thead>
             <tbody>
               {% for record in records %}
                 <tr>
-                  <td>{{ record.academic_year }}</td>
-                  <td>{{ record.grade }}</td>
-                  <td>{{ record.semester }}</td>
-                  <td>{{ record.record_source }}</td>
-                  <td>
+                  <td data-label="학생 자료">{% if record.owner_user_account_id == current_user.id %}내 성적{% elif record.id not in manageable_record_ids %}연결 학생 성적<small>읽기 전용 공유</small>{% else %}교사 관리 성적{% endif %}</td>
+                  <td data-label="학년도">{{ record.academic_year }}</td>
+                  <td data-label="학년">{{ record.grade }}</td>
+                  <td data-label="학기">{{ record.semester }}</td>
+                  <td data-label="성적 출처">{{ record_source_labels.get(record.record_source, record.record_source) }}</td>
+                  <td class="account-records-table__courses" data-label="과목·성적">
+                    <ul class="record-course-list">
+                      {% for course in courses_by_record.get(record.id, ()) %}
+                        <li><strong>{{ course.subject_name }}</strong><span>단위 {{ course.credits if course.credits is not none else '-' }} · 등급 {{ course.rank_grade if course.rank_grade is not none else '-' }} · 원점수 {{ course.raw_score_label or course.raw_score or '-' }}</span></li>
+                      {% else %}<li><span>등록된 과목 없음</span></li>{% endfor %}
+                    </ul>
+                  </td>
+                  <td class="account-records-table__manage" data-label="관리">
+                    {% if record.id in manageable_record_ids %}
                     <details>
                       <summary>성적 수정</summary>
                       <form method="post" action="{{ url_for('account.edit_record', record_id=record.id) }}">
@@ -85,6 +118,7 @@
                       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                       <button class="danger-link" type="submit">삭제</button>
                     </form>
+                    {% else %}<span class="status-badge">읽기 전용 공유</span>{% endif %}
                   </td>
                 </tr>
               {% endfor %}
@@ -107,23 +141,23 @@
               {% set target = row.get('target', {}) %}{% set eligibility = row.get('eligibility') %}{% set average_grade = row.get('average_grade') %}{% set admission_result = row.get('admission_result', {}) %}
               <p><strong>{{ target.get('institution_name', '대학 정보 없음') }} · {{ target.get('program_name', '학과 정보 없음') }}</strong> · 지원자격 {{ eligibility.get('status', '검토 필요') if eligibility else '검토 필요' }} · 반영등급 {{ average_grade.get('display_average_grade', '계산하지 않음') if average_grade else '계산하지 않음' }} · 비교연도 {{ admission_result.get('academic_year', '없음') }}</p>
             {% endfor %}
-            <details><summary>저장 출력 스냅샷</summary><p>학생용 {{ consultation.student_print_snapshot.audience }} · 교사용 {{ consultation.teacher_print_snapshot.audience }} · 저장 당시 결과 {{ consultation.result_snapshot.results|length }}건</p><p><a href="{{ url_for('account.print_saved_consultation', consultation_id=consultation.id, audience='student') }}">학생용 A4 다시 열기</a> · <a href="{{ url_for('account.print_saved_consultation', consultation_id=consultation.id, audience='teacher') }}">교사용 A4 다시 열기</a></p></details>
-            <p><a class="button-link button-link--secondary" href="{{ url_for('account.clone_consultation', consultation_id=consultation.id) }}">이 상담을 복제해 조건 바꾸기</a></p>
-            {% if current_user.role == 'TEACHER' %}
+            <details><summary>저장 출력 스냅샷</summary><p>학생용 {{ consultation.student_print_snapshot.audience }}{% if current_user.role in ('TEACHER', 'ADMIN') %} · 교사용 {{ consultation.teacher_print_snapshot.audience }}{% endif %} · 저장 당시 결과 {{ consultation.result_snapshot.results|length }}건</p><p><a href="{{ url_for('account.print_saved_consultation', consultation_id=consultation.id, audience='student') }}">학생용 A4 다시 열기</a>{% if current_user.role in ('TEACHER', 'ADMIN') %} · <a href="{{ url_for('account.print_saved_consultation', consultation_id=consultation.id, audience='teacher') }}">교사용 A4 다시 열기</a>{% endif %}</p></details>
+            {% if consultation.id in manageable_consultation_ids %}<p><a class="button-link button-link--secondary" href="{{ url_for('account.clone_consultation', consultation_id=consultation.id) }}">이 상담을 복제해 조건 바꾸기</a></p>{% endif %}
+            {% if current_user.role == 'TEACHER' and consultation.id in manageable_consultation_ids %}
               <form method="post" action="{{ url_for('account.edit_consultation_note', consultation_id=consultation.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <label>상담 메모 <textarea name="counselor_note" maxlength="2000">{{ consultation.counselor_note or '' }}</textarea></label>
                 <button type="submit">메모 저장</button>
               </form>
-            {% elif consultation.counselor_note %}<p class="preserve-lines">{{ consultation.counselor_note }}</p>{% endif %}
-            <form method="post" action="{{ url_for('account.delete_consultation', consultation_id=consultation.id) }}">
+            {% elif current_user.role == 'ADMIN' and consultation.counselor_note %}<p class="preserve-lines">{{ consultation.counselor_note }}</p>{% endif %}
+            {% if consultation.id in manageable_consultation_ids %}<form method="post" action="{{ url_for('account.delete_consultation', consultation_id=consultation.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button class="danger-link" type="submit">상담 이력 삭제</button>
-            </form>
+            </form>{% else %}<p><span class="status-badge">연결 공유 · 읽기 전용</span></p>{% endif %}
           </article>
         {% else %}<p class="empty-state">저장된 상담 결과가 없습니다.</p>{% endfor %}
       </section>
-      <section class="admin-section"><div class="admin-section__heading"><h2>개인 AI 상담 문장</h2><span>선택 기능</span></div><p>본인 API 키를 사용해 비식별 상담 결과만 문장으로 정리할 수 있습니다. 자격·점수·합격 가능성은 AI가 결정하지 않습니다.</p><a class="button-link button-link--secondary" href="{{ url_for('admin.ai_settings') }}">내 BYOK 설정과 저장 분석</a></section>
+      {% if not demo_mode %}<section class="admin-section"><div class="admin-section__heading"><h2>{{ '학생용 검증 결과 상담 문장' if current_user.role == 'STUDENT' else 'BYOK 상담자료 만들기' }}</h2><span>선택 기능</span></div><p>본인 API 키를 사용해 비식별 상담 결과만 문장으로 정리할 수 있습니다. AI는 자격·점수·추천·합격 가능성을 생성하지 않습니다.</p><div class="admin-heading__actions"><a class="button-link button-link--secondary" href="{{ url_for('admin.ai_settings') }}">내 BYOK 키와 초안</a><a class="button-link" href="{{ url_for('admin.new_consultation') }}">{{ '내 성적으로 상담 문장 준비' if current_user.role == 'STUDENT' else '학생 상담자료 만들기' }}</a></div></section>{% endif %}
     </main>
   </body>
 </html>
