@@ -189,7 +189,7 @@ def edit_record(record_id: str) -> Any:
 
 
 @bp.post("/consultations/<consultation_id>/note")
-@roles_required("TEACHER", allow_legacy=False)
+@roles_required("ADMIN", "TEACHER", allow_legacy=False)
 def edit_consultation_note(consultation_id: str) -> Any:
     require_csrf()
     user = session_user()

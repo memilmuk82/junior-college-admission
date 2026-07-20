@@ -742,3 +742,30 @@ def test_demo_unsafe_requests_and_ai_generation_are_blocked_except_key_managemen
         ).status_code
         == 403
     )
+
+
+@pytest.mark.parametrize(
+    "path",
+    (
+        "/teacher/classrooms",
+        "/teacher/classrooms/synthetic-classroom/students",
+        "/teacher/students/synthetic-student/link-code",
+        "/teacher/students/synthetic-student/disconnect",
+        "/teacher/students/synthetic-student/courses",
+    ),
+)
+def test_demo_admin_cannot_mutate_teacher_workspace(
+    showcase_app: Flask,
+    path: str,
+) -> None:
+    _bootstrap(showcase_app)
+    client = showcase_app.test_client()
+    assert _login(client, DEMO_ROLE_LOGIN_NAMES["ADMIN"]).status_code == 302
+    dashboard = client.get("/dashboard")
+
+    response = client.post(
+        path,
+        data={"csrf_token": _csrf(dashboard.get_data(as_text=True))},
+    )
+
+    assert response.status_code == 403

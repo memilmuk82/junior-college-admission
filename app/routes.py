@@ -50,7 +50,7 @@ from app.services.consultations import (
     run_batch_consultation,
 )
 from app.services.eligibility import EligibilityStatus
-from app.services.membership import DEMO_ACTOR_REF
+from app.services.membership import DEMO_ACTOR_REF, has_teacher_capability
 from app.services.public_student_profiles import (
     GENERAL_GRADUATE,
     VOCATIONAL_CURRENT,
@@ -724,7 +724,7 @@ def save_public_calculation(calculation_id: str) -> Response:
                 )
             ),
         )
-    if user.status != "ACTIVE" or user.role not in {"STUDENT", "TEACHER"}:
+    if user.status != "ACTIVE" or (user.role != "STUDENT" and not has_teacher_capability(user)):
         abort(403)
     if request.method == "GET":
         return _private_response(

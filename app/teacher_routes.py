@@ -8,7 +8,14 @@ from flask import Blueprint, Response, make_response, redirect, render_template,
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth import csrf_token, is_demo_user, require_csrf, roles_required, session_user
+from app.auth import (
+    csrf_token,
+    is_demo_user,
+    require_csrf,
+    roles_required,
+    session_user,
+    teacher_required,
+)
 from app.database import db
 from app.models import (
     ClassroomStudent,
@@ -136,13 +143,13 @@ def _render_classrooms(
 
 
 @bp.get("/classrooms")
-@roles_required("TEACHER", allow_legacy=False)
+@teacher_required
 def classrooms() -> Response:
     return _render_classrooms()
 
 
 @bp.post("/classrooms")
-@roles_required("TEACHER", allow_legacy=False)
+@teacher_required
 def create_classroom_route() -> Response | Any:
     require_csrf()
     user = session_user()
@@ -160,7 +167,7 @@ def create_classroom_route() -> Response | Any:
 
 
 @bp.post("/classrooms/<classroom_id>/students")
-@roles_required("TEACHER", allow_legacy=False)
+@teacher_required
 def add_classroom_student_route(classroom_id: str) -> Response:
     require_csrf()
     user = session_user()
@@ -187,7 +194,7 @@ def add_classroom_student_route(classroom_id: str) -> Response:
 
 
 @bp.post("/students/<classroom_student_id>/link-code")
-@roles_required("TEACHER", allow_legacy=False)
+@teacher_required
 def rotate_student_link_code(classroom_student_id: str) -> Response:
     require_csrf()
     user = session_user()
@@ -209,7 +216,7 @@ def rotate_student_link_code(classroom_student_id: str) -> Response:
 
 
 @bp.post("/students/<classroom_student_id>/disconnect")
-@roles_required("TEACHER", allow_legacy=False)
+@teacher_required
 def disconnect_student_route(classroom_student_id: str) -> Response | Any:
     require_csrf()
     user = session_user()
@@ -228,7 +235,7 @@ def disconnect_student_route(classroom_student_id: str) -> Response | Any:
 
 
 @bp.post("/students/<classroom_student_id>/courses")
-@roles_required("TEACHER", allow_legacy=False)
+@teacher_required
 def add_student_course(classroom_student_id: str) -> Response | Any:
     require_csrf()
     user = session_user()

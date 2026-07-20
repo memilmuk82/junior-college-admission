@@ -323,3 +323,25 @@ def test_admin_dashboard_exposes_full_governance_and_source_ingestion_menu(
         assert label in body
     assert "PDF" in body
     assert "PNG" in body
+
+
+def test_real_admin_dashboard_also_exposes_teacher_workspace_menu(
+    app_client: FlaskClient,
+    role_accounts: dict[str, UserAccount],
+) -> None:
+    login = _login(app_client, role_accounts["ADMIN"].login_name or "")
+    assert login.status_code == 302
+
+    dashboard = app_client.get("/dashboard")
+    body = dashboard.get_data(as_text=True)
+
+    assert dashboard.status_code == 200
+    expected_teacher_menu = {
+        "/teacher/classrooms": "학과·학급 학생 관리",
+        "/admin/consultations/new": "학생 상담자료 만들기",
+        "/admin/ai/settings": "BYOK AI 설정",
+        "/account/records": "저장 성적·상담 확인",
+    }
+    for path, label in expected_teacher_menu.items():
+        assert f'href="{path}"' in body
+        assert label in body

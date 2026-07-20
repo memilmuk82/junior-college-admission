@@ -41,7 +41,7 @@
           <a class="role-card" href="{{ url_for('members.index') }}"><span>APPROVAL ONLY</span><h2>계정 승인 요청</h2><p>가입 승인 대기 계정만 확인하고 승인합니다. 역할·상태·입시자료·규칙은 변경할 수 없습니다.</p></a>
         </div>
       {% elif current_user.role == 'ADMIN' %}
-        <p class="role-dashboard__lead">주 관리자는 계정 역할·상태, 기준정보·규칙, 공개 입시결과, 공식 근거 문서와 제한형 포털 수집을 관리합니다.</p>
+        <p class="role-dashboard__lead">주 관리자는 교사 계정이기도 하며, 계정·입시자료 관리와 담당 학급·학생 상담 업무를 한 계정에서 수행합니다.</p>
         <div class="role-card-grid">
           <a class="role-card" href="{{ url_for('members.index') }}"><span>ACCOUNTS</span><h2>회원 역할·상태 관리</h2><p>승인, 학생·교사·보조 관리자·주 관리자 역할, 사용 상태를 감사 기록과 함께 관리합니다.</p></a>
           <a class="role-card" href="{{ url_for('admission_result_imports.index') }}"><span>RESULT IMPORT</span><h2>입시결과 등록</h2><p>CSV·XLSX 결과를 미리보기·열 매핑·사람 검수 후 게시합니다.</p></a>
@@ -50,6 +50,18 @@
           <a class="role-card" href="{{ url_for('admin.catalog') }}"><span>CATALOG</span><h2>대학·학과·전형 기준정보</h2><p>대학, 캠퍼스, 학과, 모집시기와 전형 업무키를 관리합니다.</p></a>
           <a class="role-card" href="{{ url_for('admin.rules') }}"><span>RULE GOVERNANCE</span><h2>입시 규칙 검수·게시</h2><p>근거·독립 검증·골든 테스트·사람 승인 게이트를 통과한 규칙만 게시합니다.</p></a>
         </div>
+        {% if not current_user.actor_ref.startswith('demo:role:') %}
+          <section aria-labelledby="admin-teacher-work-heading">
+            <div class="admin-section__heading"><h2 id="admin-teacher-work-heading">교사 업무</h2><span>주 관리자 계정 통합</span></div>
+            <div class="role-card-grid">
+              <a class="role-card" href="{{ url_for('teacher.classrooms') }}"><span>CLASSROOM</span><h2>학과·학급 학생 관리</h2><p>담당 학급과 비식별 학생을 추가하고 성적 입력·확인과 학생 계정 연결 코드를 관리합니다.</p></a>
+              <a class="role-card" href="{{ url_for('admin.new_consultation') }}"><span>COUNSELING</span><h2>학생 상담자료 만들기</h2><p>담당 학생 성적으로 자격과 대학별 계산 근거, 학생용·교사용 상담자료를 만듭니다.</p></a>
+              <a class="role-card" href="{{ url_for('admin.ai_settings') }}"><span>OPTIONAL BYOK</span><h2>내 BYOK AI 설정</h2><p>개인 API 키를 계정별로 암호화 저장하고 비식별 상담 문장 초안을 검토·확정합니다.</p></a>
+              <a class="role-card" href="{{ url_for('teacher.outcomes') }}"><span>OUTCOMES</span><h2>지원·합격 결과 관리</h2><p>기관 내부 비식별 지원 결과를 공식 공개 입시결과와 분리해 관리합니다.</p></a>
+              <a class="role-card" href="{{ url_for('account.records') }}"><span>SAVED</span><h2>저장 성적·상담 확인</h2><p>직접 관리하거나 연결 학생이 공유한 성적과 상담자료를 확인합니다.</p></a>
+            </div>
+          </section>
+        {% endif %}
       {% else %}
         <div class="role-card-grid role-card-grid--single"><a class="role-card" href="{{ url_for('admin.new_consultation') }}"><span>LEGACY MEMBER</span><h2>상담 시작</h2><p>기존 승인 회원 상담 화면으로 이동합니다.</p></a></div>
       {% endif %}

@@ -436,7 +436,7 @@ def new_consultation() -> Response:
 
 
 @bp.post("/consultations/save")
-@roles_required("TEACHER", "STUDENT", allow_legacy=False)
+@roles_required("ADMIN", "TEACHER", "STUDENT", allow_legacy=False)
 def save_consultation_result() -> Response | Any:
     _require_csrf()
     parsed = parse_consultation_form(request.form)

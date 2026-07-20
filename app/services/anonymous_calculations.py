@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.models import SavedConsultation, StudentAcademicRecord, StudentCourseRecord, UserAccount
 from app.services.ai_payloads import validated_saved_payload_copy
+from app.services.membership import has_teacher_capability
 from app.services.public_student_profiles import (
     VOCATIONAL_CURRENT,
     resolve_public_student_profile,
@@ -294,12 +295,15 @@ def save_anonymous_records(
     calculation_id: str,
     user: UserAccount,
 ) -> tuple[str, ...]:
-    if user.status != "ACTIVE" or user.role not in {"STUDENT", "TEACHER"}:
-        raise AnonymousCalculationError("활성 학생 또는 교사 계정만 성적을 저장할 수 있습니다.")
+    teacher_account = has_teacher_capability(user)
+    if user.status != "ACTIVE" or (user.role != "STUDENT" and not teacher_account):
+        raise AnonymousCalculationError(
+            "활성 학생, 교사 또는 주 관리자 계정만 성적을 저장할 수 있습니다."
+        )
     student_id = (
         f"account:{user.id}" if user.role == "STUDENT" else f"teacher:{user.id}:{calculation_id}"
     )
-    if user.role == "TEACHER" and session.scalar(
+    if teacher_account and session.scalar(
         select(StudentAcademicRecord.id).where(StudentAcademicRecord.student_id == student_id)
     ):
         raise AnonymousCalculationError("이 익명 계산 성적은 이미 저장되었거나 중복됩니다.")
@@ -320,7 +324,7 @@ def save_anonymous_records(
             stored = StudentAcademicRecord(
                 student_id=student_id,
                 owner_user_account_id=user.id if user.role == "STUDENT" else None,
-                managed_by_user_account_id=user.id if user.role == "TEACHER" else None,
+                managed_by_user_account_id=user.id if teacher_account else None,
                 academic_year=record.academic_year,
                 grade=record.grade,
                 semester=record.semester,
@@ -374,8 +378,11 @@ def save_anonymous_consultation(
     user: UserAccount,
     counselor_note: str = "",
 ) -> SavedConsultation:
-    if user.status != "ACTIVE" or user.role not in {"STUDENT", "TEACHER"}:
-        raise AnonymousCalculationError("활성 학생 또는 교사만 상담 결과를 저장할 수 있습니다.")
+    teacher_account = has_teacher_capability(user)
+    if user.status != "ACTIVE" or (user.role != "STUDENT" and not teacher_account):
+        raise AnonymousCalculationError(
+            "활성 학생, 교사 또는 주 관리자만 상담 결과를 저장할 수 있습니다."
+        )
     snapshot = state.consultation_snapshot
     if not isinstance(snapshot, dict):
         raise AnonymousCalculationError("먼저 대학·학과 계산 결과를 확인해야 저장할 수 있습니다.")
@@ -384,8 +391,8 @@ def save_anonymous_consultation(
     ):
         raise AnonymousCalculationError("이 계산 결과는 이미 저장되었습니다.")
     note = counselor_note.strip()
-    if user.role != "TEACHER" and note:
-        raise AnonymousCalculationError("교사 계정만 상담 메모를 저장할 수 있습니다.")
+    if not teacher_account and note:
+        raise AnonymousCalculationError("교사 또는 주 관리자만 상담 메모를 저장할 수 있습니다.")
     if len(note) > 2000:
         raise AnonymousCalculationError("상담 메모는 2,000자 이하여야 합니다.")
     payload = snapshot.get("result_snapshot")
@@ -416,7 +423,7 @@ def save_anonymous_consultation(
         calculation_id=calculation_id,
         student_reference=student_reference,
         owner_user_account_id=user.id if user.role == "STUDENT" else None,
-        managed_by_user_account_id=user.id if user.role == "TEACHER" else None,
+        managed_by_user_account_id=user.id if teacher_account else None,
         academic_year=academic_year,
         student_profile=state.student_profile,
         selected_targets=targets,

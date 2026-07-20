@@ -401,3 +401,18 @@ Phase 12 회귀는 단위 290건, PostgreSQL 통합 127건과 합성 백업·격
 - 기존 실제 비데모 계정 1건을 보존했다. 네 고정 역할 데모는 모두 `ACTIVE`, legacy `demo:public`은 `SUSPENDED`이며 운영 E2E 종료 후 데모 세션 BYOK credential·초안은 각각 0건이다.
 - loopback과 공인 HTTPS의 TLS·health·보안 헤더, host Nginx active·설정 문법을 확인했다. 운영 Chromium은 Phase 17 6건과 Phase 14 회귀 3건을 통과했고 로그인 20회/분 정책을 존중하는 간격, JavaScript 비활성, 390px, console/page error 0건을 검증했다.
 - 운영 스크린샷 8장을 직접 확인해 성적 입력·대학 선택·2026 결과·일반고 예외·관리자 읽기 전용·BYOK 마스킹·모바일 배치 이상이 없음을 확인했다. 배포 뒤 web·DB 로그의 5xx·traceback·fatal·critical·unhandled 패턴은 0건이다.
+
+## Phase 18 배포 전 검증 완료 항목
+
+- [x] 활성 비데모 주 관리자를 교사 기능까지 가진 상위 역할로 정의하고 보조 관리자는 승인 업무만 유지
+- [x] 주 관리자 대시보드에 회원·입시자료 관리와 학급·학생 성적·상담·BYOK 메뉴를 함께 제공
+- [x] 주 관리자 소유 학급 생성, 비식별 학생 추가, 일회용 코드 학생 연결과 상호 자료 공유 범위 적용
+- [x] 주 관리자 공개 계산 성적·상담 저장과 교사 관리 소유권·상담 메모 적용
+- [x] `TEACHER ↔ ADMIN` 역할 전환의 학급 연결 보존과 비교사 역할·비활성 전환의 기존 연결 폐기
+- [x] 공개 데모 주 관리자의 교사 화면·unsafe POST·BYOK 차단 유지
+- [x] 실제 주 관리자 actor 범위의 기존 Fernet BYOK 암호화·마스킹·교체·삭제 계약 재사용
+- [x] 단위 361건, PostgreSQL 통합 190건과 합성 백업·격리 복원 통과
+- [x] Ruff·포맷·mypy 151개 소스와 독립 권한 diff 감사 통과, HIGH·MEDIUM 문제 없음
+- [x] 실사용 계정 로그인→관리자·교사 메뉴→학급 GET→OPENAI 마스킹→관리 화면→로그아웃 운영 Playwright 작성
+
+Phase 18은 단일 `role` 스키마를 변경하지 않고 비데모 `ADMIN`에 교사 capability를 포함한다. 공개 데모 `ADMIN`은 capability에서 제외하고 전역 데모 요청 차단도 유지한다. 실제 운영 계정은 교사 가입→기존 주 관리자 승인→주 관리자 승격의 감사 이력을 남기고, 사용자 제공 OpenAI 키를 출력·로그·임시파일 없이 해당 계정 actor에만 암호화 저장한 뒤 공인 HTTPS로 검증한다.

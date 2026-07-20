@@ -144,7 +144,7 @@
             {% endfor %}
             <details><summary>저장 출력 스냅샷</summary><p>학생용 {{ consultation.student_print_snapshot.audience }}{% if current_user.role in ('TEACHER', 'ADMIN') %} · 교사용 {{ consultation.teacher_print_snapshot.audience }}{% endif %} · 저장 당시 결과 {{ consultation.result_snapshot.results|length }}건</p><p><a href="{{ url_for('account.print_saved_consultation', consultation_id=consultation.id, audience='student') }}">학생용 A4 다시 열기</a>{% if current_user.role in ('TEACHER', 'ADMIN') %} · <a href="{{ url_for('account.print_saved_consultation', consultation_id=consultation.id, audience='teacher') }}">교사용 A4 다시 열기</a>{% endif %}</p></details>
             {% if consultation.id in manageable_consultation_ids %}<p><a class="button-link button-link--secondary" href="{{ url_for('account.clone_consultation', consultation_id=consultation.id) }}">이 상담을 복제해 조건 바꾸기</a></p>{% endif %}
-            {% if current_user.role == 'TEACHER' and consultation.id in manageable_consultation_ids %}
+            {% if current_user.role in ('TEACHER', 'ADMIN') and consultation.managed_by_user_account_id == current_user.id %}
               <form method="post" action="{{ url_for('account.edit_consultation_note', consultation_id=consultation.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <label>상담 메모 <textarea name="counselor_note" maxlength="2000">{{ consultation.counselor_note or '' }}</textarea></label>

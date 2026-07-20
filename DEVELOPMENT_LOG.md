@@ -299,6 +299,15 @@
 - 공인 HTTPS health·TLS·보안 헤더·HTTP redirect, host Nginx 설정·active, 관리자 Playwright 3건과 비파괴 Phase 12 catalog·데모 smoke를 통과했다. web·전용 Nginx 로그의 5xx·fatal·query·비밀값·학생 PII 패턴은 0건이었다.
 - live 성공 등록으로 합성 기준정보를 남기지 않았다. 실제 5단계 저장은 격리 PostgreSQL E2E에서 검증했고, live catalog와 공식 게시 규칙은 모두 0건이다. 최종 판정은 `LIVE_VERIFIED_NO_OFFICIAL_CONTENT`이며 Google OIDC는 비활성 상태를 유지한다.
 
+## 2026-07-20 · Phase 18
+
+- 주 관리자 계정을 단순 운영 역할이 아니라 교사 업무를 겸하는 상위 capability로 정리했다. 보조 관리자는 기존처럼 승인 대기 계정 승인만 수행한다.
+- 비데모 주 관리자가 학급·비식별 학생·성적을 관리하고 학생 연결 코드, 저장 상담, 상담 메모, 공개 계산 저장, 개인 BYOK를 사용할 수 있도록 route·service·Jinja 계약을 함께 보강했다.
+- 교사와 주 관리자 간 역할 변경은 같은 교사 capability 범위이므로 학급 연결을 보존하고, 일반 회원·학생·보조 관리자 역할 또는 비활성 상태로 전환할 때는 기존 revoke 동작을 유지했다.
+- 공개 데모 주 관리자는 교사 capability에서 제외하고 unsafe POST와 BYOK를 계속 403으로 차단했다.
+- 합성 회귀는 단위 361건, PostgreSQL 통합 190건과 백업·격리 복원, Ruff·포맷·mypy를 통과했다. 독립 diff 감사에서도 HIGH·MEDIUM 문제가 없었다.
+- 운영 Playwright는 실사용 계정 로그인, 주 관리자·교사 메뉴 동시 노출, 학급 추가 폼, OPENAI 마스킹 메타와 키 원문 DOM 부재, 회원·근거자료 관리, 로그아웃을 검증하도록 작성했다.
+
 ## 확정 기술 결정
 
 - uv로 Python 환경과 잠금 파일을 관리한다.

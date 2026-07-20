@@ -23,6 +23,7 @@ from app.services.membership import (
     MembershipError,
     bootstrap_admin,
     bootstrap_demo_role_accounts,
+    has_teacher_capability,
     is_demo_actor_ref,
     revoke_demo_member,
     revoke_demo_role_accounts,
@@ -215,9 +216,26 @@ def roles_required(
 
 member_required = roles_required("ADMIN", "MEMBER", "TEACHER", "STUDENT")
 student_required = roles_required("STUDENT", allow_legacy=False)
-teacher_required = roles_required("ADMIN", "TEACHER", allow_legacy=False)
 admin_required = roles_required("ADMIN")
 approval_required = roles_required("ADMIN", "ASSISTANT_ADMIN", allow_legacy=False)
+
+
+def teacher_required(view: Callable[..., Any]) -> Callable[..., Any]:
+    """교사와 비데모 주 관리자의 교사 업무 화면을 보호한다."""
+
+    @wraps(view)
+    def wrapped(*args: Any, **kwargs: Any) -> Any:
+        user = session_user()
+        if user is None:
+            next_path = request.path if request.method == "GET" else None
+            return redirect(url_for("auth.login", next=next_path))
+        if user.status != "ACTIVE":
+            return redirect(url_for("auth.pending"))
+        if not has_teacher_capability(user):
+            abort(403)
+        return view(*args, **kwargs)
+
+    return wrapped
 
 
 def is_demo_user(user: UserAccount | None = None) -> bool:

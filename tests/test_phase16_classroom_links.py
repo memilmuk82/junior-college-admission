@@ -34,7 +34,7 @@ from app.services.classroom_links import (
     connect_student_account,
     create_classroom,
 )
-from app.services.membership import bootstrap_admin, change_member_status
+from app.services.membership import bootstrap_admin, change_member_role, change_member_status
 from app.services.student_record_access import (
     visible_academic_records,
     visible_saved_consultations,
@@ -225,6 +225,188 @@ def _course_values(subject_name: str) -> dict[str, str]:
         "achievement_level": "A",
         "enrollment_count": "24",
     }
+
+
+def test_real_admin_can_use_teacher_classroom_routes_and_link_student_account(
+    postgres_engine: Engine,
+    phase16_app: Flask,
+    phase16_accounts: dict[str, UserAccount],
+) -> None:
+    admin = phase16_accounts["admin"]
+    student = phase16_accounts["student"]
+    admin_client = _client_for(phase16_app, admin)
+
+    classroom_page = admin_client.get("/teacher/classrooms")
+    assert classroom_page.status_code == 200
+    assert "학과·학급 추가" in classroom_page.get_data(as_text=True)
+
+    created = admin_client.post(
+        "/teacher/classrooms",
+        data={
+            "csrf_token": CSRF_TOKEN,
+            "academic_year": "2027",
+            "department_name": "합성 관리자 상담과",
+            "class_name": "3-M",
+        },
+    )
+    assert created.status_code == 302
+
+    with Session(postgres_engine, expire_on_commit=False) as database_session:
+        classroom = database_session.scalar(
+            select(TeacherClassroom).where(
+                TeacherClassroom.teacher_user_account_id == admin.id,
+                TeacherClassroom.department_name == "합성 관리자 상담과",
+                TeacherClassroom.class_name == "3-M",
+            )
+        )
+        assert classroom is not None
+        admin_user = database_session.get(UserAccount, admin.id)
+        student_user = database_session.get(UserAccount, student.id)
+        assert admin_user is not None and student_user is not None
+        issued = add_classroom_student(
+            database_session,
+            user=admin_user,
+            classroom_id=classroom.id,
+            anonymous_code="C27-ADMIN",
+        )
+        connect_student_account(
+            database_session,
+            user=student_user,
+            connection_code=issued.connection_code,
+            consent_confirmed=True,
+        )
+        database_session.commit()
+        linked_student = database_session.get(ClassroomStudent, issued.student.id)
+        assert linked_student is not None
+        assert linked_student.linked_user_account_id == student.id
+
+
+def test_teacher_admin_role_transitions_preserve_classroom_links(
+    postgres_engine: Engine,
+    phase16_accounts: dict[str, UserAccount],
+) -> None:
+    with Session(postgres_engine, expire_on_commit=False) as database_session:
+        actor = database_session.get(UserAccount, phase16_accounts["admin"].id)
+        teacher = database_session.get(UserAccount, phase16_accounts["teacher"].id)
+        student = database_session.get(UserAccount, phase16_accounts["student"].id)
+        assert actor is not None and teacher is not None and student is not None
+        classroom = create_classroom(
+            database_session,
+            user=teacher,
+            values={
+                "academic_year": "2027",
+                "department_name": "합성 역할 연속과",
+                "class_name": "3-R",
+            },
+        )
+        issued = add_classroom_student(
+            database_session,
+            user=teacher,
+            classroom_id=classroom.id,
+            anonymous_code="C27-ROLE",
+        )
+        connect_student_account(
+            database_session,
+            user=student,
+            connection_code=issued.connection_code,
+            consent_confirmed=True,
+        )
+        database_session.commit()
+
+        change_member_role(
+            database_session,
+            actor=actor,
+            target=teacher,
+            new_role="ADMIN",
+            occurred_at=datetime(2026, 7, 20, 10, 0, tzinfo=UTC),
+        )
+        database_session.commit()
+        promoted_link = database_session.get(ClassroomStudent, issued.student.id)
+        assert promoted_link is not None
+        assert promoted_link.linked_user_account_id == student.id
+
+        change_member_role(
+            database_session,
+            actor=actor,
+            target=teacher,
+            new_role="TEACHER",
+            occurred_at=datetime(2026, 7, 20, 10, 1, tzinfo=UTC),
+        )
+        database_session.commit()
+        restored_link = database_session.get(ClassroomStudent, issued.student.id)
+        assert restored_link is not None
+        assert restored_link.linked_user_account_id == student.id
+
+        change_member_role(
+            database_session,
+            actor=actor,
+            target=teacher,
+            new_role="MEMBER",
+            occurred_at=datetime(2026, 7, 20, 10, 2, tzinfo=UTC),
+        )
+        database_session.commit()
+        revoked_link = database_session.get(ClassroomStudent, issued.student.id)
+        assert revoked_link is not None
+        assert revoked_link.linked_user_account_id is None
+
+
+def test_real_admin_can_save_owned_consultation_and_update_counselor_note(
+    postgres_engine: Engine,
+    phase16_app: Flask,
+    phase16_accounts: dict[str, UserAccount],
+) -> None:
+    admin = phase16_accounts["admin"]
+    track_id = ""
+    consultation_id = ""
+    try:
+        with Session(postgres_engine) as database_session:
+            track_id = _seed(database_session)
+
+        admin_client = _client_for(phase16_app, admin)
+        form = _form(track_id, CSRF_TOKEN)
+        form["consultation_note"] = "합성 주 관리자 최초 상담 메모"
+        result_page = admin_client.post("/admin/consultations/new", data=form)
+        assert result_page.status_code == 200
+        assert "학생 상담자료 저장·공유" in result_page.get_data(as_text=True)
+
+        saved = admin_client.post("/admin/consultations/save", data=form)
+        assert saved.status_code == 302
+        assert saved.headers["Location"].endswith("/account/records?message=consultation_saved")
+
+        with Session(postgres_engine) as database_session:
+            consultation = database_session.scalar(
+                select(SavedConsultation).where(
+                    SavedConsultation.managed_by_user_account_id == admin.id,
+                    SavedConsultation.student_reference == "synthetic-student",
+                )
+            )
+            assert consultation is not None
+            consultation_id = consultation.id
+            assert consultation.owner_user_account_id is None
+            assert consultation.counselor_note == "합성 주 관리자 최초 상담 메모"
+
+        updated = admin_client.post(
+            f"/account/consultations/{consultation_id}/note",
+            data={
+                "csrf_token": CSRF_TOKEN,
+                "counselor_note": "합성 주 관리자 갱신 상담 메모",
+            },
+        )
+        assert updated.status_code == 302
+        with Session(postgres_engine) as database_session:
+            consultation = database_session.get(SavedConsultation, consultation_id)
+            assert consultation is not None
+            assert consultation.counselor_note == "합성 주 관리자 갱신 상담 메모"
+    finally:
+        with Session(postgres_engine) as database_session:
+            database_session.execute(
+                delete(SavedConsultation).where(
+                    SavedConsultation.managed_by_user_account_id == admin.id
+                )
+            )
+            database_session.commit()
+            if track_id:
+                _cleanup(database_session, track_id)
 
 
 def test_classroom_link_ssr_shares_records_read_only_and_blocks_third_parties(

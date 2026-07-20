@@ -8,8 +8,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models import (
     ClassroomLinkAuditEvent,
@@ -19,6 +20,7 @@ from app.models import (
     TeacherClassroom,
     UserAccount,
 )
+from app.services.membership import DEMO_ACTOR_REF, has_teacher_capability
 
 
 class ClassroomLinkError(ValueError):
@@ -39,8 +41,19 @@ def classroom_student_reference(classroom_student_id: str) -> str:
 
 
 def _require_teacher(user: UserAccount) -> None:
-    if user.status != "ACTIVE" or user.role != "TEACHER":
-        raise ClassroomLinkError("활성 교사 계정만 학급을 관리할 수 있습니다.")
+    if not has_teacher_capability(user):
+        raise ClassroomLinkError("활성 교사 또는 주 관리자 계정만 학급을 관리할 수 있습니다.")
+
+
+def _teacher_account_condition() -> ColumnElement[bool]:
+    return or_(
+        UserAccount.role == "TEACHER",
+        and_(
+            UserAccount.role == "ADMIN",
+            UserAccount.actor_ref != DEMO_ACTOR_REF,
+            ~UserAccount.actor_ref.like("demo:role:%"),
+        ),
+    )
 
 
 def _require_student(user: UserAccount) -> None:
@@ -307,7 +320,7 @@ def connect_student_account(
         .where(
             ClassroomStudent.link_code_expires_at > linked_at,
             UserAccount.status == "ACTIVE",
-            UserAccount.role == "TEACHER",
+            _teacher_account_condition(),
         )
         .with_for_update()
     )
@@ -354,7 +367,7 @@ def disconnect_student_account(
     classroom = session.get(TeacherClassroom, student.classroom_id)
     permitted = user.status == "ACTIVE" and (
         (
-            user.role == "TEACHER"
+            has_teacher_capability(user)
             and classroom is not None
             and classroom.teacher_user_account_id == user.id
         )
@@ -384,7 +397,7 @@ def linked_classrooms_for_student(
         .where(
             ClassroomStudent.linked_user_account_id == user.id,
             UserAccount.status == "ACTIVE",
-            UserAccount.role == "TEACHER",
+            _teacher_account_condition(),
         )
         .order_by(
             TeacherClassroom.academic_year.desc(),
@@ -421,7 +434,7 @@ def linked_teacher_user_ids(session: Session, *, student_user_id: str) -> tuple[
             .where(
                 ClassroomStudent.linked_user_account_id == student_user_id,
                 UserAccount.status == "ACTIVE",
-                UserAccount.role == "TEACHER",
+                _teacher_account_condition(),
             )
             .order_by(TeacherClassroom.teacher_user_account_id)
         )
@@ -437,7 +450,7 @@ def linked_classroom_student_references(
             .join(TeacherClassroom, TeacherClassroom.id == ClassroomStudent.classroom_id)
             .join(UserAccount, UserAccount.id == TeacherClassroom.teacher_user_account_id)
             .where(ClassroomStudent.linked_user_account_id == student_user_id)
-            .where(UserAccount.status == "ACTIVE", UserAccount.role == "TEACHER")
+            .where(UserAccount.status == "ACTIVE", _teacher_account_condition())
             .order_by(ClassroomStudent.id)
         )
     )

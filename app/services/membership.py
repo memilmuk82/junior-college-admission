@@ -22,6 +22,7 @@ from app.models import (
 )
 
 USER_ROLES = frozenset({"ADMIN", "ASSISTANT_ADMIN", "MEMBER", "STUDENT", "TEACHER"})
+TEACHER_CAPABLE_ROLES = frozenset({"ADMIN", "TEACHER"})
 USER_STATUSES = frozenset({"PENDING_APPROVAL", "ACTIVE", "REJECTED", "SUSPENDED"})
 CANONICAL_GOOGLE_ISSUER = "https://accounts.google.com"
 GOOGLE_ISSUERS = frozenset({CANONICAL_GOOGLE_ISSUER, "accounts.google.com"})
@@ -105,6 +106,22 @@ class DemoAccountConflict(MembershipError):
 
 def is_demo_actor_ref(value: str | None) -> bool:
     return value == DEMO_ACTOR_REF or (isinstance(value, str) and value.startswith("demo:role:"))
+
+
+def role_has_teacher_capability(role: str) -> bool:
+    """주 관리자는 교사 업무를 겸하고 보조 관리자는 승인 업무만 수행한다."""
+    return role in TEACHER_CAPABLE_ROLES
+
+
+def has_teacher_capability(user: UserAccount) -> bool:
+    """활성 교사 또는 비데모 주 관리자인지 판정한다.
+
+    공개 교사 데모는 기존 읽기 전용 교사 화면을 유지한다. 공개 주 관리자
+    데모는 관리자 메뉴만 보여 주며 운영 교사 자료에는 접근하지 않는다.
+    """
+    return user.status == "ACTIVE" and (
+        user.role == "TEACHER" or (user.role == "ADMIN" and not is_demo_actor_ref(user.actor_ref))
+    )
 
 
 def canonicalize_google_issuer(value: str) -> str:
@@ -1128,13 +1145,14 @@ def change_member_role(
     if locked.role == "ADMIN" and new_role != "ADMIN" and len(active_admins) <= 1:
         raise MembershipError("마지막 활성 관리자는 강등할 수 없습니다.")
     before_role = locked.role
-    _revoke_classroom_links(
-        session,
-        target=locked,
-        actor=locked_actor,
-        occurred_at=occurred_at,
-        reason="ACCOUNT_ROLE_CHANGED",
-    )
+    if not (role_has_teacher_capability(locked.role) and role_has_teacher_capability(new_role)):
+        _revoke_classroom_links(
+            session,
+            target=locked,
+            actor=locked_actor,
+            occurred_at=occurred_at,
+            reason="ACCOUNT_ROLE_CHANGED",
+        )
     locked.role = new_role
     locked.auth_version += 1
     _audit(

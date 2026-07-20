@@ -177,3 +177,51 @@ def test_student_resave_replaces_only_same_owned_term(postgres_engine: Engine) -
         database_session.execute(delete(UserAccount).where(UserAccount.id == student.id))
         database_session.execute(delete(UserAccount).where(UserAccount.id == admin.id))
         database_session.commit()
+
+
+def test_real_admin_saves_public_calculation_as_teacher_managed_data(
+    postgres_engine: Engine,
+) -> None:
+    with Session(postgres_engine) as database_session:
+        admin = bootstrap_admin(
+            database_session,
+            login_name="phase18-teacher-admin",
+            password_hash="synthetic-password-hash",
+            occurred_at=datetime.now(UTC),
+        )
+        state = _state("3")
+        record_ids = save_anonymous_records(
+            database_session,
+            state=state,
+            calculation_id="phase18-admin-calculation",
+            user=admin,
+        )
+        consultation = save_anonymous_consultation(
+            database_session,
+            state=state,
+            calculation_id="phase18-admin-calculation",
+            user=admin,
+            counselor_note="합성 주 관리자 상담 메모",
+        )
+        database_session.commit()
+
+        assert len(record_ids) == 1
+        record = database_session.get(StudentAcademicRecord, record_ids[0])
+        assert record is not None
+        assert record.student_id == f"teacher:{admin.id}:phase18-admin-calculation"
+        assert record.owner_user_account_id is None
+        assert record.managed_by_user_account_id == admin.id
+        assert consultation.owner_user_account_id is None
+        assert consultation.managed_by_user_account_id == admin.id
+        assert consultation.counselor_note == "합성 주 관리자 상담 메모"
+
+        database_session.delete(consultation)
+        database_session.delete(record)
+        database_session.execute(
+            delete(UserAccountAuditEvent).where(
+                (UserAccountAuditEvent.target_user_id == admin.id)
+                | (UserAccountAuditEvent.actor_user_id == admin.id)
+            )
+        )
+        database_session.delete(admin)
+        database_session.commit()

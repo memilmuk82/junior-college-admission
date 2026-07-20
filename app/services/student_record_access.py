@@ -17,6 +17,7 @@ from app.services.classroom_links import (
     linked_student_account_ids,
     linked_teacher_user_ids,
 )
+from app.services.membership import has_teacher_capability
 
 
 class StudentRecordAccessError(RuntimeError):
@@ -476,7 +477,7 @@ def update_consultation_note(
     if (
         consultation is None
         or user.status != "ACTIVE"
-        or user.role != "TEACHER"
+        or not has_teacher_capability(user)
         or consultation.managed_by_user_account_id != user.id
     ):
         raise StudentRecordAccessError("상담 이력을 찾을 수 없습니다.")

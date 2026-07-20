@@ -9,6 +9,7 @@ from app.services.ai_payloads import (
     validated_payload_copy,
 )
 from app.services.consultations import BatchConsultationResult
+from app.services.membership import has_teacher_capability
 from app.services.public_student_profiles import resolve_public_student_profile
 from app.services.student_record_access import can_read_academic_record
 
@@ -26,8 +27,11 @@ def save_account_consultation(
     student_profile: str,
     counselor_note: str = "",
 ) -> SavedConsultation:
-    if user.status != "ACTIVE" or user.role not in {"STUDENT", "TEACHER"}:
-        raise AccountConsultationError("활성 학생 또는 교사만 상담자료를 저장할 수 있습니다.")
+    teacher_account = has_teacher_capability(user)
+    if user.status != "ACTIVE" or (user.role != "STUDENT" and not teacher_account):
+        raise AccountConsultationError(
+            "활성 학생, 교사 또는 주 관리자만 상담자료를 저장할 수 있습니다."
+        )
     reference = student_reference.strip()
     if not reference or len(reference) > 120:
         raise AccountConsultationError("상담 대상 학생을 확인하세요.")
@@ -44,8 +48,8 @@ def save_account_consultation(
         raise AccountConsultationError("학생은 본인 상담자료만 저장할 수 있습니다.")
 
     note = counselor_note.strip()
-    if user.role != "TEACHER" and note:
-        raise AccountConsultationError("상담 메모는 교사만 저장할 수 있습니다.")
+    if not teacher_account and note:
+        raise AccountConsultationError("상담 메모는 교사 또는 주 관리자만 저장할 수 있습니다.")
     if len(note) > 2000:
         raise AccountConsultationError("상담 메모는 2,000자 이하여야 합니다.")
 
@@ -64,7 +68,7 @@ def save_account_consultation(
         calculation_id=f"stored:{new_id()}",
         student_reference=reference,
         owner_user_account_id=user.id if user.role == "STUDENT" else None,
-        managed_by_user_account_id=user.id if user.role == "TEACHER" else None,
+        managed_by_user_account_id=user.id if teacher_account else None,
         academic_year=result.academic_year,
         student_profile=resolved_student_profile,
         selected_targets=selected_targets,

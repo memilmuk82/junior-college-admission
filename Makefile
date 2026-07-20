@@ -17,7 +17,7 @@ OIDC_CHANGE_APPROVED ?=
 OIDC_HOST_GATE_CONFIRMED ?=
 OIDC_BACKUP_RESTORE_CONFIRMED ?=
 
-.PHONY: setup test-unit test-integration test-e2e test-phase13-e2e test-phase14-e2e test-phase14-import-e2e test-phase16-e2e test-phase17-e2e lint validate-rules check-sensitive-data check production-bootstrap production-preflight production-up production-check production-e2e production-status production-logs production-down production-origin-up production-origin-check production-origin-status production-origin-logs production-origin-down production-origin-oidc-up production-origin-oidc-check production-origin-oidc-status production-origin-oidc-disable production-origin-rollback-app production-origin-backup production-origin-backup-verify production-origin-restore-verify production-origin-metrics alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
+.PHONY: setup test-unit test-integration test-e2e test-phase13-e2e test-phase14-e2e test-phase14-import-e2e test-phase16-e2e test-phase17-e2e test-phase18-e2e lint validate-rules check-sensitive-data check production-bootstrap production-preflight production-up production-check production-e2e production-status production-logs production-down production-origin-up production-origin-check production-origin-status production-origin-logs production-origin-down production-origin-oidc-up production-origin-oidc-check production-origin-oidc-status production-origin-oidc-disable production-origin-rollback-app production-origin-backup production-origin-backup-verify production-origin-restore-verify production-origin-metrics alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
 
 setup:
 	uv sync --frozen
@@ -58,6 +58,10 @@ test-phase16-e2e:
 test-phase17-e2e:
 	@test -n "$$PHASE17_E2E_URL"
 	npx playwright test --config tests/playwright.phase17.config.js
+
+test-phase18-e2e:
+	@test -n "$$PHASE18_E2E_URL" && test -n "$$PHASE18_ADMIN_USERNAME" && test -n "$$PHASE18_ADMIN_PASSWORD"
+	npx playwright test --config tests/playwright.phase18.config.js
 
 lint:
 	$(PYTHON) ruff check .
