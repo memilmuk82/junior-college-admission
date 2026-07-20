@@ -508,14 +508,45 @@ def bootstrap_demo_role_accounts(
     by_actor = {account.actor_ref: account for account in matches}
     by_login = {account.login_name: account for account in matches if account.login_name}
     by_email = {account.email: account for account in matches}
+    legacy = by_actor.get(DEMO_ACTOR_REF)
     for spec in DEMO_ROLE_SPECS:
         existing = by_actor.get(spec.actor_ref)
         login_owner = by_login.get(spec.login_name)
         email_owner = by_email.get(spec.email)
-        if (login_owner is not None and login_owner is not existing) or (
-            email_owner is not None and email_owner is not existing
+        if (
+            login_owner is not None and login_owner is not existing and login_owner is not legacy
+        ) or (
+            email_owner is not None and email_owner is not existing and email_owner is not legacy
         ):
             raise DemoAccountConflict("공개 역할 데모 계정 식별자가 이미 사용 중입니다.")
+
+    if legacy is not None:
+        reserved_login = legacy.login_name in login_names
+        reserved_email = legacy.email in emails
+        suspended = _suspend_demo_account(
+            session,
+            account=legacy,
+            actor=approved_by,
+            occurred_at=occurred_at,
+            preserve_role=False,
+        )
+        if reserved_login:
+            legacy.login_name = f"retired-demo-{legacy.id}"
+        if reserved_email:
+            legacy.email = f"retired-demo-{legacy.id}@local.invalid"
+        if (reserved_login or reserved_email) and not suspended:
+            legacy.password_hash = generate_password_hash(secrets.token_urlsafe(48))
+            legacy.auth_version += 1
+            _audit(
+                session,
+                target=legacy,
+                actor=approved_by,
+                event_type="PASSWORD_CHANGED",
+                occurred_at=occurred_at,
+                after_role=legacy.role,
+                after_status=legacy.status,
+            )
+        session.flush()
 
     accounts: list[UserAccount] = []
     for spec in DEMO_ROLE_SPECS:
@@ -618,15 +649,6 @@ def bootstrap_demo_role_accounts(
             )
         accounts.append(existing)
 
-    legacy = by_actor.get(DEMO_ACTOR_REF)
-    if legacy is not None:
-        _suspend_demo_account(
-            session,
-            account=legacy,
-            actor=approved_by,
-            occurred_at=occurred_at,
-            preserve_role=False,
-        )
     return tuple(accounts)
 
 

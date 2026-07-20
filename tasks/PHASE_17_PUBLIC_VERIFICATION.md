@@ -56,7 +56,8 @@
 - [x] 원본 4,970행·42개 대학과 기존 목록을 합친 최종 43개 대학, 모든 선택 기준정보 4,970행·고유 학과/주야 1,048개 보존
 - [x] 2026 참고결과 4,094행과 제외 876행의 사유·원본 행 번호·사유 중복 4행 audit 고정
 - [x] 파생 catalog·result·audit byte 재현성과 출처 manifest 일치
-- [x] 단위 361건, PostgreSQL 통합 179건, Phase 17 Playwright 6건, Phase 14 회귀 3건 통과
+- [x] 단위 361건, PostgreSQL 통합 180건, Phase 17 Playwright 6건, Phase 14 회귀 3건 통과
+- [x] 기존 공개 데모가 새 역할 ID를 보유한 운영 형태에서도 legacy 자격증명만 폐기하고 네 고정 계정을 생성하는 회귀 통과
 - [x] Ruff·포맷·mypy 151개 소스, 규칙·민감자료 검사 통과
 - [x] OpenAI 키를 출력·저장하지 않고 비식별 합성 공급자 응답 검증에만 재사용
 - [x] 최종 diff 독립 재감사에서 남은 HIGH·MEDIUM 결함 없음

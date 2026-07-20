@@ -47,7 +47,8 @@ def clean_phase11_accounts(postgres_engine: Engine) -> Iterator[None]:
     with postgres_engine.begin() as connection:
         account_filter = (
             "SELECT id FROM user_accounts WHERE email LIKE '%@phase11.invalid' "
-            "OR login_name LIKE 'phase11-%' OR actor_ref LIKE 'demo:role:%'"
+            "OR login_name LIKE 'phase11-%' OR actor_ref = 'demo:public' "
+            "OR actor_ref LIKE 'demo:role:%'"
         )
         connection.execute(
             text("DELETE FROM ai_consultation_drafts WHERE actor_ref LIKE 'demo:role:%:session:%'")
@@ -69,7 +70,8 @@ def clean_phase11_accounts(postgres_engine: Engine) -> Iterator[None]:
         connection.execute(
             text(
                 "DELETE FROM user_accounts WHERE email LIKE '%@phase11.invalid' "
-                "OR login_name LIKE 'phase11-%' OR actor_ref LIKE 'demo:role:%'"
+                "OR login_name LIKE 'phase11-%' OR actor_ref = 'demo:public' "
+                "OR actor_ref LIKE 'demo:role:%'"
             )
         )
 
@@ -708,6 +710,42 @@ def test_bootstrap_ignores_legacy_login_rotation_and_replaces_old_demo_with_fixe
             )
             == 4
         )
+
+
+def test_bootstrap_retires_legacy_demo_that_owns_a_fixed_role_login(
+    postgres_engine: Engine,
+) -> None:
+    demo = _bootstrap_demo(postgres_engine)
+    with Session(postgres_engine) as database_session:
+        legacy = database_session.get(UserAccount, demo.id)
+        assert legacy is not None
+        legacy.login_name = DEMO_ROLE_LOGIN_NAMES["TEACHER"]
+        legacy.password_hash = generate_password_hash("phase11-demo-password")
+        database_session.commit()
+
+    app = _app(postgres_engine)
+    result = app.test_cli_runner().invoke(args=["auth", "bootstrap-demo"])
+
+    assert result.exit_code == 0
+    assert "공개 네 역할 데모 계정 부트스트랩 확인 완료" in result.output
+    with Session(postgres_engine) as database_session:
+        retired = database_session.get(UserAccount, demo.id)
+        assert retired is not None
+        assert retired.actor_ref == "demo:public"
+        assert (retired.role, retired.status) == ("MEMBER", "SUSPENDED")
+        assert retired.login_name == f"retired-demo-{retired.id}"
+        assert retired.password_hash is not None
+        assert not check_password_hash(retired.password_hash, "phase11-demo-password")
+        role_demos = tuple(
+            database_session.scalars(
+                select(UserAccount).where(
+                    UserAccount.actor_ref.in_(tuple(DEMO_ROLE_ACTOR_REFS.values()))
+                )
+            )
+        )
+        assert len(role_demos) == 4
+        assert all(account.status == "ACTIVE" for account in role_demos)
+        assert {account.login_name for account in role_demos} == set(DEMO_ROLE_LOGIN_NAMES.values())
 
 
 def test_duplicate_registration_has_same_external_response_as_new_request(

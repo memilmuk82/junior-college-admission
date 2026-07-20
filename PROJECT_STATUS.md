@@ -378,13 +378,14 @@ Phase 12 회귀는 단위 290건, PostgreSQL 통합 127건과 합성 백업·격
 - [x] 점수 척도·범위를 검수한 2026 결과 4,094행을 기본 연도로 게시할 seed와 idempotent CLI 작성, 2025 결과 482행 보존
 - [x] 점수 기준 누락 572건·범위 오류 308건으로 876개 원본 행을 제외하고 두 사유가 겹친 4행과 함께 0 또는 범위 밖 값을 임의 보정하지 않은 audit 기록
 - [x] `demo-student`·`demo-teacher`·`demo-main-admin`·`demo-assistant-admin` 네 공개 데모 계정과 역할별 대시보드·로그아웃 제공
+- [x] 기존 `demo:public` 계정이 새 고정 로그인 ID를 보유한 운영 상태에서도 실제 계정 선점과 구분해 legacy만 안전하게 퇴역시키는 전환 회귀
 - [x] `/account/records`의 로그인·가입 `next` 보존과 로그인 상태의 계정 메뉴·로그아웃 navigation 복구
 - [x] 데모 주 관리자는 운영 회원·원문·규칙·입시결과를 변경할 수 없는 읽기 전용, 데모 보조 관리자는 승인 요청 목록만 확인하는 경계
 - [x] 실제 학생·교사 BYOK 키의 actor별 암호화·마스킹·교체·삭제와 데모 브라우저 세션별 격리·로그아웃 삭제
 - [x] AI 저장 payload v3에 2026 참고결과를 고정하고 기존 v2 저장 상담의 목록·인쇄 호환 유지
 - [x] 대학·학과 검색은 전체 1,048개 대상을 유지하되 한 번의 계산 요청은 서버·JavaScript·무JavaScript 모두 최대 5개로 제한
 - [x] Phase 16 DB 4개 대학·128개 학과·2025 결과 482행을 넣은 PostgreSQL에서 migration upgrade 후 전 행 보존과 새 분류값 변환 검증
-- [x] 단위 361건, PostgreSQL 통합 179건과 합성 백업·격리 복원, Phase 17 Playwright 6건, Phase 14 공개 회귀 3건 통과
+- [x] 단위 361건, PostgreSQL 통합 180건과 합성 백업·격리 복원, Phase 17 Playwright 6건, Phase 14 공개 회귀 3건 통과
 - [x] Ruff·포맷·mypy 151개 소스, 규칙·민감자료·공개 seed byte 재현성 검사 통과
 - [x] `.env.local` OpenAI 키는 출력·저장 없이 비식별 합성 요청 검증에만 사용했고 `gpt-4.1-mini` 응답 계약 확인 후 폐기
 

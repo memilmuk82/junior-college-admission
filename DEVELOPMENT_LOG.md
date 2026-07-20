@@ -8,10 +8,11 @@
 - 2026 입시결과는 점수 척도와 유효 범위를 명시할 수 있는 4,094행만 기본 참고연도로 게시한다. 석차등급 3,562행, 수능등급 208행, 점수 324행이며 점수 기준 누락 572건·범위 오류 308건에 해당하는 원본 876행은 0 또는 다른 값으로 보정하지 않고 audit에 남겼다. 두 사유가 동시에 적용된 행은 4개이며 기존 2025 결과 482행은 그대로 유지한다.
 - `Campus.region`, `Program.day_night`, 입시결과의 주야·업무키·점수 척도 제약과 저장 상담의 학생 프로필을 migration `b6f1e8a42c73`에 추가했다. Phase 16 형태의 4개 대학·128개 학과·2025 결과 482행을 넣은 PostgreSQL을 upgrade해 기존 snapshot 전 행이 보존됨을 확인했다.
 - `demo-student`·`demo-teacher`·`demo-main-admin`·`demo-assistant-admin` 네 데모 계정을 로그인 화면에 공개하고 역할별 대시보드·로그아웃을 연결했다. `/account/records`의 로그인·가입 `next`와 계정 navigation도 복구했다. 데모 관리자는 실제 운영 자료를 변경하거나 원문을 열 수 없고, 보조 관리자에게는 승인 요청 확인 범위만 보인다.
+- 운영 배포 첫 기동에서 기존 `demo:public` 계정이 새 고정 ID `demo-teacher`를 보유한 상태를 일반 계정 선점으로 오인하는 충돌을 발견했다. 실제 계정은 건드리지 않은 채 legacy 데모의 알려진 자격증명을 폐기·퇴역시키고 네 고정 역할 계정을 생성하도록 전환 로직과 운영 형태 회귀를 보강했다.
 - 실제 학생·교사 BYOK는 계정 actor별 암호화 저장·마스킹·교체·삭제를 유지했다. 데모 키는 무작위 브라우저 세션 범위에만 암호화 저장하고 로그아웃·인증 무효화 시 삭제하며 데모에서 실제 AI 초안 생성은 차단한다. `.env.local`의 OpenAI 키는 출력·저장 없이 비식별 합성 `gpt-4.1-mini` 요청의 응답 계약 검증에만 재사용했다.
 - AI 저장 snapshot을 v3로 올려 선택한 각 대상의 2026 결과연도·모집시기·전형·주야·모집인원·경쟁률·평균·최저·점수 방향을 저장·A4 출력하고, 기존 v2 snapshot도 목록과 인쇄에서 계속 읽는다.
 - 공개 seed를 다시 생성해 catalog `f45c3eed...`, result `6546aed...`, audit `ddad414b...` 해시가 byte 단위로 동일함을 확인했다. 원본 CSV·PDF·XLSX와 사용자 작성 미추적 파일은 Git에 추가하지 않았다.
-- 단위 361건, PostgreSQL 통합 179건과 합성 백업·격리 복원, Phase 17 Chromium 6건, Phase 14 공개 회귀 3건, Ruff·포맷·mypy 151개 소스, 규칙·민감자료 검사를 통과했다. 데스크톱·390px·무JavaScript, 60칸 입력, 전체 선택 목록, 2026 결과, 일반고 예외 필터, 네 역할 권한, BYOK 세션 격리와 console/page error 0건을 확인했다.
+- 단위 361건, PostgreSQL 통합 180건과 합성 백업·격리 복원, Phase 17 Chromium 6건, Phase 14 공개 회귀 3건, Ruff·포맷·mypy 151개 소스, 규칙·민감자료 검사를 통과했다. 데스크톱·390px·무JavaScript, 60칸 입력, 전체 선택 목록, 2026 결과, 일반고 예외 필터, 네 역할 권한, BYOK 세션 격리와 console/page error 0건을 확인했다.
 - 운영 배포 전 게이트는 `PASS_PREDEPLOY_PHASE_17`이다. 구현 커밋 push 뒤 운영 custom-format 백업과 격리 복원을 확인하고, DB 컨테이너·PostgreSQL/upload volume을 보존한 채 web만 재빌드한다.
 
 ## 2026-07-20 · Phase 16 역할별 업무공간과 학생·교사 연동
