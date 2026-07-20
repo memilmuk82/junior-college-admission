@@ -69,7 +69,11 @@
 - [x] 독립 권한 diff 감사 HIGH·MEDIUM 문제 없음
 - [x] 운영 HTTPS Phase 18 Playwright 작성과 목록 검증
 - [x] 민감자료·규칙 최종 검사
-- [ ] 구현 커밋과 `origin/main` push
-- [ ] 운영 custom-format 백업·archive·격리 복원
-- [ ] 웹 컨테이너 재빌드와 실사용 계정·BYOK 생성
-- [ ] 공인 HTTPS 로그인·교사/관리자 메뉴·BYOK 마스킹·로그아웃 검증
+- [x] 구현 커밋과 `origin/main` push
+- [x] 운영 custom-format 백업·archive·격리 복원
+- [x] 웹 컨테이너 재빌드와 실사용 계정·BYOK 생성
+- [x] 공인 HTTPS 로그인·교사/관리자 메뉴·BYOK 마스킹·로그아웃 검증
+
+구현 커밋 `8f101f8`을 `origin/main`에 push했다. 운영 백업 `admission_20260720_113828_3857650.dump`의 SHA-256 `4e8064f4874246fe1d5883555bc449c230909e64b95303f2c3b6880c6c3b6ab7`, archive와 격리 복원을 확인했다. 기존 DB 컨테이너·volume을 유지하고 웹만 이미지 `sha256:6fa832729850500104c73c36349f303520a3362f4a0bbc31b8caa4374f7f1062`로 교체했다.
+
+교사 가입·승인·주 관리자 승격 감사 이력을 가진 실사용 계정 1건과 계정 actor별 OPENAI 암호문 1건을 단일 트랜잭션으로 생성했다. 키 원문과 임시 비밀번호는 저장소·문서·로그에 기록하지 않았다. 공인 HTTPS Phase 18 Playwright 1건, TLS·health·보안 헤더, migration head, 화면 캡처 직접 검토와 오류 로그 검사를 통과해 최종 판정은 `PASS_PRODUCTION_PHASE_18`이다.

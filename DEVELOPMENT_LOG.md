@@ -307,6 +307,10 @@
 - 공개 데모 주 관리자는 교사 capability에서 제외하고 unsafe POST와 BYOK를 계속 403으로 차단했다.
 - 합성 회귀는 단위 361건, PostgreSQL 통합 190건과 백업·격리 복원, Ruff·포맷·mypy를 통과했다. 독립 diff 감사에서도 HIGH·MEDIUM 문제가 없었다.
 - 운영 Playwright는 실사용 계정 로그인, 주 관리자·교사 메뉴 동시 노출, 학급 추가 폼, OPENAI 마스킹 메타와 키 원문 DOM 부재, 회원·근거자료 관리, 로그아웃을 검증하도록 작성했다.
+- 구현 커밋 `8f101f8`을 `origin/main`에 push하고, SHA-256 `4e8064f4874246fe1d5883555bc449c230909e64b95303f2c3b6880c6c3b6ab7`의 운영 백업 archive·격리 복원을 확인했다.
+- DB 컨테이너와 volume을 보존한 채 웹만 이미지 `sha256:6fa832729850500104c73c36349f303520a3362f4a0bbc31b8caa4374f7f1062`로 재빌드했다. migration은 `b6f1e8a42c73 (head)`로 변함없고 DB·웹 모두 healthy다.
+- 실사용 계정 1건을 교사 가입→승인→주 관리자 승격 순으로 만들고 사용자 제공 OpenAI 키를 stdin으로만 전달해 그 actor에 Fernet 암호문으로 저장했다. 키·마스킹 끝자리·임시 비밀번호는 소스·문서·로그에 남기지 않았다.
+- 공인 HTTPS Chromium 1건과 화면 직접 검토에서 관리자·교사 메뉴, 학급 추가 폼, BYOK 마스킹, 관리 화면과 로그아웃을 확인했다. TLS·health·보안 헤더와 오류·키 패턴 로그 검사도 통과해 `PASS_PRODUCTION_PHASE_18`로 판정했다.
 
 ## 확정 기술 결정
 

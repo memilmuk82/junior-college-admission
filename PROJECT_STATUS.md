@@ -416,3 +416,15 @@ Phase 12 회귀는 단위 290건, PostgreSQL 통합 127건과 합성 백업·격
 - [x] 실사용 계정 로그인→관리자·교사 메뉴→학급 GET→OPENAI 마스킹→관리 화면→로그아웃 운영 Playwright 작성
 
 Phase 18은 단일 `role` 스키마를 변경하지 않고 비데모 `ADMIN`에 교사 capability를 포함한다. 공개 데모 `ADMIN`은 capability에서 제외하고 전역 데모 요청 차단도 유지한다. 실제 운영 계정은 교사 가입→기존 주 관리자 승인→주 관리자 승격의 감사 이력을 남기고, 사용자 제공 OpenAI 키를 출력·로그·임시파일 없이 해당 계정 actor에만 암호화 저장한 뒤 공인 HTTPS로 검증한다.
+
+### Phase 18 운영 배포
+
+- 구현 커밋 `8f101f8`을 `origin/main`에 push하고 로컬·원격 SHA 일치를 확인했다.
+- 배포 전 백업 `admission_20260720_113828_3857650.dump`의 SHA-256 `4e8064f4874246fe1d5883555bc449c230909e64b95303f2c3b6880c6c3b6ab7`, archive와 network-none/tmpfs 격리 복원을 검증했다. source와 repository migration은 모두 `b6f1e8a42c73`, 공개 테이블은 48개였다.
+- 기존 DB 컨테이너 `072f1a30e7d5...`와 PostgreSQL·upload volume을 그대로 유지했다. 기존 웹 이미지 `sha256:0c8029b75788db7fc6a399a0270d2f452fbaef10db8cabdafbf60097f5632b3c`를 rollback 태그로 보존하고 웹만 컨테이너 `95e773e062ea...`, 이미지 `sha256:6fa832729850500104c73c36349f303520a3362f4a0bbc31b8caa4374f7f1062`로 교체했다.
+- 교사 가입→기존 주 관리자 승인→주 관리자 승격의 감사 이력을 가진 실사용 계정 1건을 추가했다. 운영 활성 비데모 주 관리자는 2건이며 새 계정의 교사 capability를 확인했다.
+- 사용자 제공 OpenAI 키를 stdout·argv·환경변수·임시파일·로그에 기록하지 않는 stdin 파이프로 전달해 새 계정 actor에 Fernet 암호문 1건으로 저장했다. 저장 직후 암호문 비동일·복호화 일치 boolean을 확인했고 문서에는 키·마스킹 끝자리·임시 비밀번호를 남기지 않았다.
+- 공인 HTTPS Phase 18 Chromium 1건에서 로그인, 주 관리자·교사 카드, 학급 추가 폼, OPENAI 마스킹과 원문 DOM 부재, 회원·근거자료 관리, 로그아웃을 확인했다. 세 화면을 직접 검토했고 console/page error는 0건이었다.
+- TLS·health·보안 헤더, migration `b6f1e8a42c73 (head)`, DB·웹 health와 restart 0건을 확인했다. 배포 이후 로그에 HTTP 5xx·traceback·fatal·critical·unhandled·exception·키 패턴은 0건이다.
+
+최종 판정은 `PASS_PRODUCTION_PHASE_18`이다.
