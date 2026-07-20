@@ -8,7 +8,9 @@
   const chips = picker.querySelector("[data-selection-chips]");
   const dockCount = document.querySelector("[data-dock-count]");
   const dockLabels = document.querySelector("[data-dock-labels]");
+  const selectionMessage = picker.querySelector("[data-selection-message]");
   const programInputs = [...picker.querySelectorAll('input[name="program_ids"]')];
+  const maximumSelection = 5;
   const normalize = (value) => value.toLocaleLowerCase("ko-KR").trim();
 
   const updateCount = () => {
@@ -59,17 +61,51 @@
 
   picker.querySelectorAll("[data-institution-toggle]").forEach((toggle) => {
     toggle.addEventListener("change", () => {
-      toggle.closest("[data-program-group]").querySelectorAll('input[name="program_ids"]')
-        .forEach((input) => { input.checked = toggle.checked; });
+      const groupInputs = [
+        ...toggle.closest("[data-program-group]").querySelectorAll('input[name="program_ids"]'),
+      ];
+      if (!toggle.checked) {
+        groupInputs.forEach((input) => { input.checked = false; });
+      } else {
+        let available = maximumSelection - programInputs.filter((input) => input.checked).length;
+        groupInputs.forEach((input) => {
+          if (!input.checked && available > 0) {
+            input.checked = true;
+            available -= 1;
+          }
+        });
+        if (selectionMessage && groupInputs.some((input) => !input.checked)) {
+          selectionMessage.textContent = "한 번에 최대 5개까지 선택할 수 있습니다.";
+        }
+      }
       updateCount();
     });
   });
   picker.querySelector("[data-select-visible]").addEventListener("click", () => {
-    picker.querySelectorAll("[data-program-option]:not([hidden]) input[name='program_ids']")
-      .forEach((input) => { input.checked = true; });
+    let available = maximumSelection - programInputs.filter((input) => input.checked).length;
+    const visibleInputs = [
+      ...picker.querySelectorAll("[data-program-option]:not([hidden]) input[name='program_ids']"),
+    ];
+    visibleInputs.forEach((input) => {
+      if (!input.checked && available > 0) {
+        input.checked = true;
+        available -= 1;
+      }
+    });
+    if (selectionMessage && visibleInputs.some((input) => !input.checked)) {
+      selectionMessage.textContent = "한 번에 최대 5개까지 선택할 수 있습니다.";
+    }
     updateCount();
   });
-  programInputs.forEach((input) => input.addEventListener("change", updateCount));
+  programInputs.forEach((input) => input.addEventListener("change", () => {
+    if (input.checked && programInputs.filter((candidate) => candidate.checked).length > maximumSelection) {
+      input.checked = false;
+      if (selectionMessage) {
+        selectionMessage.textContent = "한 번에 최대 5개까지 선택할 수 있습니다.";
+      }
+    }
+    updateCount();
+  }));
   search.addEventListener("input", filter);
   institutionFilter?.addEventListener("change", filter);
   updateCount();

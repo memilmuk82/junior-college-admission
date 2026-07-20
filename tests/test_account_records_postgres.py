@@ -80,9 +80,36 @@ def _consultation(
     owner: str | None,
     manager: str | None,
     student_reference: str,
+    student_profile: str = "VOCATIONAL_CURRENT",
+    include_reference_result: bool = False,
 ) -> SavedConsultation:
+    reference_results = (
+        [
+            {
+                "result_academic_year": 2026,
+                "admission_round_code": "SUSI-1",
+                "admission_track_code": "SPECIAL-GENERAL-HS",
+                "day_night": "DAY",
+                "capacity": 20,
+                "applicant_count": 195,
+                "admitted_count": 20,
+                "competition_rate": "9.7500",
+                "best_score": "58.0000",
+                "average_score": "65.0600",
+                "cutoff_score": "70.0000",
+                "score_basis": "POINT_SCORE",
+                "score_basis_label": "수능 백분위·배점(참고용)",
+                "score_direction": "HIGHER_IS_BETTER",
+                "is_direct_grade_comparison_allowed": False,
+                "publication_version": "synthetic-2026-v1",
+                "source_reference": "합성 공개자료",
+            }
+        ]
+        if include_reference_result
+        else []
+    )
     payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "academic_year": 2027,
         "results": [
             {
@@ -112,6 +139,7 @@ def _consultation(
                     "rounding_scale": 2,
                 },
                 "admission_result": {"status": "NOT_AVAILABLE"},
+                "reference_results": reference_results,
                 "evidence": [],
                 "warnings": [],
             }
@@ -123,6 +151,7 @@ def _consultation(
         owner_user_account_id=owner,
         managed_by_user_account_id=manager,
         academic_year=2027,
+        student_profile=student_profile,
         selected_targets=[
             {
                 "program_id": "synthetic-program",
@@ -189,6 +218,15 @@ def test_account_records_edit_and_consultation_history_are_owner_scoped(
                 owner=student.id,
                 manager=None,
                 student_reference=f"account:{student.id}",
+                include_reference_result=True,
+            )
+            graduate_consultation = _consultation(
+                database_session,
+                calculation_id="phase17-graduate-student-consultation",
+                owner=student.id,
+                manager=None,
+                student_reference=f"account:{student.id}",
+                student_profile="GENERAL_GRADUATE",
             )
             teacher_consultation = _consultation(
                 database_session,
@@ -229,13 +267,41 @@ def test_account_records_edit_and_consultation_history_are_owner_scoped(
         assert page.status_code == 200
         assert "학생 본인 과목" in body
         assert "다른 학생 과목" not in body
+        assert "공개 참고결과 1건" in body
+        assert "65.0600" in body
+        assert "직접 비교 불가" in body
+        saved_print = student_client.get(
+            f"/account/consultations/{student_consultation.id}/print/student"
+        )
+        assert saved_print.status_code == 200
+        saved_print_body = saved_print.get_data(as_text=True)
+        assert "2026학년도" in saved_print_body
+        assert "수능 백분위·배점(참고용)" in saved_print_body
+        assert "65.0600" in saved_print_body
         cloned = student_client.get(f"/account/consultations/{student_consultation.id}/clone")
         assert cloned.status_code == 200
         cloned_body = cloned.get_data(as_text=True)
         assert "학생 본인 과목" in cloned_body
         assert "저장 상담을 새 입력으로 복제했습니다." in cloned_body
-        assert cloned_body.count("data-score-row") == 50
+        assert cloned_body.count("data-score-row") == 60
         assert 'name="rows-1-subject_name"' in cloned_body
+        assert 'name="rows-59-subject_name"' in cloned_body
+        assert 'value="VOCATIONAL_CURRENT" checked' in cloned_body
+        assert 'value="GENERAL_GRADUATE"' in cloned_body
+        graduate_clone = student_client.get(
+            f"/account/consultations/{graduate_consultation.id}/clone"
+        )
+        assert graduate_clone.status_code == 200
+        graduate_clone_body = graduate_clone.get_data(as_text=True)
+        assert 'value="GENERAL_GRADUATE" checked' in graduate_clone_body
+        assert (
+            'name="rows-40-record_source" type="hidden" '
+            'value="HOME_SCHOOL_RECORD"' in graduate_clone_body
+        )
+        assert (
+            'name="rows-40-is_vocational_training_semester" type="hidden" value="FALSE"'
+            in graduate_clone_body
+        )
         clone_with_added_course = student_client.post(
             "/calculate/input",
             data={

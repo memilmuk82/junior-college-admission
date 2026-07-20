@@ -85,6 +85,14 @@ def load_admission_result_column_aliases(path: Path | None = None) -> dict[str, 
                     "정규화된 열 동의어가 둘 이상의 canonical 필드와 충돌합니다."
                 )
             lookup[normalized] = canonical
+    for canonical in _CANONICAL_COLUMNS:
+        normalized = _normalize_header(canonical)
+        previous = lookup.get(normalized)
+        if previous is not None and previous != canonical:
+            raise AdmissionResultUploadError(
+                "canonical 영문 열 이름이 설정된 열 동의어와 충돌합니다."
+            )
+        lookup[normalized] = canonical
     return lookup
 
 
@@ -96,6 +104,7 @@ class CatalogMatch:
     admission_round_code: str
     admission_track_code: str
     campus_name: str
+    day_night: str
 
 
 class CatalogResolver(Protocol):
@@ -104,7 +113,9 @@ class CatalogResolver(Protocol):
         *,
         institution_name: str,
         campus_name: str | None,
+        region: str | None,
         program_name: str,
+        day_night: str,
         admission_round_name: str,
         admission_track_name: str,
         target_academic_year: int,
@@ -161,6 +172,7 @@ class CanonicalAdmissionResultRow:
             self.program_code,
             self.admission_round_code,
             self.admission_track_code,
+            self.day_night,
             self.score_basis,
         )
         return values if all(value is not None and value != "" for value in values) else None
@@ -412,11 +424,17 @@ def _canonical_row(
         track = _text(values.get("admission_track_name"), required=True) or ""
         admission_track_name = " / ".join(value for value in (category, track) if value)
         region = _text(values.get("region"))
-        day_night = _text(values.get("day_night"))
+        day_night = normalize_day_night(_text(values.get("day_night")))
+        explicit_score_basis = bool(_text(values.get("score_basis")))
+        explicit_score_direction = bool(_text(values.get("score_direction")))
         score_basis = (_text(values.get("score_basis")) or "RANK_GRADE").upper()
         score_direction = (
             _text(values.get("score_direction"))
-            or ("LOWER_IS_BETTER" if score_basis == "RANK_GRADE" else "HIGHER_IS_BETTER")
+            or (
+                "LOWER_IS_BETTER"
+                if score_basis in {"RANK_GRADE", "CSAT_GRADE"}
+                else "HIGHER_IS_BETTER"
+            )
         ).upper()
         explicit_source_reference = _text(values.get("source_reference"))
         source_result_year = _integer(values.get("result_academic_year"), "모집학년도")
@@ -471,11 +489,11 @@ def _canonical_row(
             )
         )
 
-    if score_basis not in {"RANK_GRADE", "POINT_SCORE"}:
+    if score_basis not in {"RANK_GRADE", "CSAT_GRADE", "POINT_SCORE"}:
         issues.append(
             ImportIssue("INVALID_SCORE_BASIS", "지원하지 않는 점수 척도는 게시할 수 없습니다.")
         )
-    elif score_basis == "RANK_GRADE":
+    elif score_basis in {"RANK_GRADE", "CSAT_GRADE"}:
         if score_direction != "LOWER_IS_BETTER":
             issues.append(
                 ImportIssue(
@@ -491,12 +509,13 @@ def _canonical_row(
                 ImportIssue("SCORE_OUT_OF_RANGE", "석차등급 결과는 1 이상 9 이하여야 합니다.")
             )
     else:
-        issues.append(
-            ImportIssue(
-                "SCORE_BASIS_REVIEW_REQUIRED",
-                "배점 척도는 등급 결과와 직접 비교하지 않고 별도 검수가 필요합니다.",
+        if not explicit_score_basis or not explicit_score_direction:
+            issues.append(
+                ImportIssue(
+                    "SCORE_BASIS_REVIEW_REQUIRED",
+                    "배점 척도와 점수 방향이 공식 열에 모두 명시되어야 게시할 수 있습니다.",
+                )
             )
-        )
         if score_direction != "HIGHER_IS_BETTER":
             issues.append(
                 ImportIssue(
@@ -504,12 +523,17 @@ def _canonical_row(
                     "배점 척도의 점수 방향을 확인해야 합니다.",
                 )
             )
+        point_values = (best_score, average_score, cutoff_score)
+        if any(value is not None and value < Decimal("0") for value in point_values):
+            issues.append(ImportIssue("SCORE_OUT_OF_RANGE", "배점 결과는 0 이상이어야 합니다."))
 
     match = (
         catalog.resolve(
             institution_name=institution_name,
             campus_name=campus_name,
+            region=region,
             program_name=program_name,
+            day_night=day_night,
             admission_round_name=admission_round_name,
             admission_track_name=admission_track_name,
             target_academic_year=target_academic_year,
@@ -552,7 +576,7 @@ def _canonical_row(
         admission_round_name=admission_round_name,
         program_code=match.program_code if match else None,
         program_name=program_name,
-        day_night=day_night,
+        day_night=match.day_night if match is not None else day_night,
         admission_category=category,
         admission_track_code=match.admission_track_code if match else None,
         admission_track_name=admission_track_name,
@@ -597,7 +621,7 @@ def _error_row(
         admission_round_name="",
         program_code=None,
         program_name="",
-        day_night=None,
+        day_night="UNKNOWN",
         admission_category=None,
         admission_track_code=None,
         admission_track_name="",
@@ -680,6 +704,28 @@ def _normalize_header(value: object) -> str:
     return re.sub(r"[^0-9A-Za-z가-힣]", "", normalize("NFKC", str(value))).lower()
 
 
+def normalize_day_night(value: str | None) -> str:
+    """Normalize an explicit day/night source value without inferring one."""
+
+    if value is None or not value.strip():
+        return "UNKNOWN"
+    normalized = normalize("NFKC", value).strip().upper()
+    aliases = {
+        "DAY": "DAY",
+        "주간": "DAY",
+        "주": "DAY",
+        "NIGHT": "NIGHT",
+        "야간": "NIGHT",
+        "야": "NIGHT",
+        "UNKNOWN": "UNKNOWN",
+        "미상": "UNKNOWN",
+    }
+    try:
+        return aliases[normalized]
+    except KeyError as error:
+        raise ValueError("주·야 구분은 DAY, NIGHT, UNKNOWN 중 하나여야 합니다.") from error
+
+
 def _formula_like(value: str) -> bool:
     stripped = value.lstrip()
     return (
@@ -736,5 +782,6 @@ __all__ = [
     "CatalogResolver",
     "ImportIssue",
     "load_admission_result_column_aliases",
+    "normalize_day_night",
     "parse_admission_result_upload",
 ]

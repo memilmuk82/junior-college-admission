@@ -14,6 +14,10 @@ from sqlalchemy.orm import Session
 
 from app.models import SavedConsultation, StudentAcademicRecord, StudentCourseRecord, UserAccount
 from app.services.ai_payloads import validated_saved_payload_copy
+from app.services.public_student_profiles import (
+    VOCATIONAL_CURRENT,
+    resolve_public_student_profile,
+)
 from app.services.score_inputs import AcademicRecordInput, CourseRecordInput
 from app.services.structured_imports import NormalizedCourseRow, ScoreValue
 from app.services.temporary_uploads import TemporaryUploadStore
@@ -35,6 +39,7 @@ class AnonymousCalculationState:
     record_source: str
     is_vocational_training_semester: bool
     rows: tuple[NormalizedCourseRow, ...]
+    student_profile: str = VOCATIONAL_CURRENT
     consultation_snapshot: dict[str, Any] | None = None
 
 
@@ -124,6 +129,7 @@ class AnonymousCalculationStore:
         record_source: str,
         is_vocational_training_semester: bool,
         rows: tuple[NormalizedCourseRow, ...],
+        student_profile: str = VOCATIONAL_CURRENT,
     ) -> AnonymousCalculationState:
         if not owner_token or not rows:
             raise AnonymousCalculationError("익명 계산 상태가 유효하지 않습니다.")
@@ -135,6 +141,7 @@ class AnonymousCalculationStore:
             record_source=record_source,
             is_vocational_training_semester=is_vocational_training_semester,
             rows=rows,
+            student_profile=resolve_public_student_profile(student_profile),
         )
         self._write_state(calculation_id, state)
         self.purge_originals(calculation_id)
@@ -148,6 +155,7 @@ class AnonymousCalculationStore:
             "record_source": state.record_source,
             "is_vocational_training_semester": state.is_vocational_training_semester,
             "rows": [_row_payload(row) for row in state.rows],
+            "student_profile": state.student_profile,
             "consultation_snapshot": state.consultation_snapshot,
         }
         encoded = json.dumps(
@@ -181,6 +189,7 @@ class AnonymousCalculationStore:
             record_source=state.record_source,
             is_vocational_training_semester=state.is_vocational_training_semester,
             rows=state.rows,
+            student_profile=state.student_profile,
             consultation_snapshot=snapshot,
         )
         self._write_state(calculation_id, updated)
@@ -199,6 +208,9 @@ class AnonymousCalculationStore:
                 record_source=str(payload["record_source"]),
                 is_vocational_training_semester=bool(payload["is_vocational_training_semester"]),
                 rows=tuple(_row_from_payload(row) for row in payload["rows"]),
+                student_profile=resolve_public_student_profile(
+                    _text(payload.get("student_profile"))
+                ),
                 consultation_snapshot=(
                     dict(payload["consultation_snapshot"])
                     if isinstance(payload.get("consultation_snapshot"), dict)
@@ -406,6 +418,7 @@ def save_anonymous_consultation(
         owner_user_account_id=user.id if user.role == "STUDENT" else None,
         managed_by_user_account_id=user.id if user.role == "TEACHER" else None,
         academic_year=academic_year,
+        student_profile=state.student_profile,
         selected_targets=targets,
         result_snapshot=durable_payload,
         student_print_snapshot={"audience": "STUDENT", "result": durable_payload},

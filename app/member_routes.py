@@ -16,7 +16,14 @@ from flask import (
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth import admin_required, approval_required, csrf_token, require_csrf, session_user
+from app.auth import (
+    admin_required,
+    approval_required,
+    csrf_token,
+    is_demo_user,
+    require_csrf,
+    session_user,
+)
 from app.database import db
 from app.models import UserAccount
 from app.services.membership import (
@@ -45,17 +52,21 @@ def _private(content: str, status: int = 200) -> Response:
 def _render_members(*, error: str | None = None, status: int = 200) -> Response:
     current_user = session_user()
     assert current_user is not None
-    query = select(UserAccount)
-    if current_user.role == "ASSISTANT_ADMIN":
-        query = query.where(
-            UserAccount.role.in_(("MEMBER", "STUDENT", "TEACHER")),
-            UserAccount.status == "PENDING_APPROVAL",
+    demo_mode = is_demo_user(current_user)
+    if demo_mode:
+        rows: tuple[UserAccount, ...] = ()
+    else:
+        query = select(UserAccount)
+        if current_user.role == "ASSISTANT_ADMIN":
+            query = query.where(
+                UserAccount.role.in_(("MEMBER", "STUDENT", "TEACHER")),
+                UserAccount.status == "PENDING_APPROVAL",
+            )
+        rows = tuple(
+            cast(Session, db.session).scalars(
+                query.order_by(UserAccount.status, UserAccount.created_at, UserAccount.id)
+            )
         )
-    rows = tuple(
-        cast(Session, db.session).scalars(
-            query.order_by(UserAccount.status, UserAccount.created_at, UserAccount.id)
-        )
-    )
     return _private(
         render_template(
             "admin_members.html",
@@ -64,6 +75,7 @@ def _render_members(*, error: str | None = None, status: int = 200) -> Response:
             csrf_token=csrf_token(),
             error=error,
             message=request.args.get("message"),
+            demo_mode=demo_mode,
         ),
         status,
     )

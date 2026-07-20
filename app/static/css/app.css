@@ -1433,6 +1433,21 @@ body {
   font-weight: 700;
 }
 
+.account-access-nav-form {
+  display: inline-flex;
+  margin: 0;
+}
+
+.account-access-nav-form button {
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .auth-consent {
   margin-top: 14px;
   padding: 16px 18px;

@@ -1,5 +1,5 @@
 version: 2
-updated_at: "2026-07-19"
+updated_at: "2026-07-20"
 sources:
   - source_code: "PROCOLLEGE_REFERENCE_XLSX_2025_RESULTS"
     source_type: "USER_PROVIDED_PUBLIC_REFERENCE"
@@ -82,6 +82,42 @@ sources:
     lineage_role: "FIELD_LEVEL_SUPPLEMENT_AND_CROSS_VALIDATION"
     privacy_assertion: "공개 대학 입시결과 필드만 allowlist로 파생하며 학생 성적 필드는 포함하지 않음"
     git_policy: "ORIGINAL_EXCLUDED"
+  - source_code: "PROCOLLEGE_PUBLIC_RESULTS_2026"
+    source_type: "USER_PROVIDED_PUBLIC_REFERENCE"
+    source_status: "VERIFIED_SOURCE"
+    file_size: 603788
+    sha256: "f8577f1e58dbcaa2d2e1bc11ea4ff68641f5e506466ab8d61c49c2ce65c3e8cd"
+    result_academic_year: 2026
+    target_academic_year: 2027
+    original_public_row_count: 4970
+    institution_count: 42
+    catalog_scope:
+      public_row_count: 4970
+      region_campus_count: 44
+      program_day_night_count: 1048
+      policy: "점수 게시 가능 여부와 무관하게 제공된 대학·지역·학과·주야·전형을 선택 기준정보로 보존"
+      catalog_path: "data/seed/phase17_public_admission_catalog.csv"
+      catalog_sha256: "f45c3eedf7b41208bf4c25023dfdac657d6048bed5c0518c8eb874dd7e2a0d81"
+    published_seed_scope:
+      valid_published_row_count: 4094
+      score_basis_counts:
+        RANK_GRADE: 3562
+        CSAT_GRADE: 208
+        POINT_SCORE: 324
+      result_path: "data/seed/phase17_public_admission_results_2026.csv"
+      result_sha256: "6546aedfd3aac0f4e051713f14aaaa3919d0b17b5060ec909be53fa3ac62215f"
+      comparison_policy: "CSAT_GRADE·POINT_SCORE는 참고용으로만 표시하고 학생부 반영등급과 직접 비교하지 않음"
+    excluded_result_scope:
+      row_count: 876
+      reason_counts:
+        SCORE_BASIS_MISSING: 572
+        SCORE_OUT_OF_RANGE: 308
+      overlapping_reason_row_count: 4
+      policy: "0점·범위 이탈·척도 누락을 NULL이나 등급으로 변환하지 않고 게시 제외"
+    audit_path: "data/seed/phase17_public_admission_audit.json"
+    audit_sha256: "ddad414bee800ee3ed5ae650151febbb6a86260a645d24209ea503d74df3b42d"
+    privacy_assertion: "공개 대학 입시결과 집계 필드만 파생하며 학생 식별자·개인 성적은 포함하지 않음"
+    git_policy: "ORIGINAL_EXCLUDED_DERIVED_PUBLIC_SEED_ALLOWED"
   - source_code: "DONGYANG_MIRAE_2027_FINAL_GUIDE"
     source_type: "UNIVERSITY_OFFICIAL_PDF"
     source_status: "VERIFIED_SOURCE"
@@ -119,3 +155,4 @@ notes:
   - "공개 결과 seed는 기준 XLSX의 결과 시트에서 직접 파생한 4개 파일럿 대학 명시 매핑 482행만 포함한다."
   - "all-years CSV는 exact unique 업무키 482행의 경쟁률만 field-level 보강하며 각 행 source_reference에 CSV hash·행을 기록한다."
   - "나머지 공개 결과는 관리자 import에서 canonical 기준정보 미매핑 행을 REVIEW로 보존한다."
+  - "2026 공개 CSV는 4,970행 전체를 선택 catalog로 보존하고, 척도·범위가 유효한 4,094행만 2027 상담용 참고 결과로 게시한다."

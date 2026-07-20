@@ -5,11 +5,12 @@
     <header class="admin-header"><div><p class="admin-eyebrow">SOURCE CONTROL</p><a href="{{ url_for('source_admin.index') }}">출처 문서·검증 센터</a></div><nav><a href="{{ url_for('admin.catalog') }}">기준정보</a><a href="{{ url_for('admission_result_imports.index') }}">입시결과</a></nav></header>
     <main class="admin-shell">
       <div class="admin-heading"><div><h1>출처 문서와 검증 결정</h1><p>공개 원문을 메타데이터·버전과 함께 연결하고, 현재 값·포털 값·문서 값을 한 화면에서 확정합니다.</p></div></div>
+      {% if demo_mode %}<div class="public-notice" role="status"><strong>읽기 전용 공개 체험</strong> 실제 업로드 파일명·해시·원문 URL·검증 결정은 표시하지 않으며 등록과 확정 작업도 차단됩니다.</div>{% endif %}
       {% if error %}<div class="admin-alert" role="alert"><h2>처리할 수 없습니다</h2><p>{{ error }}</p></div>{% endif %}
 
       <section class="admin-section">
         <div class="admin-section__heading"><h2>출처 문서 등록</h2><span>PDF·PNG·JPG·CSV·XLSX</span></div>
-        <form method="post" action="{{ url_for('source_admin.upload') }}" enctype="multipart/form-data" class="source-document-form">
+        {% if not demo_mode %}<form method="post" action="{{ url_for('source_admin.upload') }}" enctype="multipart/form-data" class="source-document-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <label>학년도<input name="academic_year" type="number" min="2000" max="2100" value="2027" required></label>
           <label>문서 유형<select name="document_type" required><option value="ADMISSION_GUIDE">모집요강</option><option value="ADMISSION_RESULT">입시결과</option><option value="NOTICE">공지</option><option value="OTHER">기타 공식문서</option></select></label>
@@ -20,13 +21,13 @@
           <label class="source-document-form__wide">공식 원문 URL<input name="original_url" type="url" maxlength="1000" placeholder="https://..."></label>
           <label class="source-document-form__wide">출처 파일<input name="source_file" type="file" accept=".pdf,.png,.jpg,.jpeg,.csv,.xlsx" required></label>
           <button type="submit">문서 등록</button>
-        </form>
+        </form>{% endif %}
         <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>학년도·유형</th><th>파일</th><th>버전</th><th>상태</th><th>공식 원문</th></tr></thead><tbody>{% for document in documents %}<tr><td>{{ document.academic_year }} · {{ document.document_type }}</td><td>{{ document.original_filename or '기존 등록 자료' }}<small>{{ document.page_count }}쪽 · SHA-256 {{ document.file_hash[:12] }}…</small></td><td>{{ document.revision_label or '-' }}<small>{{ document.announced_at.date() if document.announced_at else '발표일 미입력' }}</small></td><td>{% if document.is_current %}현재 버전{% else %}이전 버전{% endif %}<small>{{ document.verification_status }}</small></td><td>{% if document.original_url %}<a href="{{ document.original_url }}" rel="noreferrer">원문 열기</a>{% else %}미등록{% endif %}</td></tr>{% else %}<tr><td colspan="5">등록된 출처 문서가 없습니다.</td></tr>{% endfor %}</tbody></table></div>
       </section>
 
       <section class="admin-section">
         <div class="admin-section__heading"><h2>검증 항목 추가</h2><span>현재값 ↔ 포털 ↔ 문서</span></div>
-        <form method="post" action="{{ url_for('source_admin.add_validation') }}" class="source-validation-form">
+        {% if not demo_mode %}<form method="post" action="{{ url_for('source_admin.add_validation') }}" class="source-validation-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <label>출처 문서<select name="source_document_id" required><option value="">선택하세요</option>{% for document in documents %}<option value="{{ document.id }}">{{ document.academic_year }} · {{ document.original_filename or document.document_type }}</option>{% endfor %}</select></label>
           <label>대상 유형<select name="entity_type"><option value="CATALOG">기준정보</option><option value="RULE">전형 규칙</option><option value="ADMISSION_RESULT">입시결과</option></select></label>
@@ -36,7 +37,7 @@
           <label>포털 값<textarea name="portal_value" maxlength="4000" rows="3"></textarea></label>
           <label>공식 문서 값<textarea name="document_value" maxlength="4000" rows="3"></textarea></label>
           <button type="submit">검증 대기 등록</button>
-        </form>
+        </form>{% else %}<p class="admin-empty">공개 체험에서는 실제 검증 항목을 추가하지 않습니다.</p>{% endif %}
       </section>
 
       <section class="admin-section">

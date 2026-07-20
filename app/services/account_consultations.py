@@ -9,6 +9,7 @@ from app.services.ai_payloads import (
     validated_payload_copy,
 )
 from app.services.consultations import BatchConsultationResult
+from app.services.public_student_profiles import resolve_public_student_profile
 from app.services.student_record_access import can_read_academic_record
 
 
@@ -22,6 +23,7 @@ def save_account_consultation(
     user: UserAccount,
     student_reference: str,
     result: BatchConsultationResult,
+    student_profile: str,
     counselor_note: str = "",
 ) -> SavedConsultation:
     if user.status != "ACTIVE" or user.role not in {"STUDENT", "TEACHER"}:
@@ -48,6 +50,7 @@ def save_account_consultation(
         raise AccountConsultationError("상담 메모는 2,000자 이하여야 합니다.")
 
     payload = validated_payload_copy(build_anonymous_consultation_payload(result))
+    resolved_student_profile = resolve_public_student_profile(student_profile)
     selected_targets = [
         {
             "program_id": program.program_id,
@@ -63,6 +66,7 @@ def save_account_consultation(
         owner_user_account_id=user.id if user.role == "STUDENT" else None,
         managed_by_user_account_id=user.id if user.role == "TEACHER" else None,
         academic_year=result.academic_year,
+        student_profile=resolved_student_profile,
         selected_targets=selected_targets,
         result_snapshot=payload,
         student_print_snapshot={"audience": "STUDENT", "result": payload},

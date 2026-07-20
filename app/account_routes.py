@@ -22,6 +22,10 @@ from app.services.classroom_links import (
     linked_classrooms_for_student,
 )
 from app.services.consultations import list_consultation_programs
+from app.services.public_student_profiles import (
+    GENERAL_GRADUATE,
+    VOCATIONAL_CURRENT,
+)
 from app.services.student_record_access import (
     StudentRecordAccessError,
     academic_record_courses,
@@ -230,6 +234,9 @@ def clone_consultation(consultation_id: str) -> Response:
         rows = saved_consultation_input_rows(
             cast(Session, db.session), user=user, consultation_id=consultation_id
         )
+        consultation = get_saved_consultation(
+            cast(Session, db.session), user=user, consultation_id=consultation_id
+        )
     except StudentRecordAccessError as error:
         return _render_records(error=str(error), status=404)
     return _private(
@@ -242,6 +249,13 @@ def clone_consultation(consultation_id: str) -> Response:
             errors=(),
             example=False,
             cloned_from=consultation_id,
+            selected_student_profile=consultation.student_profile,
+            vocational_current_profile=VOCATIONAL_CURRENT,
+            general_graduate_profile=GENERAL_GRADUATE,
+            selected_input_mode="manual",
+            selected_record_source="HOME_SCHOOL_RECORD",
+            selected_vocational_semester=False,
+            pasted_table="",
         )
     )
 

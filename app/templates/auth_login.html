@@ -3,25 +3,26 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ '학생' if account_type == 'student' else '교사' }} 로그인 · 2027 전문대 입시 상담</title>
+    <title>역할 통합 로그인 · 2027 전문대 입시 상담</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   </head>
   <body class="auth-page">
     <header class="auth-header">
       <a class="brand-link" href="{{ url_for('main.index') }}">2027 전문대 입시 상담</a>
-      <span>{{ '학생용' if account_type == 'student' else '교사용' }}</span>
+      <span>학생 · 교사 · 관리자</span>
     </header>
 
     <main class="auth-shell" id="main-content">
-      <p class="admin-eyebrow">{{ 'STUDENT' if account_type == 'student' else 'TEACHER' }} SIGN IN</p>
-      <h1>{{ '학생' if account_type == 'student' else '교사' }} 로그인</h1>
-      <p class="auth-lead">{{ '본인 성적과 이전 계산을 저장·조회하려면 학생 계정으로 로그인하세요.' if account_type == 'student' else '학생 상담자료와 메모를 관리하려면 승인된 교사 계정으로 로그인하세요.' }}</p>
+      <p class="admin-eyebrow">ROLE SIGN IN</p>
+      <h1>역할 통합 로그인</h1>
+      <p class="auth-lead">학생·교사·주 관리자·보조 관리자 계정이 같은 로그인 화면을 사용하며, 로그인 뒤 역할별 업무공간으로 이동합니다.</p>
 
-      {% if demo_login_name and demo_public_password %}
+      {% if demo_credentials and demo_public_password %}
         <section class="demo-credentials" aria-labelledby="demo-account-title">
-          <h2 id="demo-account-title">포트폴리오 공개 체험 계정</h2>
-          <p>실제 학생·대학 자료가 아닌 합성 상담 흐름과 A4 출력을 체험합니다.</p>
-          <dl><div><dt>아이디</dt><dd><code>{{ demo_login_name }}</code></dd></div><div><dt>비밀번호</dt><dd><code>{{ demo_public_password }}</code></dd></div></dl>
+          <h2 id="demo-account-title">포트폴리오 공개 체험 계정 · 역할별 로그인</h2>
+          <p>실제 회원 정보는 표시하거나 변경하지 않는 showcase 계정입니다. 학생·교사 BYOK 키는 현재 브라우저 로그인 세션에만 암호화 저장되고 로그아웃할 때 삭제됩니다.</p>
+          <dl class="demo-account-grid">{% for credential in demo_credentials %}<div><dt>{{ credential.label }}</dt><dd><code>{{ credential.login_name }}</code></dd></div>{% endfor %}</dl>
+          <dl><div><dt>공통 비밀번호</dt><dd><code>{{ demo_public_password }}</code></dd></div></dl>
         </section>
       {% endif %}
 
@@ -34,7 +35,6 @@
 
       <form class="auth-form" method="post" action="{{ url_for('auth.login') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <input type="hidden" name="account_type" value="{{ account_type }}">
         {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
 
         <label for="login-name">아이디 <span class="field-note">관리자 ID 또는 회원 아이디</span></label>
@@ -74,7 +74,8 @@
       {% endif %}
 
       <nav class="auth-links" aria-label="계정 도움말">
-        <a href="{{ url_for('auth.register', account_type=account_type) }}">{{ '학생' if account_type == 'student' else '교사' }} 회원가입</a>
+        <a href="{{ url_for('auth.register', account_type='student', next=next or none) }}">학생 회원가입</a>
+        <a href="{{ url_for('auth.register', account_type='teacher', next=next or none) }}">교사 회원가입</a>
         <a href="{{ url_for('main.index') }}">처음 화면으로</a>
       </nav>
     </main>

@@ -13,7 +13,8 @@
     </header>
 
     <main class="admin-shell">
-      <div class="admin-heading"><div><h1>학과·학급과 학생 성적</h1><p>학생 이름·학번 대신 교사가 정한 비식별 코드만 사용합니다. 학생 계정 연결은 학생이 일회용 코드를 직접 입력해야 완료됩니다.</p></div><a class="button-link" href="{{ url_for('admin.new_consultation') }}">새 상담자료 만들기</a></div>
+      <div class="admin-heading"><div><h1>학과·학급과 학생 성적</h1><p>학생 이름·학번 대신 교사가 정한 비식별 코드만 사용합니다. 학생 계정 연결은 학생이 일회용 코드를 직접 입력해야 완료됩니다.</p></div>{% if not demo_mode %}<a class="button-link" href="{{ url_for('admin.new_consultation') }}">새 상담자료 만들기</a>{% endif %}</div>
+      {% if demo_mode %}<div class="public-notice" role="status"><strong>읽기 전용 공개 체험</strong> 실제 학급·익명 학생·성적·연결 정보는 표시하지 않으며 추가와 연결 작업도 차단됩니다.</div>{% endif %}
 
       {% if error %}<div class="admin-alert" role="alert"><h2>처리할 수 없습니다</h2><p>{{ error }}</p></div>{% endif %}
       {% if message == 'created' %}<div class="members-notice" role="status">학급을 만들었습니다.</div>{% elif message == 'course_added' %}<div class="members-notice" role="status">학생 성적 과목을 추가했습니다.</div>{% elif message == 'disconnected' %}<div class="members-notice" role="status">학생 계정 연결을 해제했습니다.</div>{% endif %}
@@ -24,7 +25,7 @@
         </section>
       {% endif %}
 
-      <section class="admin-section" aria-labelledby="create-classroom-heading">
+      {% if not demo_mode %}<section class="admin-section" aria-labelledby="create-classroom-heading">
         <div class="admin-section__heading"><h2 id="create-classroom-heading">학과·학급 추가</h2><span>교사 계정별 분리</span></div>
         <form class="classroom-create-form" method="post" action="{{ url_for('teacher.create_classroom_route') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -33,7 +34,7 @@
           <label>학급<input name="class_name" maxlength="80" placeholder="예: 3-A" required></label>
           <button type="submit">학급 만들기</button>
         </form>
-      </section>
+      </section>{% endif %}
 
       <div class="classroom-layout">
         <section class="admin-section classroom-list" aria-labelledby="classroom-list-heading">

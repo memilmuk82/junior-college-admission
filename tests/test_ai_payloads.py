@@ -10,6 +10,7 @@ from app.services.admission_result_analysis import AdmissionResultAnalysisInput
 from app.services.admission_results import AdmissionResultKey, HistoricalRuleReference
 from app.services.ai_payloads import (
     build_anonymous_consultation_payload,
+    validated_payload_copy,
     validated_saved_payload_copy,
 )
 from app.services.ai_providers import (
@@ -20,6 +21,7 @@ from app.services.ai_providers import (
 from app.services.consultations import (
     AdmissionResultComparison,
     AdmissionResultComparisonStatus,
+    BatchConsultationResult,
     ConsultationResult,
     ConsultationStatus,
     ConsultationTarget,
@@ -162,7 +164,7 @@ def _result(
 def test_anonymous_payload_has_a_fixed_allowlist_and_preserves_zero() -> None:
     payload = build_anonymous_consultation_payload(_result())
 
-    assert payload.schema_version == 2
+    assert payload.schema_version == 3
     assert payload.data["results"][0]["target"] == {
         "academic_year": 2027,
         "institution_name": "합성전문대",
@@ -188,6 +190,18 @@ def test_saved_payload_serializer_rejects_missing_nested_keys_and_returns_json_c
     del malformed["results"][0]["target"]["program_name"]
     with pytest.raises(ValueError, match="target"):
         validated_saved_payload_copy(malformed)
+
+
+def test_saved_snapshot_allows_no_relevant_tracks_without_allowing_an_empty_ai_payload() -> None:
+    empty = build_anonymous_consultation_payload(
+        BatchConsultationResult(academic_year=2027, selected_programs=(), items=())
+    )
+
+    copied = validated_saved_payload_copy(empty.data)
+
+    assert copied["results"] == []
+    with pytest.raises(ValueError, match="비어 있지 않은 배열"):
+        validated_payload_copy(empty)
 
 
 def test_anonymous_payload_digest_distinguishes_zero_from_missing() -> None:
@@ -256,7 +270,7 @@ def test_provider_rejects_tampered_or_extra_payload_fields() -> None:
     data["student_id"] = "must-not-leave-server"
     canonical = json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     injected = type(payload)(
-        schema_version=2,
+        schema_version=3,
         data=data,
         canonical_json=canonical,
         digest=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),

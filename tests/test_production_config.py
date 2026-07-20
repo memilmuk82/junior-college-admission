@@ -398,10 +398,12 @@ def test_public_demo_account_is_optional_and_bootstrapped_before_server_start() 
     gate_sql = Path(rollback_gate).read_text(encoding="utf-8")
     assert "to_regclass('public.user_accounts')" in gate_sql
     assert "actor_ref = $1 AND status = $2" in gate_sql
-    assert "USING 'demo:public', 'ACTIVE'" in gate_sql
+    assert "OR actor_ref LIKE $3" in gate_sql
+    assert "USING 'demo:public', 'ACTIVE', 'demo:role:%'" in gate_sql
     assert rollback.index(rollback_gate) < rollback.index("PRODUCTION_BOOTSTRAP_ADMIN_ON_STARTUP")
 
     readme = Path("README.md").read_text(encoding="utf-8")
     assert "공개 상담은 로그인 없이 끝까지 이용" in readme
-    assert "성적 우선 또는 대학 검색 우선으로 시작" in readme
+    assert "직업위탁 재학생을 기본값" in readme
+    assert "3학년 2학기는 선택 입력" in readme
     assert "공개 계산의 필수 입구가 아닙니다" in readme

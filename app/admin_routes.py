@@ -13,7 +13,6 @@ from flask import (
     redirect,
     render_template,
     request,
-    session,
     url_for,
 )
 from sqlalchemy import func, select
@@ -23,7 +22,9 @@ from sqlalchemy.orm import Session
 from app.auth import (
     actor_ref,
     admin_required,
+    byok_actor_ref,
     csrf_token,
+    end_user_session,
     is_demo_user,
     member_required,
     non_demo_required,
@@ -95,6 +96,7 @@ from app.services.consultations import (
     run_batch_consultation,
     run_consultation,
 )
+from app.services.public_student_profiles import student_profile_from_facts
 from app.services.rule_admin import (
     RULE_CONTRACT_SCHEMA_VERSION,
     HumanApproval,
@@ -199,6 +201,13 @@ def _actor_ref() -> str:
     return actor_ref()
 
 
+def _byok_actor_ref() -> str:
+    user = session_user()
+    if is_demo_user(user) and (user is None or user.role not in {"STUDENT", "TEACHER"}):
+        abort(403)
+    return byok_actor_ref()
+
+
 def _upload_store() -> TemporaryUploadStore:
     return TemporaryUploadStore(str(current_app.config["TEMP_UPLOAD_ROOT"]))
 
@@ -235,7 +244,7 @@ def login() -> Any:
 @member_required
 def logout() -> Any:
     _require_csrf()
-    session.clear()
+    end_user_session()
     return redirect(url_for("admin.login"))
 
 
@@ -243,10 +252,14 @@ def logout() -> Any:
 @admin_required
 def rules() -> Response:
     database_session = cast(Session, db.session)
+    demo_mode = is_demo_user()
     grouped: list[tuple[str, str, tuple[Any, ...]]] = []
     for rule_type, label in RULE_TYPE_LABELS.items():
-        model = rule_model_for_type(rule_type)
-        rows = tuple(database_session.scalars(select(model).order_by(model.created_at.desc())))
+        if demo_mode:
+            rows: tuple[Any, ...] = ()
+        else:
+            model = rule_model_for_type(rule_type)
+            rows = tuple(database_session.scalars(select(model).order_by(model.created_at.desc())))
         grouped.append((rule_type, label, rows))
     return _private(
         render_template(
@@ -254,6 +267,7 @@ def rules() -> Response:
             grouped=tuple(grouped),
             csrf_token=_csrf_token(),
             actor_ref=_actor_ref(),
+            demo_mode=demo_mode,
         )
     )
 
@@ -436,12 +450,14 @@ def save_consultation_result() -> Response | Any:
         return _render_consultation_form(parsed.values, errors=(str(error),), status=400)
     user = session_user()
     assert user is not None
+    assert parsed.request is not None
     try:
         save_account_consultation(
             cast(Session, db.session),
             user=user,
             student_reference=parsed.values["student_id"],
             result=_batch_result(result),
+            student_profile=student_profile_from_facts(parsed.request.facts),
             counselor_note=parsed.consultation_note,
         )
         db.session.commit()
@@ -544,19 +560,19 @@ def generate_ai_consultation_draft() -> Response | Any:
 
 
 def _render_ai_settings(*, error: str | None = None, status: int = 200) -> Response:
-    actor_ref = _actor_ref()
+    owner_ref = _byok_actor_ref()
     database_session = cast(Session, db.session)
     credentials = tuple(
         database_session.scalars(
             select(AiProviderCredential)
-            .where(AiProviderCredential.actor_ref == actor_ref)
+            .where(AiProviderCredential.actor_ref == owner_ref)
             .order_by(AiProviderCredential.provider)
         )
     )
     drafts = tuple(
         database_session.scalars(
             select(AiConsultationDraft)
-            .where(AiConsultationDraft.actor_ref == actor_ref)
+            .where(AiConsultationDraft.actor_ref == owner_ref)
             .order_by(AiConsultationDraft.created_at.desc())
             .limit(20)
         )
@@ -569,7 +585,7 @@ def _render_ai_settings(*, error: str | None = None, status: int = 200) -> Respo
     return _private(
         render_template(
             "admin_ai_settings.html",
-            actor_ref=actor_ref,
+            actor_ref=_actor_ref(),
             csrf_token=_csrf_token(),
             credentials=credentials,
             drafts=drafts,
@@ -584,20 +600,18 @@ def _render_ai_settings(*, error: str | None = None, status: int = 200) -> Respo
 
 @bp.get("/ai/settings")
 @member_required
-@non_demo_required
 def ai_settings() -> Response:
     return _render_ai_settings()
 
 
 @bp.post("/ai/credentials")
 @member_required
-@non_demo_required
 def save_ai_credential() -> Response | Any:
     _require_csrf()
     try:
         save_provider_credential(
             cast(Session, db.session),
-            actor_ref=_actor_ref(),
+            actor_ref=_byok_actor_ref(),
             provider=request.form.get("provider", ""),
             api_key=request.form.get("api_key", ""),
             cipher=_byok_cipher(),
@@ -612,12 +626,11 @@ def save_ai_credential() -> Response | Any:
 
 @bp.post("/ai/credentials/<provider>/delete")
 @member_required
-@non_demo_required
 def delete_ai_credential(provider: str) -> Any:
     _require_csrf()
     try:
         delete_provider_credential(
-            cast(Session, db.session), actor_ref=_actor_ref(), provider=provider
+            cast(Session, db.session), actor_ref=_byok_actor_ref(), provider=provider
         )
         db.session.commit()
     except ByokCredentialError as error:

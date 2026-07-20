@@ -22,7 +22,8 @@ MEMBERSHIP_PARENT = CANONICAL_GATE_HEAD
 PHASE14_HEAD = "2f8a4c6e91d3"
 PHASE15_HEAD = "4a7c9e12d5f0"
 PHASE16_HEAD = "8e31b7c4d2a6"
-REPOSITORY_HEAD = PHASE16_HEAD
+PHASE17_HEAD = "b6f1e8a42c73"
+REPOSITORY_HEAD = PHASE17_HEAD
 RULE_TABLE_TYPES_WITH_GOLDEN_ARTIFACT = (
     ("admission_eligibility_rules", "ADMISSION_ELIGIBILITY_RULE"),
     ("grade_source_scope_rules", "GRADE_SOURCE_SCOPE_RULE"),
@@ -217,6 +218,16 @@ def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> No
     }
     assert institution_columns["code"]["nullable"] is True
     assert campus_columns["code"]["nullable"] is True
+    assert campus_columns["region"]["nullable"] is True
+    program_columns = {
+        column["name"]: column for column in inspect(postgres_engine).get_columns("programs")
+    }
+    assert program_columns["day_night"]["nullable"] is False
+    import_result_columns = {
+        column["name"]: column
+        for column in inspect(postgres_engine).get_columns("admission_result_import_rows")
+    }
+    assert import_result_columns["day_night"]["nullable"] is False
     institution_uniques = {
         constraint["name"]: tuple(constraint["column_names"])
         for constraint in inspect(postgres_engine).get_unique_constraints("institutions")
@@ -240,6 +251,26 @@ def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> No
     }
     assert "ck_institutions_code_valid" in institution_checks
     assert "ck_campuses_code_valid" in campus_checks
+    program_checks = {
+        constraint["name"]
+        for constraint in inspect(postgres_engine).get_check_constraints("programs")
+    }
+    assert "ck_programs_day_night_valid" in program_checks
+    import_result_checks = {
+        constraint["name"]
+        for constraint in inspect(postgres_engine).get_check_constraints(
+            "admission_result_import_rows"
+        )
+    }
+    assert "ck_admission_result_import_rows_published_score_scale_valid" in import_result_checks
+    result_import_indexes = {
+        index["name"]: tuple(index["column_names"])
+        for index in inspect(postgres_engine).get_indexes("admission_result_import_rows")
+    }
+    assert (
+        "day_night"
+        in result_import_indexes["uq_admission_result_import_rows_published_business_key"]
+    )
 
     artifact_columns = {
         column["name"]: column

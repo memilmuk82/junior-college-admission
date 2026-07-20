@@ -96,7 +96,7 @@ def test_wrong_master_key_and_tampered_ciphertext_are_rejected(session: Session)
 
 def test_teacher_must_explicitly_confirm_an_owned_draft(session: Session) -> None:
     payload_data = {
-        "schema_version": 2,
+        "schema_version": 3,
         "academic_year": 2027,
         "results": [
             {
@@ -117,6 +117,7 @@ def test_teacher_must_explicitly_confirm_an_owned_draft(session: Session) -> Non
                 },
                 "average_grade": None,
                 "admission_result": {"status": "NOT_AVAILABLE"},
+                "reference_results": [],
                 "evidence": [],
                 "warnings": [],
             }
@@ -126,7 +127,7 @@ def test_teacher_must_explicitly_confirm_an_owned_draft(session: Session) -> Non
         payload_data, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     )
     payload = AnonymousConsultationPayload(
-        schema_version=2,
+        schema_version=3,
         data=payload_data,
         canonical_json=canonical_json,
         digest=hashlib.sha256(canonical_json.encode("utf-8")).hexdigest(),

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from werkzeug.datastructures import MultiDict
+
 from app.services.consultation_forms import parse_consultation_form
 
 
@@ -56,3 +58,15 @@ def test_consultation_form_limits_note_without_persisting_student_identity_field
 
     assert parsed.request is None
     assert parsed.errors == ("상담 메모는 2,000자 이하여야 합니다.",)
+
+
+def test_consultation_form_limits_one_batch_to_five_programs() -> None:
+    form = MultiDict(_valid_form())
+    form["admission_track_id"] = ""
+    for index in range(6):
+        form.add("program_ids", f"synthetic-program-{index}")
+
+    parsed = parse_consultation_form(form)
+
+    assert parsed.request is None
+    assert parsed.errors == ("한 번에 비교할 대학·학과는 최대 5개입니다.",)

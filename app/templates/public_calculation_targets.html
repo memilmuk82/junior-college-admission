@@ -7,13 +7,13 @@
     <script src="{{ url_for('static', filename='js/consultation_programs.js') }}" defer></script>
   </head>
   <body class="product-page public-calculation-page">
-    <header class="product-header"><a class="product-brand" href="{{ url_for('main.index') }}">진학상담 2027 <span>공공 상담</span></a><nav><strong>2027학년도</strong><a href="{{ url_for('auth.login') }}">저장/로그인</a></nav></header>
+    <header class="product-header"><a class="product-brand" href="{{ url_for('main.index') }}">진학상담 2027 <span>공공 상담</span></a><nav><strong>2027학년도</strong>{% include '_account_access_nav.html' %}</nav></header>
     <main class="product-shell product-shell--with-dock">
       <nav class="public-steps" aria-label="상담 단계"><a href="{{ url_for('main.public_calculation_input') }}"><span>1</span> 성적 입력</a><a href="{{ url_for('main.review_input', review_session_id=calculation_id) }}"><span>2</span> 입력 확인</a><strong aria-current="step"><span>3</span> 대학·학과 선택</strong><span><b>4</b> 결과 비교</span></nav>
 
       <section class="product-intro product-intro--compact">
         <div><span class="eyebrow">STEP 3</span><h1>비교할 대학과 학과를 선택하세요</h1><p>지원자격을 전형별로 먼저 판정하고, 지원 가능한 경우에만 성적을 계산합니다.</p></div>
-        <div class="target-facts"><span>일반고 재학</span><span>2027년 졸업예정</span><span>직업위탁 참여</span></div>
+        <div class="target-facts">{% if values.student_profile == general_graduate_profile %}<span>일반고 졸업</span><span>위탁 해당 없음</span><span>3-2 선택 입력</span>{% else %}<span>일반고 재학</span><span>2027년 졸업예정</span><span>직업위탁 참여</span>{% endif %}</div>
       </section>
 
       {% if errors %}<div class="admin-alert" role="alert"><h2>선택 내용을 확인하세요</h2><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
@@ -21,34 +21,46 @@
 
       <form method="post" action="{{ url_for('main.public_calculation_results', calculation_id=calculation_id) }}" class="consultation-form" data-comparison-form>
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        {% for field in ['academic_year','home_school_type','final_school_type','graduation_status','vocational_training_status','ged'] %}<input type="hidden" name="{{ field }}" value="{{ values[field] }}">{% endfor %}
+        {% for field in ['student_profile','academic_year','home_school_type','final_school_type','graduation_status','vocational_training_status','ged'] %}<input type="hidden" name="{{ field }}" value="{{ values[field] }}">{% endfor %}
 
         <section class="workspace-panel fixed-facts-panel" aria-labelledby="fixed-facts-heading">
           <div class="panel-heading"><div><span class="eyebrow">상담 기준</span><h2 id="fixed-facts-heading">고정 대상자 정보</h2></div><span class="verified-mark">적용됨</span></div>
-          <p>이 상담은 <strong>2027년 졸업예정 일반고 직업위탁 재학생</strong>을 위한 전용 서비스입니다. 같은 정보를 반복해서 묻지 않습니다.</p>
+          <p>{% if values.student_profile == general_graduate_profile %}예외 대상인 <strong>일반고 졸업생</strong> 사실값을 서버에서 적용합니다.{% else %}기본 대상인 <strong>2027년 졸업예정 일반고 직업위탁 재학생</strong> 사실값을 서버에서 적용합니다.{% endif %} 브라우저의 숨김 값으로 대상 구분을 바꿀 수 없습니다.</p>
           <div class="optional-facts">
-            <label>공개 입시결과 기준연도<input name="admission_result_year" type="number" min="2000" max="2100" value="{{ values.admission_result_year }}"></label>
+            <label>공개 입시결과 기준연도
+              <select name="admission_result_year">
+                {% for result_year in published_result_years %}<option value="{{ result_year }}" {% if values.admission_result_year == result_year|string %}selected{% endif %}>{{ result_year }}학년도</option>{% endfor %}
+              </select>
+              <small>선택한 연도의 공개 결과를 참고자료로 표시합니다.</small>
+            </label>
             <details><summary>규칙에 필요한 경우만 추가 사실 입력</summary><div>
-              {% for field,label in [('vocational_training_semesters','위탁 학기 수'),('vocational_training_hours','위탁 이수 시간'),('vocational_training_months','위탁 이수 개월')] %}<label>{{ label }}<input name="{{ field }}" type="number" min="0" value="{{ values[field] }}"></label>{% endfor %}
+              {% if values.student_profile != general_graduate_profile %}{% for field,label in [('vocational_training_semesters','위탁 학기 수'),('vocational_training_hours','위탁 이수 시간'),('vocational_training_months','위탁 이수 개월')] %}<label>{{ label }}<input name="{{ field }}" type="number" min="0" value="{{ values[field] }}"></label>{% endfor %}{% endif %}
               <label>전·편입 여부<select name="transferred"><option value="">확인 필요</option><option value="TRUE" {% if values.transferred == 'TRUE' %}selected{% endif %}>예</option><option value="FALSE" {% if values.transferred == 'FALSE' %}selected{% endif %}>아니오</option></select></label>
             </div></details>
           </div>
         </section>
 
         <section class="workspace-panel program-selection-panel">
-          <div class="panel-heading"><div><span class="eyebrow">최대 5개 비교 권장</span><h2>대학·학과 검색</h2></div><strong data-selection-count>{{ selected_program_ids|length }}개 선택</strong></div>
+          <div class="panel-heading"><div><span class="eyebrow">한 번에 최대 5개 비교</span><h2>대학·학과 검색</h2></div><strong data-selection-count>{{ selected_program_ids|length }}개 선택</strong></div>
           <div class="program-picker" data-program-picker>
             <div class="program-picker__tools">
               <label>대학명·학과명 검색<input type="search" data-program-search placeholder="대학 또는 학과명을 입력하세요"></label>
               <label>대학 선택<select data-institution-filter><option value="">전체 대학</option>{% for institution_name, institution_programs in programs|groupby('institution_name') %}<option value="{{ institution_name }}">{{ institution_name }}</option>{% endfor %}</select></label>
-              <button type="button" class="button-link button-link--secondary" data-select-visible>보이는 항목 전체 선택</button>
+              <button type="button" class="button-link button-link--secondary" data-select-visible>보이는 항목 중 최대 5개 선택</button>
             </div>
+            <p class="form-help" data-selection-message aria-live="polite">모든 대학·학과를 검색할 수 있으며 한 번에 5개까지 비교할 수 있습니다.</p>
             <div class="selected-chips" data-selection-chips aria-live="polite"></div>
             <div class="program-groups">
               {% for institution_name, institution_programs in programs|groupby('institution_name') %}
                 <fieldset class="program-group" data-program-group data-institution="{{ institution_name }}" data-search-text="{{ institution_name }}">
                   <legend><label><input type="checkbox" data-institution-toggle> {{ institution_name }}</label></legend>
-                  {% for program in institution_programs %}<label class="program-option" data-program-option data-institution="{{ program.institution_name }}" data-search-text="{{ program.institution_name }} {{ program.campus_name }} {{ program.program_name }}"><input type="checkbox" name="program_ids" value="{{ program.program_id }}" data-label="{{ program.institution_name }} · {{ program.program_name }}" {% if program.program_id in selected_program_ids %}checked{% endif %}><span><strong>{{ program.program_name }}</strong><small>{{ program.campus_name }}</small></span></label>{% endfor %}
+                  {% for program in institution_programs %}
+                    {% set day_night_label = '주간' if program.day_night == 'DAY' else ('야간' if program.day_night == 'NIGHT' else '') %}
+                    <label class="program-option" data-program-option data-institution="{{ program.institution_name }}" data-search-text="{{ program.institution_name }} {{ program.campus_name }} {{ program.program_name }} {{ day_night_label }}">
+                      <input type="checkbox" name="program_ids" value="{{ program.program_id }}" data-label="{{ program.institution_name }} · {{ program.program_name }}{% if day_night_label %} · {{ day_night_label }}{% endif %}" {% if program.program_id in selected_program_ids %}checked{% endif %}>
+                      <span><strong>{{ program.program_name }}</strong><small>{{ program.campus_name }}{% if day_night_label %} · {{ day_night_label }}{% endif %}</small></span>
+                    </label>
+                  {% endfor %}
                 </fieldset>
               {% endfor %}
             </div>

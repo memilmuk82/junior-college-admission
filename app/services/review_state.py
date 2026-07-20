@@ -8,6 +8,10 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
 
+from app.services.public_student_profiles import (
+    VOCATIONAL_CURRENT,
+    resolve_public_student_profile,
+)
 from app.services.structured_imports import (
     NormalizationIssue,
     NormalizedCourseRow,
@@ -33,6 +37,7 @@ class ReviewState:
     record_source: str
     owner_actor_ref: str
     is_vocational_training_semester: bool = False
+    student_profile: str = VOCATIONAL_CURRENT
 
 
 def _json_value(value: object) -> object:
@@ -131,12 +136,17 @@ class ReviewStateStore:
         record_source: str,
         owner_actor_ref: str,
         is_vocational_training_semester: bool = False,
+        student_profile: str = VOCATIONAL_CURRENT,
     ) -> None:
         session_path = self.upload_store.session_path(review_session_id)
         if not session_path.is_dir():
             raise FileNotFoundError("검수 세션이 존재하지 않습니다.")
         if not owner_actor_ref or owner_actor_ref != owner_actor_ref.strip():
             raise ReviewStateError("검수 세션 소유자 식별자가 유효하지 않습니다.")
+        try:
+            resolved_student_profile = resolve_public_student_profile(student_profile)
+        except ValueError as error:
+            raise ReviewStateError(str(error)) from error
         payload = {
             "source_hash": preview.source_hash,
             "source_format": preview.source_format,
@@ -147,6 +157,7 @@ class ReviewStateStore:
             "record_source": record_source,
             "owner_actor_ref": owner_actor_ref,
             "is_vocational_training_semester": is_vocational_training_semester,
+            "student_profile": resolved_student_profile,
         }
         encoded = json.dumps(
             payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True
@@ -216,6 +227,9 @@ class ReviewStateStore:
                 owner_actor_ref=owner_actor_ref,
                 is_vocational_training_semester=bool(
                     payload.get("is_vocational_training_semester", False)
+                ),
+                student_profile=resolve_public_student_profile(
+                    _optional_string(payload.get("student_profile"))
                 ),
             )
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:

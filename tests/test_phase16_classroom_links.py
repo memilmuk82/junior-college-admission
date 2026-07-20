@@ -660,6 +660,10 @@ def test_teacher_saved_consultations_are_shared_only_while_student_is_linked(
         for student_reference in (classroom_reference, f"account:{student.id}"):
             form = _form(track_id, CSRF_TOKEN)
             form["student_id"] = student_reference
+            if student_reference == f"account:{student.id}":
+                form["graduation_status"] = "GRADUATED"
+                form["vocational_training_status"] = "NONE"
+                form["vocational_training_semesters"] = ""
             result_page = teacher_client.post("/admin/consultations/new", data=form)
             assert result_page.status_code == 200
             assert "학생 상담자료 저장·공유" in result_page.get_data(as_text=True)
@@ -685,8 +689,28 @@ def test_teacher_saved_consultations_are_shared_only_while_student_is_linked(
                 f"account:{student.id}",
             }
             assert {
+                row.student_reference: row.student_profile for row in teacher_consultations
+            } == {
+                classroom_reference: "VOCATIONAL_CURRENT",
+                f"account:{student.id}": "GENERAL_GRADUATE",
+            }
+            assert {
                 row.id for row in visible_saved_consultations(database_session, user=student)
             } == {row.id for row in teacher_consultations}
+
+        graduate_consultation = next(
+            row for row in teacher_consultations if row.student_reference == f"account:{student.id}"
+        )
+        graduate_clone = teacher_client.get(
+            f"/account/consultations/{graduate_consultation.id}/clone"
+        )
+        assert graduate_clone.status_code == 200
+        graduate_clone_body = graduate_clone.get_data(as_text=True)
+        assert 'value="GENERAL_GRADUATE" checked' in graduate_clone_body
+        assert (
+            'name="rows-40-record_source" type="hidden" '
+            'value="HOME_SCHOOL_RECORD"' in graduate_clone_body
+        )
 
         for consultation in teacher_consultations:
             assert f"/account/consultations/{consultation.id}/print/student" in student_body

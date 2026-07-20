@@ -3,7 +3,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from app.services.consultations import BatchConsultationRequest, ConsultationRequest
+from app.services.consultations import (
+    MAX_BATCH_PROGRAMS,
+    BatchConsultationRequest,
+    ConsultationRequest,
+)
 from app.services.eligibility import StudentFacts
 
 CONSULTATION_FORM_FIELDS = (
@@ -48,6 +52,8 @@ def parse_consultation_form(form: Mapping[str, str]) -> ConsultationFormResult:
         errors.append("내부 학생 식별자는 1~120자여야 합니다.")
     if any(len(program_id) > 120 for program_id in program_ids):
         errors.append("허용되지 않은 학과 ID가 포함되어 있습니다.")
+    if len(program_ids) > MAX_BATCH_PROGRAMS:
+        errors.append(f"한 번에 비교할 대학·학과는 최대 {MAX_BATCH_PROGRAMS}개입니다.")
     if not program_ids and not track_id:
         errors.append("희망 대학·학과를 하나 이상 선택해야 합니다.")
     if track_id and len(track_id) > 120:

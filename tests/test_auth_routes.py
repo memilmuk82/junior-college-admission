@@ -22,6 +22,8 @@ from app.models import (
     UserAccountAuditEvent,
 )
 from app.services.membership import (
+    DEMO_ROLE_ACTOR_REFS,
+    DEMO_ROLE_LOGIN_NAMES,
     MembershipError,
     approve_pending_member,
     authenticate_local_member,
@@ -45,7 +47,13 @@ def clean_phase11_accounts(postgres_engine: Engine) -> Iterator[None]:
     with postgres_engine.begin() as connection:
         account_filter = (
             "SELECT id FROM user_accounts WHERE email LIKE '%@phase11.invalid' "
-            "OR login_name LIKE 'phase11-%'"
+            "OR login_name LIKE 'phase11-%' OR actor_ref LIKE 'demo:role:%'"
+        )
+        connection.execute(
+            text("DELETE FROM ai_consultation_drafts WHERE actor_ref LIKE 'demo:role:%:session:%'")
+        )
+        connection.execute(
+            text("DELETE FROM ai_provider_credentials WHERE actor_ref LIKE 'demo:role:%:session:%'")
         )
         connection.execute(
             text(
@@ -61,7 +69,7 @@ def clean_phase11_accounts(postgres_engine: Engine) -> Iterator[None]:
         connection.execute(
             text(
                 "DELETE FROM user_accounts WHERE email LIKE '%@phase11.invalid' "
-                "OR login_name LIKE 'phase11-%'"
+                "OR login_name LIKE 'phase11-%' OR actor_ref LIKE 'demo:role:%'"
             )
         )
 
@@ -438,7 +446,7 @@ def test_bootstrap_demo_disabled_revokes_session_and_credentials_then_reactivate
     disabled = app.test_cli_runner().invoke(args=["auth", "bootstrap-demo"])
 
     assert disabled.exit_code == 0
-    assert "기존 공개 데모 계정 해제 완료" in disabled.output
+    assert "기존 공개 데모 계정 전체 해제 완료" in disabled.output
     invalidated = client.get("/admin/consultations/new")
     assert invalidated.status_code == 302
     assert "/auth/login" in invalidated.headers["Location"]
@@ -489,16 +497,21 @@ def test_bootstrap_demo_disabled_revokes_session_and_credentials_then_reactivate
         restored = database_session.get(UserAccount, demo.id)
         assert restored is not None
         assert restored.actor_ref == "demo:public"
-        assert (restored.role, restored.status) == ("MEMBER", "ACTIVE")
-        assert restored.login_name == "phase11-demo-teacher"
-        assert restored.password_hash is not None
-        assert check_password_hash(restored.password_hash, "phase11-rotated-demo-password")
-        assert restored.auth_version == demo.auth_version + 2
+        assert (restored.role, restored.status) == ("MEMBER", "SUSPENDED")
+        role_demos = tuple(
+            database_session.scalars(
+                select(UserAccount).where(
+                    UserAccount.actor_ref.in_(tuple(DEMO_ROLE_ACTOR_REFS.values()))
+                )
+            )
+        )
+        assert len(role_demos) == 4
+        assert all(account.status == "ACTIVE" for account in role_demos)
 
     assert (
         _login(
             app.test_client(),
-            "phase11-demo-teacher",
+            DEMO_ROLE_LOGIN_NAMES["STUDENT"],
             "phase11-rotated-demo-password",
         ).status_code
         == 302
@@ -560,15 +573,15 @@ def test_public_registration_reserves_configured_demo_login_and_fixed_email(
     bootstrap = app.test_cli_runner().invoke(args=["auth", "bootstrap-demo"])
     assert bootstrap.exit_code == 0
     with Session(postgres_engine) as database_session:
-        demo = database_session.scalar(
-            select(UserAccount).where(UserAccount.actor_ref == "demo:public")
+        demos = tuple(
+            database_session.scalars(
+                select(UserAccount).where(
+                    UserAccount.actor_ref.in_(tuple(DEMO_ROLE_ACTOR_REFS.values()))
+                )
+            )
         )
-        assert demo is not None
-        assert (demo.login_name, demo.role, demo.status) == (
-            "phase11-demo-teacher",
-            "MEMBER",
-            "ACTIVE",
-        )
+        assert len(demos) == 4
+        assert all(demo.status == "ACTIVE" for demo in demos)
 
 
 @pytest.mark.parametrize("conflict", ["login", "email"])
@@ -585,9 +598,7 @@ def test_bootstrap_demo_conflict_is_nonfatal_and_never_takes_over_an_existing_me
         )
         existing = register_local_member(
             database_session,
-            login_name=(
-                "phase11-demo-teacher" if conflict == "login" else "phase11-preexisting-demo-email"
-            ),
+            login_name="phase11-preexisting-demo-owner",
             email="preexisting-active@phase11.invalid",
             display_name="기존 활성 합성 회원",
             password="phase11-preexisting-password",
@@ -599,9 +610,12 @@ def test_bootstrap_demo_conflict_is_nonfatal_and_never_takes_over_an_existing_me
             target=existing,
             occurred_at=datetime(2026, 7, 15, 11, 11, tzinfo=UTC),
         )
-        if conflict == "email":
+        if conflict == "login":
             # 데모 식별자 예약 기능 배포 전에 생성된 계정을 합성한다.
-            existing.email = "public-demo@local.invalid"
+            existing.login_name = DEMO_ROLE_LOGIN_NAMES["STUDENT"]
+        else:
+            # 데모 식별자 예약 기능 배포 전에 생성된 계정을 합성한다.
+            existing.email = "public-demo-student@local.invalid"
         database_session.commit()
         existing_id = existing.id
         existing_login = existing.login_name
@@ -611,25 +625,27 @@ def test_bootstrap_demo_conflict_is_nonfatal_and_never_takes_over_an_existing_me
     result = app.test_cli_runner().invoke(args=["auth", "bootstrap-demo"])
 
     assert result.exit_code == 0
-    assert "데모만 비활성 상태를 유지합니다." in result.output
+    assert "데모 전체를 비활성 상태로 유지합니다." in result.output
     login_body = app.test_client().get("/auth/login").get_data(as_text=True)
     assert "포트폴리오 공개 체험 계정" not in login_body
     assert "phase11-demo-password" not in login_body
     with Session(postgres_engine) as database_session:
         preserved = database_session.get(UserAccount, existing_id)
         assert preserved is not None
-        assert preserved.actor_ref != "demo:public"
+        assert preserved.actor_ref not in DEMO_ROLE_ACTOR_REFS.values()
         assert (preserved.role, preserved.status) == ("MEMBER", "ACTIVE")
         assert (preserved.login_name, preserved.email) == (existing_login, existing_email)
-        assert (
-            database_session.scalar(
-                select(UserAccount).where(UserAccount.actor_ref == "demo:public")
+        assert not tuple(
+            database_session.scalars(
+                select(UserAccount).where(
+                    UserAccount.actor_ref.in_(tuple(DEMO_ROLE_ACTOR_REFS.values())),
+                    UserAccount.status == "ACTIVE",
+                )
             )
-            is None
         )
 
 
-def test_bootstrap_demo_rotation_conflict_revokes_old_demo_and_hides_credentials(
+def test_bootstrap_ignores_legacy_login_rotation_and_replaces_old_demo_with_fixed_roles(
     postgres_engine: Engine,
 ) -> None:
     demo = _bootstrap_demo(postgres_engine)
@@ -659,14 +675,16 @@ def test_bootstrap_demo_rotation_conflict_revokes_old_demo_and_hides_credentials
     result = app.test_cli_runner().invoke(args=["auth", "bootstrap-demo"])
 
     assert result.exit_code == 0
-    assert "데모만 비활성 상태를 유지합니다." in result.output
+    assert "공개 네 역할 데모 계정 부트스트랩 확인 완료" in result.output
     invalidated = client.get("/admin/consultations/new")
     assert invalidated.status_code == 302
     assert "/auth/login" in invalidated.headers["Location"]
     login_body = app.test_client().get("/auth/login").get_data(as_text=True)
-    assert "포트폴리오 공개 체험 계정" not in login_body
+    assert "포트폴리오 공개 체험 계정" in login_body
     assert "phase11-rotated-demo-login" not in login_body
-    assert "phase11-rotated-demo-password" not in login_body
+    assert "phase11-rotated-demo-password" in login_body
+    for fixed_login in DEMO_ROLE_LOGIN_NAMES.values():
+        assert fixed_login in login_body
     with Session(postgres_engine) as database_session:
         preserved = database_session.get(UserAccount, owner_id)
         revoked = database_session.get(UserAccount, demo.id)
@@ -677,6 +695,19 @@ def test_bootstrap_demo_rotation_conflict_revokes_old_demo_and_hides_credentials
         assert revoked.auth_version == demo.auth_version + 1
         assert revoked.password_hash is not None
         assert not check_password_hash(revoked.password_hash, "phase11-demo-password")
+        assert (
+            len(
+                tuple(
+                    database_session.scalars(
+                        select(UserAccount).where(
+                            UserAccount.actor_ref.in_(tuple(DEMO_ROLE_ACTOR_REFS.values())),
+                            UserAccount.status == "ACTIVE",
+                        )
+                    )
+                )
+            )
+            == 4
+        )
 
 
 def test_duplicate_registration_has_same_external_response_as_new_request(

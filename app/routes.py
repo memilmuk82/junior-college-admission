@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hmac
 import secrets
+from dataclasses import replace
 from typing import cast
 
 from flask import (
@@ -22,9 +23,11 @@ from werkzeug.datastructures import MultiDict
 
 from app.auth import actor_ref, is_demo_user, roles_required, session_user
 from app.database import db
+from app.services.admission_result_imports import list_published_result_years
 from app.services.ai_payloads import (
     build_anonymous_consultation_payload,
     validated_payload_copy,
+    validated_saved_payload_copy,
 )
 from app.services.anonymous_calculations import (
     AnonymousCalculationError,
@@ -45,6 +48,15 @@ from app.services.consultations import (
     ConsultationError,
     list_consultation_programs,
     run_batch_consultation,
+)
+from app.services.eligibility import EligibilityStatus
+from app.services.membership import DEMO_ACTOR_REF
+from app.services.public_student_profiles import (
+    GENERAL_GRADUATE,
+    VOCATIONAL_CURRENT,
+    public_record_classification,
+    public_student_fact_values,
+    resolve_public_student_profile,
 )
 from app.services.review_forms import parse_review_submission, preview_values
 from app.services.review_state import ReviewState, ReviewStateError, ReviewStateStore
@@ -72,14 +84,6 @@ SOURCE_FORMAT_LABELS = {
 
 ANONYMOUS_OWNER_SESSION_KEY = "anonymous_calculation_owner"
 ANONYMOUS_ID_SESSION_KEY = "anonymous_calculation_id"
-ALLOWED_RECORD_SOURCES = frozenset(
-    {
-        "HOME_SCHOOL_RECORD",
-        "VOCATIONAL_TRAINING_RECORD",
-        "GED_RECORD",
-        "MANUAL_INPUT",
-    }
-)
 EXAMPLE_COURSE_ROWS = (
     (2025, 1, 1, "국어", "국어", "4", "2"),
     (2025, 1, 1, "수학", "수학", "4", "3"),
@@ -92,9 +96,58 @@ EXAMPLE_COURSE_ROWS = (
     (2027, 3, 1, "국어", "화법과 작문", "3", "2"),
     (2027, 3, 1, "수학", "확률과 통계", "3", "2"),
 )
-REFERENCE_TERMS = ((2025, 1, 1), (2025, 1, 2), (2026, 2, 1), (2026, 2, 2), (2027, 3, 1))
+REFERENCE_TERMS = (
+    (2025, 1, 1),
+    (2025, 1, 2),
+    (2026, 2, 1),
+    (2026, 2, 2),
+    (2027, 3, 1),
+    (2027, 3, 2),
+)
 REFERENCE_ROWS_PER_TERM = 10
 MAX_MANUAL_ROWS = len(REFERENCE_TERMS) * REFERENCE_ROWS_PER_TERM
+
+
+def _classify_public_preview(
+    preview: StructuredImportPreview, *, student_profile: str
+) -> StructuredImportPreview:
+    resolved_profile = resolve_public_student_profile(student_profile)
+    rows = []
+    for row in preview.rows:
+        if row.grade not in {1, 2, 3}:
+            rows.append(row)
+            continue
+        record_source, is_vocational = public_record_classification(
+            resolved_profile, grade=row.grade
+        )
+        rows.append(
+            replace(
+                row,
+                record_source=record_source,
+                is_vocational_training_semester=is_vocational,
+            )
+        )
+    return replace(preview, rows=tuple(rows))
+
+
+def _classify_public_values(
+    values: tuple[dict[str, str], ...], *, student_profile: str
+) -> tuple[dict[str, str], ...]:
+    resolved = []
+    for source in values:
+        row = dict(source)
+        try:
+            grade = int(row.get("grade", ""))
+            record_source, is_vocational = public_record_classification(
+                student_profile, grade=grade
+            )
+        except ValueError:
+            pass
+        else:
+            row["record_source"] = record_source
+            row["is_vocational_training_semester"] = "TRUE" if is_vocational else "FALSE"
+        resolved.append(row)
+    return tuple(resolved)
 
 
 def _upload_store() -> TemporaryUploadStore:
@@ -180,14 +233,18 @@ def _render_review(
     blocking_errors: tuple[str, ...] = (),
     status_code: int = 200,
 ):
-    resolved_values = tuple(dict(row) for row in values)
-    for row in resolved_values:
-        if not row.get("record_source"):
-            row["record_source"] = state.record_source
-        if not row.get("is_vocational_training_semester"):
-            row["is_vocational_training_semester"] = (
-                "TRUE" if state.is_vocational_training_semester else "FALSE"
-            )
+    anonymous_mode = state.owner_actor_ref.startswith("anonymous:")
+    if anonymous_mode:
+        resolved_values = _classify_public_values(values, student_profile=state.student_profile)
+    else:
+        resolved_values = tuple(dict(row) for row in values)
+        for row in resolved_values:
+            if not row.get("record_source"):
+                row["record_source"] = state.record_source
+            if not row.get("is_vocational_training_semester"):
+                row["is_vocational_training_semester"] = (
+                    "TRUE" if state.is_vocational_training_semester else "FALSE"
+                )
     response = render_template(
         "review.html",
         review_session_id=review_session_id,
@@ -199,7 +256,8 @@ def _render_review(
         csrf_token=_csrf_token(),
         source_format_label=SOURCE_FORMAT_LABELS[state.preview.source_format],
         z_score_previews=build_z_score_previews(resolved_values),
-        anonymous_mode=state.owner_actor_ref.startswith("anonymous:"),
+        anonymous_mode=anonymous_mode,
+        student_profile=state.student_profile,
         requires_ocr_review=any(
             issue.code == "OCR_REVIEW_REQUIRED" for issue in state.preview.issues
         ),
@@ -218,7 +276,7 @@ def index() -> Response:
 def dashboard() -> Response:
     user = session_user()
     assert user is not None
-    if is_demo_user(user):
+    if user.actor_ref == DEMO_ACTOR_REF:
         return cast(Response, redirect(url_for("main.public_calculation_input", example="1")))
     return _private_response(
         render_template(
@@ -259,7 +317,10 @@ def _manual_preview(form: MultiDict[str, str]) -> StructuredImportPreview:
     return parse_structured_text("\n".join(lines), source_format="pasted_table")
 
 
-def _input_defaults(*, example: bool) -> tuple[dict[str, str], ...]:
+def _input_defaults(
+    *, example: bool, student_profile: str = VOCATIONAL_CURRENT
+) -> tuple[dict[str, str], ...]:
+    resolved_profile = resolve_public_student_profile(student_profile)
     defaults: list[dict[str, str]] = []
     example_rows_by_term = {
         (academic_year, grade, semester): tuple(
@@ -276,6 +337,7 @@ def _input_defaults(*, example: bool) -> tuple[dict[str, str], ...]:
             for _ in range(REFERENCE_ROWS_PER_TERM - len(examples))
         )
     for academic_year, grade, semester, group, subject, credits, rank_grade in source_rows:
+        record_source, is_vocational = public_record_classification(resolved_profile, grade=grade)
         defaults.append(
             {
                 "academic_year": str(academic_year),
@@ -290,14 +352,16 @@ def _input_defaults(*, example: bool) -> tuple[dict[str, str], ...]:
                 "achievement_level": "",
                 "enrollment_count": "",
                 "rank_grade": rank_grade,
-                "record_source": "HOME_SCHOOL_RECORD" if example else "",
-                "is_vocational_training_semester": "FALSE" if example else "",
+                "record_source": record_source,
+                "is_vocational_training_semester": "TRUE" if is_vocational else "FALSE",
             }
         )
     return tuple(defaults)
 
 
-def _submitted_manual_rows(form: MultiDict[str, str]) -> tuple[dict[str, str], ...]:
+def _submitted_manual_rows(
+    form: MultiDict[str, str], *, student_profile: str = VOCATIONAL_CURRENT
+) -> tuple[dict[str, str], ...]:
     fields = (
         "academic_year",
         "grade",
@@ -319,7 +383,8 @@ def _submitted_manual_rows(form: MultiDict[str, str]) -> tuple[dict[str, str], .
         values = {field: form.get(f"rows-{index}-{field}", "") for field in fields}
         if values["academic_year"] or values["subject_name"]:
             rows.append(values)
-    return tuple(rows) or _input_defaults(example=False)
+    source_rows = tuple(rows) or _input_defaults(example=False, student_profile=student_profile)
+    return _classify_public_values(source_rows, student_profile=student_profile)
 
 
 def _render_public_input(
@@ -332,12 +397,14 @@ def _render_public_input(
     record_source: str = "HOME_SCHOOL_RECORD",
     pasted_table: str = "",
     is_vocational_training_semester: bool = False,
+    student_profile: str = VOCATIONAL_CURRENT,
 ) -> Response:
+    resolved_profile = resolve_public_student_profile(student_profile)
     return _private_response(
         render_template(
             "public_calculation_input.html",
             csrf_token=_csrf_token(),
-            rows=rows or _input_defaults(example=example),
+            rows=rows or _input_defaults(example=example, student_profile=resolved_profile),
             current_user=session_user(),
             errors=errors,
             example=example,
@@ -345,6 +412,9 @@ def _render_public_input(
             selected_record_source=record_source,
             pasted_table=pasted_table,
             selected_vocational_semester=is_vocational_training_semester,
+            selected_student_profile=resolved_profile,
+            vocational_current_profile=VOCATIONAL_CURRENT,
+            general_graduate_profile=GENERAL_GRADUATE,
         ),
         status,
     )
@@ -353,7 +423,14 @@ def _render_public_input(
 @bp.get("/calculate")
 def public_calculation_input() -> Response:
     _upload_store().purge_expired_sessions()
-    return _render_public_input(example=request.args.get("example") == "1")
+    try:
+        student_profile = resolve_public_student_profile(request.args.get("student_profile"))
+    except ValueError as error:
+        return _render_public_input(errors=(str(error),), status=400)
+    return _render_public_input(
+        example=request.args.get("example") == "1",
+        student_profile=student_profile,
+    )
 
 
 @bp.post("/calculate/input")
@@ -361,19 +438,20 @@ def start_public_calculation() -> Response:
     _require_csrf()
     _upload_store().purge_expired_sessions()
     mode = request.form.get("input_mode", "manual")
-    record_source = request.form.get("record_source", "MANUAL_INPUT")
-    if record_source not in ALLOWED_RECORD_SOURCES:
+    try:
+        student_profile = resolve_public_student_profile(request.form.get("student_profile"))
+    except ValueError as error:
         return _render_public_input(
-            errors=("성적 출처를 확인하세요.",),
+            errors=(str(error),),
             status=400,
             rows=_submitted_manual_rows(request.form),
             input_mode=mode,
             record_source="HOME_SCHOOL_RECORD",
             pasted_table=request.form.get("pasted_table", ""),
-            is_vocational_training_semester=(
-                request.form.get("is_vocational_training_semester") == "TRUE"
-            ),
+            student_profile=VOCATIONAL_CURRENT,
         )
+    # 공개 입력은 사용자 선택 출처를 신뢰하지 않고 프로필·학년으로 행마다 분류한다.
+    record_source = "HOME_SCHOOL_RECORD"
     previous_id = session.get(ANONYMOUS_ID_SESSION_KEY)
     if isinstance(previous_id, str):
         _upload_store().purge_session(previous_id)
@@ -403,19 +481,18 @@ def start_public_calculation() -> Response:
                 raise ValueError("CSV와 XLSX 파일만 사용할 수 있습니다.")
         else:
             raise ValueError("입력 방식을 확인하세요.")
+        preview = _classify_public_preview(preview, student_profile=student_profile)
         if not preview.rows:
             raise ValueError("확인할 성적 행이 없습니다. 과목과 머리글을 확인하세요.")
     except (UnicodeError, ValueError, StructuredInputLimitError) as error:
         return _render_public_input(
             errors=(str(error),),
             status=400,
-            rows=_submitted_manual_rows(request.form),
+            rows=_submitted_manual_rows(request.form, student_profile=student_profile),
             input_mode=mode,
             record_source=record_source,
             pasted_table=request.form.get("pasted_table", ""),
-            is_vocational_training_semester=(
-                request.form.get("is_vocational_training_semester") == "TRUE"
-            ),
+            student_profile=student_profile,
         )
 
     calculation_id = _upload_store().create_session()
@@ -428,9 +505,8 @@ def start_public_calculation() -> Response:
             student_id="anonymous-one-time",
             record_source=record_source,
             owner_actor_ref=f"anonymous:{_anonymous_owner_token()}",
-            is_vocational_training_semester=(
-                request.form.get("is_vocational_training_semester") == "TRUE"
-            ),
+            is_vocational_training_semester=False,
+            student_profile=student_profile,
         )
     except Exception:
         _upload_store().purge_session(calculation_id)
@@ -439,9 +515,12 @@ def start_public_calculation() -> Response:
     return cast(Response, redirect(url_for("main.review_input", review_session_id=calculation_id)))
 
 
-def _public_target_values(form: MultiDict[str, str] | None = None) -> dict[str, str]:
+def _public_target_values(
+    form: MultiDict[str, str] | None = None, *, student_profile: str | None = None
+) -> dict[str, str]:
     source = form or MultiDict()
     fields = (
+        "student_profile",
         "academic_year",
         "admission_result_year",
         "home_school_type",
@@ -455,15 +534,17 @@ def _public_target_values(form: MultiDict[str, str] | None = None) -> dict[str, 
         "ged",
     )
     values = {field: source.get(field, "") for field in fields}
-    # 이 서비스의 2027 상담 대상은 일반고 직업위탁 재학생으로 고정되어 있다.
-    # 화면에서 다시 묻지 않더라도 서버 계약에서 같은 값을 강제한다.
+    resolved_profile = resolve_public_student_profile(
+        student_profile if student_profile is not None else values["student_profile"]
+    )
+    # 공개 상담의 대상 사실값은 브라우저 hidden 값이 아니라 승인된 프로필로 확정한다.
     values["academic_year"] = "2027"
-    values["admission_result_year"] = values["admission_result_year"] or "2025"
-    values["home_school_type"] = "GENERAL"
-    values["final_school_type"] = "GENERAL"
-    values["graduation_status"] = "EXPECTED"
-    values["vocational_training_status"] = "PARTICIPATING"
-    values["ged"] = "FALSE"
+    values["admission_result_year"] = values["admission_result_year"] or "2026"
+    values.update(public_student_fact_values(resolved_profile))
+    if resolved_profile == GENERAL_GRADUATE:
+        values["vocational_training_semesters"] = ""
+        values["vocational_training_hours"] = ""
+        values["vocational_training_months"] = ""
     return values
 
 
@@ -474,13 +555,18 @@ def _render_public_targets(
     errors: tuple[str, ...] = (),
     status: int = 200,
 ) -> Response:
-    _anonymous_state(calculation_id)
-    values = _public_target_values(form)
+    state = _anonymous_state(calculation_id)
+    values = _public_target_values(form, student_profile=state.student_profile)
     try:
         academic_year = int(values["academic_year"])
     except ValueError:
         academic_year = 2027
     programs = list_consultation_programs(cast(Session, db.session), academic_year)
+    published_result_years = list_published_result_years(cast(Session, db.session), academic_year)
+    # 2026 공개 자료는 Phase 17의 기준 자료다. 아직 seed 전인 개발 DB에서도
+    # 선택값과 서버 기본값이 달라지지 않도록 기준연도를 먼저 노출한다.
+    if 2026 not in published_result_years:
+        published_result_years = (2026, *published_result_years)
     selected = set(form.getlist("program_ids") if form is not None else ())
     return _private_response(
         render_template(
@@ -489,8 +575,12 @@ def _render_public_targets(
             csrf_token=_csrf_token(),
             values=values,
             programs=programs,
+            published_result_years=published_result_years,
             selected_program_ids=selected,
             errors=errors,
+            current_user=session_user(),
+            vocational_current_profile=VOCATIONAL_CURRENT,
+            general_graduate_profile=GENERAL_GRADUATE,
         ),
         status,
     )
@@ -507,21 +597,35 @@ def public_calculation_targets(calculation_id: str) -> Response:
 def _parse_public_consultation(
     calculation_id: str, form: MultiDict[str, str]
 ) -> tuple[ConsultationFormResult, BatchConsultationResult | None]:
+    state = _anonymous_state(calculation_id)
+    derived_values = _public_target_values(form, student_profile=state.student_profile)
     augmented = MultiDict(form)
+    for field, value in derived_values.items():
+        augmented[field] = value
     augmented["student_id"] = f"anonymous-{calculation_id}"
     augmented["admission_track_id"] = ""
     augmented["consultation_note"] = ""
     parsed = parse_consultation_form(augmented)
     if parsed.errors or not isinstance(parsed.request, BatchConsultationRequest):
         return parsed, None
-    state = _anonymous_state(calculation_id)
     records = to_academic_record_inputs(state)
     result = run_batch_consultation(
         cast(Session, db.session),
         parsed.request,
         records_loader=lambda: records,
     )
-    return parsed, result
+    return parsed, _filter_public_consultation_result(result)
+
+
+def _filter_public_consultation_result(
+    result: BatchConsultationResult,
+) -> BatchConsultationResult:
+    public_items = tuple(
+        item
+        for item in result.items
+        if item.result is None or item.result.eligibility.status is not EligibilityStatus.INELIGIBLE
+    )
+    return replace(result, items=public_items)
 
 
 @bp.post("/calculate/<calculation_id>/results")
@@ -537,7 +641,12 @@ def public_calculation_results(calculation_id: str) -> Response:
         return _render_public_targets(
             calculation_id, form=request.form, errors=parsed.errors, status=400
         )
-    result_snapshot = validated_payload_copy(build_anonymous_consultation_payload(result))
+    payload = build_anonymous_consultation_payload(result)
+    result_snapshot = (
+        validated_payload_copy(payload)
+        if result.items
+        else validated_saved_payload_copy(payload.data)
+    )
     AnonymousCalculationStore(_upload_store()).attach_consultation_snapshot(
         calculation_id,
         owner_token=_anonymous_owner_token(),
@@ -562,6 +671,7 @@ def public_calculation_results(calculation_id: str) -> Response:
             csrf_token=_csrf_token(),
             result=result,
             values=request.form,
+            current_user=session_user(),
         )
     )
 
@@ -658,6 +768,8 @@ def health():
 @bp.route("/input/review/<review_session_id>", methods=["GET", "POST"])
 def review_input(review_session_id: str):
     state = _review_state(review_session_id)
+    if is_demo_user() and not state.owner_actor_ref.startswith("anonymous:"):
+        abort(403)
     if request.method == "GET":
         selected_indices = (
             tuple(range(len(state.preview.rows)))
@@ -672,7 +784,33 @@ def review_input(review_session_id: str):
         )
 
     _require_csrf()
-    submission = parse_review_submission(request.form, state.preview)
+    anonymous_mode = state.owner_actor_ref.startswith("anonymous:")
+    review_form = request.form.copy()
+    if anonymous_mode:
+        # 공개 화면에서 숨긴 출처 값은 파서에 넘기기 전에도 신뢰하지 않는다.
+        for index in range(len(state.preview.rows)):
+            try:
+                grade = int(review_form.get(f"rows-{index}-grade", ""))
+                record_source, is_vocational = public_record_classification(
+                    state.student_profile, grade=grade
+                )
+            except ValueError:
+                record_source, is_vocational = "HOME_SCHOOL_RECORD", False
+            review_form[f"rows-{index}-record_source"] = record_source
+            review_form[f"rows-{index}-is_vocational_training_semester"] = (
+                "TRUE" if is_vocational else "FALSE"
+            )
+    submission = parse_review_submission(review_form, state.preview)
+    if anonymous_mode:
+        submission = replace(
+            submission,
+            preview=_classify_public_preview(
+                submission.preview, student_profile=state.student_profile
+            ),
+            values=_classify_public_values(
+                submission.values, student_profile=state.student_profile
+            ),
+        )
     if not submission.is_valid:
         return _render_review(
             review_session_id,
@@ -692,6 +830,7 @@ def review_input(review_session_id: str):
             owner_token=_anonymous_owner_token(),
             record_source=state.record_source,
             is_vocational_training_semester=state.is_vocational_training_semester,
+            student_profile=state.student_profile,
             rows=selected_rows,
         )
         return redirect(
@@ -729,6 +868,8 @@ def review_input(review_session_id: str):
 def discard_review(review_session_id: str):
     _require_csrf()
     state = _review_state(review_session_id)
+    if is_demo_user() and not state.owner_actor_ref.startswith("anonymous:"):
+        abort(403)
     _upload_store().purge_session(review_session_id)
     if state.owner_actor_ref.startswith("anonymous:"):
         session.pop(ANONYMOUS_ID_SESSION_KEY, None)

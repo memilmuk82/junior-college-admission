@@ -85,28 +85,48 @@
                 ('standard_deviation', '표준편차', 'text'),
                 ('achievement_level', '성취도', 'text'),
                 ('enrollment_count', '수강자수', 'number'),
-                ('rank_grade', '석차등급', 'text'),
-                ('record_source', '성적 출처', 'select_source'),
-                ('is_vocational_training_semester', '위탁학기', 'select_boolean')
+                ('rank_grade', '석차등급', 'text')
               ] %}
               {% for field, label, input_type in fields %}
                 {% set field_key = 'rows-' ~ index ~ '-' ~ field %}
                 <div class="review-field {% if field_errors.get(field_key) %}review-field--error{% endif %}">
                   <label class="field-label" for="{{ field_key }}">{{ label }}</label>
-                  {% if input_type == 'select_source' %}<select id="{{ field_key }}" name="{{ field_key }}">{% for code, label in [('HOME_SCHOOL_RECORD','학교생활기록부'),('VOCATIONAL_TRAINING_RECORD','직업위탁 성적'),('GED_RECORD','검정고시'),('MANUAL_INPUT','직접 입력')] %}<option value="{{ code }}" {% if values[index][field] == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
-                  {% elif input_type == 'select_boolean' %}<select id="{{ field_key }}" name="{{ field_key }}"><option value="FALSE" {% if values[index][field] == 'FALSE' %}selected{% endif %}>아니오</option><option value="TRUE" {% if values[index][field] == 'TRUE' %}selected{% endif %}>예</option></select>
-                  {% else %}<input
+                  <input
                     id="{{ field_key }}"
                     name="{{ field_key }}"
                     type="{{ input_type }}"
                     value="{{ values[index][field] }}"
                     {% if field_errors.get(field_key) %}aria-invalid="true" aria-describedby="{{ field_key }}-error"{% endif %}
-                  >{% endif %}
+                  >
                   {% if field_errors.get(field_key) %}
                     <p class="field-error" id="{{ field_key }}-error">{{ field_errors[field_key] }}</p>
                   {% endif %}
                 </div>
               {% endfor %}
+
+              {% if anonymous_mode %}
+                <div class="review-field review-field--fixed">
+                  <span class="field-label">성적 출처</span>
+                  <input id="rows-{{ index }}-record_source" name="rows-{{ index }}-record_source" type="hidden" value="{{ values[index].record_source }}">
+                  <strong>{{ '직업위탁 성적' if values[index].record_source == 'VOCATIONAL_TRAINING_RECORD' else '원적교 학교생활기록부' }}</strong>
+                </div>
+                <div class="review-field review-field--fixed">
+                  <span class="field-label">위탁학기</span>
+                  <input id="rows-{{ index }}-is_vocational_training_semester" name="rows-{{ index }}-is_vocational_training_semester" type="hidden" value="{{ values[index].is_vocational_training_semester }}">
+                  <strong>{{ '직업위탁 성적 · 위탁 학기' if values[index].is_vocational_training_semester == 'TRUE' else '원적교 학교생활기록부 · 일반 학기' }}</strong>
+                </div>
+              {% else %}
+                {% set source_key = 'rows-' ~ index ~ '-record_source' %}
+                <div class="review-field {% if field_errors.get(source_key) %}review-field--error{% endif %}">
+                  <label class="field-label" for="{{ source_key }}">성적 출처</label>
+                  <select id="{{ source_key }}" name="{{ source_key }}">{% for code, label in [('HOME_SCHOOL_RECORD','학교생활기록부'),('VOCATIONAL_TRAINING_RECORD','직업위탁 성적'),('GED_RECORD','검정고시'),('MANUAL_INPUT','직접 입력')] %}<option value="{{ code }}" {% if values[index].record_source == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+                </div>
+                {% set vocational_key = 'rows-' ~ index ~ '-is_vocational_training_semester' %}
+                <div class="review-field {% if field_errors.get(vocational_key) %}review-field--error{% endif %}">
+                  <label class="field-label" for="{{ vocational_key }}">위탁학기</label>
+                  <select id="{{ vocational_key }}" name="{{ vocational_key }}"><option value="FALSE" {% if values[index].is_vocational_training_semester == 'FALSE' %}selected{% endif %}>아니오</option><option value="TRUE" {% if values[index].is_vocational_training_semester == 'TRUE' %}selected{% endif %}>예</option></select>
+                </div>
+              {% endif %}
 
               <div class="z-score-preview z-score-preview--{{ z_score_previews[index].status|lower }}">
                 <span class="field-label">Z점수 검수</span>

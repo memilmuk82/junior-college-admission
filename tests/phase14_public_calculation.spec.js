@@ -21,8 +21,11 @@ async function startWithPastedGrades(page) {
   await expect(page.getByText('합성 예시 성적을 불러왔습니다')).toBeVisible();
   await expect(page.locator('[data-preview-program]')).toHaveCount(0);
   await expect(page.getByText(/성적 확인 다음 단계에서 대학·학과를 선택합니다/)).toBeVisible();
+  await expect(page.getByRole('radio', { name: '위탁학생 (기본)' })).toBeChecked();
+  await expect(page.locator('[data-score-row]')).toHaveCount(60);
+  await expect(page.getByText(/선택 입력 · 비워도 계산 가능/)).toBeVisible();
+  await expect(page.locator('#record-source')).toHaveCount(0);
   await page.getByRole('radio', { name: '표 붙여넣기' }).check();
-  await page.locator('#record-source').selectOption('HOME_SCHOOL_RECORD');
   await page.locator('#pasted-table').fill(pastedGrades);
   await page.getByRole('button', { name: '입력값 확인하고 대학 선택으로' }).click();
   await expect(page.getByRole('heading', { name: '학생 성적 입력 검수' })).toBeVisible();
@@ -34,6 +37,9 @@ async function startWithEditedExample(page) {
   await expect(page.getByRole('heading', { name: /학생부 성적을 학기별로 입력/ })).toBeVisible();
   await expect(page.getByText('합성 예시 성적을 불러왔습니다')).toBeVisible();
   await expect(page.locator('[data-preview-program]')).toHaveCount(0);
+  await expect(page.getByRole('radio', { name: '위탁학생 (기본)' })).toBeChecked();
+  await expect(page.locator('[data-score-row]')).toHaveCount(60);
+  await expect(page.locator('select[name$="record_source"]')).toHaveCount(0);
   await page.locator('#rows-0-rank_grade').fill('3');
   await page.getByRole('button', { name: '입력값 확인하고 대학 선택으로' }).click();
   await expect(page.getByRole('heading', { name: '학생 성적 입력 검수' })).toBeVisible();
@@ -44,13 +50,18 @@ async function startWithEditedExample(page) {
 async function chooseDongyangHotelAndCalculate(page) {
   await page.getByRole('button', { name: '확인 완료하고 대학 선택' }).click();
   await expect(page.getByRole('heading', { name: '비교할 대학과 학과를 선택하세요' })).toBeVisible();
-  const hotel = page.locator('[data-program-option]', { hasText: '호텔관광학과' }).first();
+  await page.locator('select[name="admission_result_year"]').selectOption('2025');
+  await page.locator('[data-institution-filter]').selectOption({ label: '동양미래대학교' });
+  const hotel = page.locator(
+    '[data-program-option][data-institution="동양미래대학교"]',
+    { hasText: '호텔관광학과' },
+  ).first();
   await expect(hotel).toBeVisible();
   await hotel.locator('input[name="program_ids"]').check();
   await page.getByRole('button', { name: '지원자격 확인 후 비교하기' }).click();
   await expect(page.getByRole('heading', { name: '지원자격과 대학별 반영 결과' })).toBeVisible();
   await expect(page.getByText('호텔관광학과').first()).toBeVisible();
-  await expect(page.getByText('공식 근거').first()).toBeVisible();
+  await expect(page.getByText('판정 이유·반영 과목·공식 근거 보기').first()).toBeVisible();
   await expect(page.getByText(/평균 5\.7000/).first()).toBeVisible();
   await expect(page.getByText(/최저 6\.3000/).first()).toBeVisible();
   await expect(page.getByText(/경쟁률 8\.4000/).first()).toBeVisible();
@@ -84,7 +95,7 @@ test('anonymous actual-data calculation changes result and prints both A4 views'
   await page.goto(`${publicUrl}/input/review/${calculationId}`);
   await page.locator('#rows-6-rank_grade').fill('9');
   await chooseDongyangHotelAndCalculate(page);
-  await expect(page.getByText('2.00등급').first()).toBeVisible();
+  await expect(page.getByText('2.21등급').first()).toBeVisible();
   const completeCsrf = await page.locator('form[action$="/complete"] input[name="csrf_token"]').inputValue();
 
   await page.getByRole('button', { name: '교사용 A4 열기' }).click();

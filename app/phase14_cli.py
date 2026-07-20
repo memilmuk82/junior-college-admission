@@ -9,7 +9,7 @@ from flask import Flask
 from sqlalchemy.orm import Session
 
 from app.database import db
-from app.services.phase14_public_seed import load_phase14_public_seed
+from app.services.phase14_public_seed import load_phase14_public_seed, load_phase17_public_seed
 from app.services.temporary_uploads import TemporaryUploadStore
 
 
@@ -39,6 +39,27 @@ def register_phase14_cli(app: Flask) -> None:
             db.session.rollback()
             raise
         click.echo(f"phase14 public dataset ready: {dataset_id}")
+
+    @app.cli.command("seed-phase17-public-results")
+    @click.option("--actor-ref", required=True, help="게시 작업을 수행한 관리자 actor ref")
+    def seed_phase17_public_results(actor_ref: str) -> None:
+        """42개 대학 전체 catalog와 검증된 2026 참고 결과를 게시한다."""
+
+        try:
+            seeded = load_phase17_public_seed(
+                cast(Session, db.session),
+                repository_root=Path(app.root_path).parent,
+                actor_ref=actor_ref,
+                occurred_at=datetime.now(UTC),
+            )
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
+        click.echo(
+            "phase17 public datasets ready: "
+            f"2025={seeded.result_2025_dataset_id} 2026={seeded.result_2026_dataset_id}"
+        )
 
 
 __all__ = ["register_phase14_cli"]

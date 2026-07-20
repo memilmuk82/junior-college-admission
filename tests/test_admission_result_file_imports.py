@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
+from collections import Counter
 from io import BytesIO
 from pathlib import Path
 
@@ -14,6 +16,21 @@ from app.services.admission_result_file_imports import (
     parse_admission_result_upload,
 )
 from scripts.build_phase14_public_admission_seed import _supplemental_index
+from scripts.build_phase17_public_admission_seed import (
+    AUDIT_PATH as PHASE17_AUDIT_PATH,
+)
+from scripts.build_phase17_public_admission_seed import (
+    CATALOG_PATH as PHASE17_CATALOG_PATH,
+)
+from scripts.build_phase17_public_admission_seed import (
+    RESULT_PATH as PHASE17_RESULT_PATH,
+)
+from scripts.build_phase17_public_admission_seed import (
+    SOURCE_PATH as PHASE17_SOURCE_PATH,
+)
+from scripts.build_phase17_public_admission_seed import (
+    build_phase17_seed_rows,
+)
 
 
 class SyntheticCatalog:
@@ -22,7 +39,9 @@ class SyntheticCatalog:
         *,
         institution_name: str,
         campus_name: str | None,
+        region: str | None,
         program_name: str,
+        day_night: str,
         admission_round_name: str,
         admission_track_name: str,
         target_academic_year: int,
@@ -36,6 +55,7 @@ class SyntheticCatalog:
             admission_round_code="EARLY-1",
             admission_track_code="GENERAL",
             campus_name=campus_name or "본교",
+            day_night=day_night,
         )
 
 
@@ -385,7 +405,7 @@ def test_rank_grade_direction_and_range_are_fail_closed() -> None:
     assert {issue.code for issue in range_preview.rows[0].issues} == {"SCORE_OUT_OF_RANGE"}
 
 
-def test_point_score_stays_in_review_instead_of_grade_comparison() -> None:
+def test_explicit_point_score_is_publishable_but_inferred_direction_stays_in_review() -> None:
     source = (
         "대학명,모집시기,전공명,전형명,합격자평균,점수기준,점수방향\n"
         "합성전문대학,수시1차,합성학과,일반고,800,POINT_SCORE,HIGHER_IS_BETTER\n"
@@ -398,5 +418,93 @@ def test_point_score_stays_in_review_instead_of_grade_comparison() -> None:
         catalog=SyntheticCatalog(),
     )
 
-    assert preview.review_row_count == 1
-    assert {issue.code for issue in preview.rows[0].issues} == {"SCORE_BASIS_REVIEW_REQUIRED"}
+    assert preview.valid_row_count == 1
+    assert preview.rows[0].score_basis == "POINT_SCORE"
+    assert preview.rows[0].score_direction == "HIGHER_IS_BETTER"
+
+    inferred = source.replace(b",POINT_SCORE,HIGHER_IS_BETTER", b",POINT_SCORE,")
+    inferred_preview = parse_admission_result_upload(
+        inferred,
+        filename="results.csv",
+        result_academic_year=2027,
+        target_academic_year=2028,
+        catalog=SyntheticCatalog(),
+    )
+
+    assert inferred_preview.review_row_count == 1
+    assert {issue.code for issue in inferred_preview.rows[0].issues} == {
+        "SCORE_BASIS_REVIEW_REQUIRED"
+    }
+
+
+def test_day_night_is_part_of_the_canonical_business_key() -> None:
+    source = (
+        "지역,대학명,모집시기,전공명,주/야,전형명,합격자평균\n"
+        "서울,합성전문대학,수시1차,합성학과,주간,일반고,4.3\n"
+        "서울,합성전문대학,수시1차,합성학과,야간,일반고,5.1\n"
+    ).encode()
+    preview = parse_admission_result_upload(
+        source,
+        filename="results.csv",
+        result_academic_year=2026,
+        target_academic_year=2027,
+        catalog=SyntheticCatalog(),
+    )
+
+    assert preview.valid_row_count == 2
+    assert {row.day_night for row in preview.rows} == {"DAY", "NIGHT"}
+    assert all(
+        "DUPLICATE_BUSINESS_KEY" not in {issue.code for issue in row.issues} for row in preview.rows
+    )
+
+
+def test_phase17_reference_and_derived_public_seed_contract() -> None:
+    with PHASE17_CATALOG_PATH.open(encoding="utf-8", newline="") as handle:
+        catalog_rows = tuple(csv.DictReader(handle))
+    with PHASE17_RESULT_PATH.open(encoding="utf-8", newline="") as handle:
+        result_rows = tuple(csv.DictReader(handle))
+    audit = json.loads(PHASE17_AUDIT_PATH.read_text(encoding="utf-8"))
+
+    assert len(catalog_rows) == 4970
+    assert len(result_rows) == 4094
+    assert len({row["institution_name"] for row in catalog_rows}) == 42
+    assert Counter(row["score_basis"] for row in result_rows) == {
+        "RANK_GRADE": 3562,
+        "CSAT_GRADE": 208,
+        "POINT_SCORE": 324,
+    }
+    assert audit["excluded_results"]["row_count"] == 876
+    assert audit["excluded_results"]["reason_counts"] == {
+        "SCORE_BASIS_MISSING": 572,
+        "SCORE_OUT_OF_RANGE": 308,
+    }
+    assert hashlib.sha256(PHASE17_CATALOG_PATH.read_bytes()).hexdigest() == (
+        "f45c3eedf7b41208bf4c25023dfdac657d6048bed5c0518c8eb874dd7e2a0d81"
+    )
+    assert hashlib.sha256(PHASE17_RESULT_PATH.read_bytes()).hexdigest() == (
+        "6546aedfd3aac0f4e051713f14aaaa3919d0b17b5060ec909be53fa3ac62215f"
+    )
+    assert hashlib.sha256(PHASE17_AUDIT_PATH.read_bytes()).hexdigest() == (
+        "ddad414bee800ee3ed5ae650151febbb6a86260a645d24209ea503d74df3b42d"
+    )
+    assert all(
+        "학생" not in key for key in result_rows[0] if key not in {"average_score", "cutoff_score"}
+    )
+
+    if PHASE17_SOURCE_PATH.is_file():
+        built = build_phase17_seed_rows()
+        assert (
+            built.source_row_count,
+            built.source_institution_count,
+            built.catalog_row_count,
+            built.catalog_program_count,
+            built.result_row_count,
+            built.rank_grade_row_count,
+            built.csat_grade_row_count,
+            built.point_score_row_count,
+            built.excluded_row_count,
+        ) == (4970, 42, 4970, 1048, 4094, 3562, 208, 324, 876)
+        assert built.exclusion_reason_counts == {
+            "SCORE_BASIS_MISSING": 572,
+            "SCORE_OUT_OF_RANGE": 308,
+        }

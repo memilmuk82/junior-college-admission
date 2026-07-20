@@ -2,16 +2,22 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from werkzeug.datastructures import MultiDict
 
 from app.services.ai_payloads import build_anonymous_consultation_payload, validated_payload_copy
 from app.services.consultation_forms import parse_consultation_form
-from app.services.consultations import BatchConsultationRequest, ConsultationItemStatus
+from app.services.consultations import (
+    BatchConsultationRequest,
+    ConsultationError,
+    ConsultationItemStatus,
+)
 from app.services.demo_consultations import (
     DEMO_CONSULTATION_DEFAULTS,
     DEMO_DEFAULT_PROGRAM_IDS,
     run_demo_batch_consultation,
 )
+from app.services.eligibility import StudentFacts
 
 
 def _multi_form(*program_ids: str) -> MultiDict[str, str]:
@@ -40,6 +46,16 @@ def test_empty_program_selection_is_rejected_before_evaluation() -> None:
 
     assert parsed.request is None
     assert "희망 대학·학과를 하나 이상 선택해야 합니다." in parsed.errors
+
+
+def test_batch_request_cannot_bypass_five_program_limit() -> None:
+    with pytest.raises(ConsultationError, match="최대 5개"):
+        BatchConsultationRequest(
+            student_id="synthetic-student",
+            program_ids=tuple(f"synthetic-program-{index}" for index in range(6)),
+            academic_year=2027,
+            facts=StudentFacts(),
+        )
 
 
 def test_demo_expands_programs_to_independent_tracks_and_isolates_states() -> None:
@@ -99,7 +115,7 @@ def test_reflected_grade_trace_preserves_courses_credits_weights_and_rounding() 
     assert all(grade.trace.rounding_stage == "DISPLAY_ONLY" for grade in reflected)
 
 
-def test_ai_schema_v2_contains_multiple_average_grades_without_student_identifier() -> None:
+def test_ai_schema_v3_contains_multiple_average_grades_without_student_identifier() -> None:
     parsed = parse_consultation_form(_multi_form(*DEMO_DEFAULT_PROGRAM_IDS))
     assert isinstance(parsed.request, BatchConsultationRequest)
     result = run_demo_batch_consultation(parsed.request)
@@ -107,7 +123,7 @@ def test_ai_schema_v2_contains_multiple_average_grades_without_student_identifie
     payload = build_anonymous_consultation_payload(result)
     copied = validated_payload_copy(payload)
 
-    assert payload.schema_version == 2
+    assert payload.schema_version == 3
     assert len(copied["results"]) == 5
     assert "student_id" not in payload.canonical_json
     assert "demo-student" not in payload.canonical_json

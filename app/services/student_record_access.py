@@ -37,6 +37,7 @@ REFERENCE_INPUT_TERMS = (
     (2026, "2", "1"),
     (2026, "2", "2"),
     (2027, "3", "1"),
+    (2027, "3", "2"),
 )
 REFERENCE_INPUT_ROWS_PER_TERM = 10
 

@@ -1,20 +1,21 @@
 DO $rollback_gate$
 DECLARE
-    demo_active boolean := false;
+    unsafe_demo_present boolean := false;
 BEGIN
     IF to_regclass('public.user_accounts') IS NOT NULL THEN
         EXECUTE
             'SELECT EXISTS ('
             'SELECT 1 FROM user_accounts '
-            'WHERE actor_ref = $1 AND status = $2'
+            'WHERE (actor_ref = $1 AND status = $2) '
+            'OR actor_ref LIKE $3'
             ')'
-        INTO demo_active
-        USING 'demo:public', 'ACTIVE';
+        INTO unsafe_demo_present
+        USING 'demo:public', 'ACTIVE', 'demo:role:%';
     END IF;
 
-    IF demo_active THEN
+    IF unsafe_demo_present THEN
         RAISE EXCEPTION
-            'active public demo account blocks rollback to an image without demo guards';
+            'public demo accounts block rollback to an image without demo guards';
     END IF;
 END
 $rollback_gate$;

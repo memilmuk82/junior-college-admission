@@ -13,6 +13,7 @@
     </header>
     <main class="admin-shell">
       <div class="admin-heading"><div><h1>{{ '내 BYOK 검증 결과 상담 문장' if current_user and current_user.role == 'STUDENT' else '선택적 AI 상담 초안' }}</h1><p>AI는 검증된 결과를 문장화할 뿐 자격·점수·추천·합격 가능성을 판단하지 않습니다.</p></div><a class="button-link button-link--secondary" href="{{ url_for('admin.new_consultation') }}">{{ '내 성적으로 새 문장 준비' if current_user and current_user.role == 'STUDENT' else '상담자료 만들기' }}</a></div>
+      {% if current_user and current_user.actor_ref.startswith('demo:role:') %}<div class="public-notice" role="status"><strong>세션별 BYOK 체험</strong> 입력한 키는 현재 브라우저 로그인 세션의 전용 actor 범위에 암호화 저장되며 다른 데모 세션과 공유되지 않습니다. 로그아웃하면 키와 초안이 삭제되고 실제 AI 호출은 실행하지 않습니다.</div>{% endif %}
       {% if error %}<div class="form-errors" role="alert"><p>{{ error }}</p></div>{% endif %}
       {% if not encryption_available %}<div class="form-errors" role="status"><p>BYOK 키 암호화 설정이 없어 공급자 키 저장 기능이 비활성화되었습니다. 자격·계산·출력은 계속 사용할 수 있습니다.</p></div>{% endif %}
       <section class="admin-section" aria-labelledby="credential-heading">

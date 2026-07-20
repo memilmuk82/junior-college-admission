@@ -19,10 +19,13 @@ from app.services.anonymous_calculations import (
     save_anonymous_records,
 )
 from app.services.membership import bootstrap_admin
+from app.services.public_student_profiles import GENERAL_GRADUATE
 from app.services.structured_imports import NormalizedCourseRow
 
 
-def _state(rank_grade: str) -> AnonymousCalculationState:
+def _state(
+    rank_grade: str, *, student_profile: str = "VOCATIONAL_CURRENT"
+) -> AnonymousCalculationState:
     now = datetime.now(UTC)
     return AnonymousCalculationState(
         owner_token="synthetic-owner-token",
@@ -30,6 +33,7 @@ def _state(rank_grade: str) -> AnonymousCalculationState:
         expires_at=now + timedelta(minutes=30),
         record_source="HOME_SCHOOL_RECORD",
         is_vocational_training_semester=False,
+        student_profile=student_profile,
         rows=(
             NormalizedCourseRow(
                 academic_year=2026,
@@ -112,13 +116,13 @@ def test_student_resave_replaces_only_same_owned_term(postgres_engine: Engine) -
 
         first_ids = save_anonymous_records(
             database_session,
-            state=_state("2"),
+            state=_state("2", student_profile=GENERAL_GRADUATE),
             calculation_id="first-calculation",
             user=student,
         )
         saved_consultation = save_anonymous_consultation(
             database_session,
-            state=_state("2"),
+            state=_state("2", student_profile=GENERAL_GRADUATE),
             calculation_id="first-calculation",
             user=student,
         )
@@ -151,6 +155,7 @@ def test_student_resave_replaces_only_same_owned_term(postgres_engine: Engine) -
         assert len(courses) == 1
         assert courses[0].rank_grade == Decimal("7")
         assert saved_consultation.owner_user_account_id == student.id
+        assert saved_consultation.student_profile == GENERAL_GRADUATE
         assert saved_consultation.selected_targets[0]["program_id"] == "synthetic-program"
         assert saved_consultation.student_print_snapshot["audience"] == "STUDENT"
 

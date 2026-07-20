@@ -60,6 +60,7 @@ class Campus(TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("institution_id", "name"),
         UniqueConstraint("institution_id", "code", name="uq_campuses_institution_id_code"),
+        Index("ix_campuses_institution_id_region", "institution_id", "region"),
         CheckConstraint(
             "code IS NULL OR (code = btrim(code) AND char_length(code) > 0)",
             name="code_valid",
@@ -72,13 +73,23 @@ class Campus(TimestampMixin, Base):
         ForeignKey("institutions.id", ondelete="CASCADE"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    region: Mapped[str | None] = mapped_column(String(80))
 
 
 class Program(TimestampMixin, Base):
     __tablename__ = "programs"
     __table_args__ = (
-        UniqueConstraint("campus_id", "name", name="uq_programs_campus_id"),
+        UniqueConstraint(
+            "campus_id",
+            "name",
+            "day_night",
+            name="uq_programs_campus_name_day_night",
+        ),
         UniqueConstraint("campus_id", "code", name="uq_programs_campus_id_code"),
+        CheckConstraint(
+            "day_night IN ('DAY', 'NIGHT', 'UNKNOWN')",
+            name="day_night_valid",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -87,6 +98,9 @@ class Program(TimestampMixin, Base):
     )
     code: Mapped[str | None] = mapped_column(String(120))
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    day_night: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="UNKNOWN", server_default=text("'UNKNOWN'")
+    )
 
 
 class AdmissionRound(TimestampMixin, Base):
@@ -913,11 +927,17 @@ class AdmissionResultImportRow(TimestampMixin, Base):
         ),
         CheckConstraint(
             "publication_status != 'PUBLISHED' OR "
-            "(score_basis = 'RANK_GRADE' AND score_direction = 'LOWER_IS_BETTER' "
+            "((score_basis IN ('RANK_GRADE', 'CSAT_GRADE') "
+            "AND score_direction = 'LOWER_IS_BETTER' "
             "AND (best_score IS NULL OR best_score BETWEEN 1 AND 9) "
             "AND (average_score IS NULL OR average_score BETWEEN 1 AND 9) "
-            "AND (cutoff_score IS NULL OR cutoff_score BETWEEN 1 AND 9))",
-            name="published_rank_grade_scale_valid",
+            "AND (cutoff_score IS NULL OR cutoff_score BETWEEN 1 AND 9)) OR "
+            "(score_basis = 'POINT_SCORE' AND score_direction = 'HIGHER_IS_BETTER'))",
+            name="published_score_scale_valid",
+        ),
+        CheckConstraint(
+            "day_night IN ('DAY', 'NIGHT', 'UNKNOWN')",
+            name="day_night_valid",
         ),
         Index(
             "uq_admission_result_import_rows_published_business_key",
@@ -928,6 +948,7 @@ class AdmissionResultImportRow(TimestampMixin, Base):
             "program_code",
             "admission_round_code",
             "admission_track_code",
+            "day_night",
             "score_basis",
             unique=True,
             postgresql_where=text("publication_status = 'PUBLISHED'"),
@@ -953,7 +974,9 @@ class AdmissionResultImportRow(TimestampMixin, Base):
     program_name: Mapped[str] = mapped_column(String(200), nullable=False)
     admission_round_code: Mapped[str | None] = mapped_column(String(80))
     admission_round_name: Mapped[str] = mapped_column(String(200), nullable=False)
-    day_night: Mapped[str | None] = mapped_column(String(40))
+    day_night: Mapped[str] = mapped_column(
+        String(40), nullable=False, default="UNKNOWN", server_default=text("'UNKNOWN'")
+    )
     admission_category: Mapped[str | None] = mapped_column(String(120))
     admission_track_code: Mapped[str | None] = mapped_column(String(80))
     admission_track_name: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -1088,6 +1111,10 @@ class SavedConsultation(TimestampMixin, Base):
             "academic_year BETWEEN 2000 AND 2100",
             name="academic_year_valid",
         ),
+        CheckConstraint(
+            "student_profile IN ('VOCATIONAL_CURRENT', 'GENERAL_GRADUATE')",
+            name="student_profile_valid",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -1100,6 +1127,9 @@ class SavedConsultation(TimestampMixin, Base):
         ForeignKey("user_accounts.id", ondelete="CASCADE"), nullable=True, index=True
     )
     academic_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    student_profile: Mapped[str] = mapped_column(
+        String(40), nullable=False, default="VOCATIONAL_CURRENT"
+    )
     selected_targets: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
     result_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     student_print_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)

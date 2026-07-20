@@ -4,14 +4,15 @@
   <body class="admin-page teacher-workspace">
     <header class="admin-header"><div><p class="admin-eyebrow">INSTITUTION DATA</p><a href="{{ url_for('teacher.outcomes') }}">교사 상담 업무</a></div><nav><a href="{{ url_for('main.dashboard') }}">업무공간</a><a href="{{ url_for('teacher.classrooms') }}">학급·학생</a><a href="{{ url_for('admin.ai_settings') }}">BYOK 상담 초안</a><a href="{{ url_for('account.records') }}">저장 상담</a></nav></header>
     <main class="admin-shell">
-      <div class="admin-heading"><div><h1>기관 지원·합격 결과</h1><p>학생 이름 대신 기관 내부 익명 코드만 저장합니다. 공식 공개 결과와 학생 개인 자료에는 합쳐지지 않습니다.</p></div><a class="button-link button-link--secondary" href="{{ url_for('teacher.outcomes_csv', **filters) }}">현재 조회 CSV</a></div>
+      <div class="admin-heading"><div><h1>기관 지원·합격 결과</h1><p>학생 이름 대신 기관 내부 익명 코드만 저장합니다. 공식 공개 결과와 학생 개인 자료에는 합쳐지지 않습니다.</p></div>{% if not demo_mode %}<a class="button-link button-link--secondary" href="{{ url_for('teacher.outcomes_csv', **filters) }}">현재 조회 CSV</a>{% endif %}</div>
+      {% if demo_mode %}<div class="public-notice" role="status"><strong>읽기 전용 공개 체험</strong> 실제 기관 내부 학생 코드·지원 결과·메모는 표시하지 않으며 등록과 CSV 내보내기도 차단됩니다.</div>{% endif %}
       {% if error %}<div class="admin-alert" role="alert"><h2>처리할 수 없습니다</h2><p>{{ error }}</p></div>{% endif %}
 
       <section class="teacher-summary" aria-label="현재 조회 집계">
         <div><span>전체 지원</span><strong>{{ summary.total }}</strong></div><div><span>최초 합격</span><strong>{{ summary.initial_accepted }}</strong></div><div><span>충원 합격</span><strong>{{ summary.waitlist_accepted }}</strong></div><div><span>불합격</span><strong>{{ summary.rejected }}</strong></div><div><span>미확인</span><strong>{{ summary.unknown }}</strong></div>
       </section>
 
-      <section class="admin-section">
+      {% if not demo_mode %}<section class="admin-section">
         <div class="admin-section__heading"><h2>지원 결과 등록</h2><span>개인정보 입력 금지</span></div>
         <form method="post" class="teacher-outcome-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -26,17 +27,17 @@
           <label class="teacher-outcome-form__notes">비식별 메모<textarea name="notes" maxlength="1000" rows="3"></textarea></label>
           <button type="submit">기관 결과 저장</button>
         </form>
-      </section>
+      </section>{% endif %}
 
       <section class="admin-section">
         <div class="admin-section__heading"><h2>조회·집계</h2><span>{{ rows|length }}건</span></div>
-        <form method="get" class="teacher-filter-form">
+        {% if not demo_mode %}<form method="get" class="teacher-filter-form">
           <label>학년도<input name="academic_year" type="number" value="{{ filters.academic_year }}"></label>
           <label>대학<select name="institution_id"><option value="">전체</option>{% for group in track_options|groupby('institution_id') %}{% set option = group.list[0] %}<option value="{{ option.institution_id }}" {% if filters.institution_id == option.institution_id %}selected{% endif %}>{{ option.institution_name }}</option>{% endfor %}</select></label>
           <label>학과·전형<select name="admission_track_id"><option value="">전체</option>{% for option in track_options %}<option value="{{ option.track_id }}" {% if filters.admission_track_id == option.track_id %}selected{% endif %}>{{ option.program_name }} · {{ option.track_name }}</option>{% endfor %}</select></label>
           <label>결과<select name="outcome_status"><option value="">전체</option>{% for code,label in [('INITIAL_ACCEPTED','최초 합격'),('WAITLIST_ACCEPTED','충원 합격'),('REJECTED','불합격'),('UNKNOWN','미확인')] %}<option value="{{ code }}" {% if filters.outcome_status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
           <button type="submit">조회</button>
-        </form>
+        </form>{% endif %}
         <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>익명 학생</th><th>대학·학과</th><th>모집시기·전형</th><th>반영등급</th><th>결과</th><th>예비번호</th><th>출처</th><th>관리</th></tr></thead><tbody>
           {% set outcome_labels = {'INITIAL_ACCEPTED':'최초 합격','WAITLIST_ACCEPTED':'충원 합격','REJECTED':'불합격','UNKNOWN':'미확인'} %}{% set source_labels = {'STUDENT_REPORTED':'학생 진술','TEACHER_CONFIRMED':'교사 확인','OFFICIAL_CONFIRMED':'대학 발표 확인','UNCONFIRMED':'미확인'} %}
           {% for row in rows %}<tr><td><strong>{{ row.outcome.anonymous_student_code }}</strong><small>{{ row.outcome.academic_year }}학년도</small></td><td>{{ row.track.institution_name }}<small>{{ row.track.campus_name }} · {{ row.track.program_name }}</small></td><td>{{ row.track.round_name }}<small>{{ row.track.track_name }}</small></td><td>{{ row.outcome.reflected_grade if row.outcome.reflected_grade is not none else '미입력' }}</td><td>{{ outcome_labels[row.outcome.outcome_status] }}</td><td>최초 {{ row.outcome.initial_waitlist_number or '-' }}<small>최종 {{ row.outcome.final_waitlist_number or '-' }}</small></td><td>{{ source_labels[row.outcome.source_status] }}</td><td><form method="post" action="{{ url_for('teacher.delete_outcome_route', outcome_id=row.outcome.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="danger-link" type="submit">삭제</button></form></td></tr>{% else %}<tr><td colspan="8">현재 조건의 기관 결과가 없습니다.</td></tr>{% endfor %}

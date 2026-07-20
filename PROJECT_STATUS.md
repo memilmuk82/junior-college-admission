@@ -1,10 +1,10 @@
 # 프로젝트 상태
 
 - 기준일: 2026-07-20
-- 현재 단계: Phase 16 역할별 업무공간과 학생·교사 연동
-- 단계 판정: `PASS_PRODUCTION_PHASE_16` — 역할별 메뉴·BYOK·학급/성적/상담 공유·관리자 권한 경계와 엑셀 기준 50과목 입력을 검증하고 운영 백업·migration·웹 재빌드·공인 HTTPS smoke 완료
-- 현재 작업: Phase 16 구현 커밋·push, 운영 migration `8e31b7c4d2a6`, `web-production` 비파괴 재빌드와 역할별 핵심 회귀 완료
-- 다음 게이트: 실제 학생자료 없이 교사·학생 계정 승인/연결 절차를 운영자가 수동 확인하고 전문대학포털 소량 수집은 공개 전 사람 검수
+- 현재 단계: Phase 17 공개 검증 흐름과 2026 입시결과 복구
+- 단계 판정: `PASS_PREDEPLOY_PHASE_17` — 위탁학생 기본 성적 계약, 2026 공개 결과, 전체 대학·학과 선택, 네 역할 데모와 BYOK 격리를 로컬 회귀로 검증
+- 현재 작업: 구현·데이터 파생·로컬 회귀 완료, 운영 백업·migration `b6f1e8a42c73`·seed·웹 재빌드와 공인 HTTPS 검증 대기
+- 다음 게이트: 구현 커밋을 `origin/main`에 push하고 운영 custom-format 백업·격리 복원을 통과한 뒤 기존 DB·volume을 보존해 `web-production`만 재빌드
 
 ## 저장소 인벤토리
 
@@ -14,7 +14,7 @@
 | Codex 마스터 프롬프트 v3 | `REFERENCE_ONLY` | 변경 금지 실행 지침 |
 | 공식 모집요강·시행계획 원본 | `REFERENCE_ONLY` | Git 제외 `tmp/codex-reference/pdfs/`에서 읽기 전용 검증 |
 | 학생 개인정보·업로드 원본 | `BLOCKED_SOURCE` | 저장소 반입 금지, 현재 미발견 |
-| 공개 정제 전형 데이터 | `VERIFIED_SOURCE` | 4개 대학 기준정보·2025 결과 482행·출처 manifest |
+| 공개 정제 전형 데이터 | `VERIFIED_SOURCE` | 기존 목록과 2026 원본 42개 대학·4,970행을 합친 최종 43개 대학, 검수 결과 4,094행·선택 기준 1,048개 학과/주야·2025 결과 482행·출처 manifest |
 
 ## Phase 0 완료 항목
 
@@ -366,3 +366,30 @@ Phase 12 회귀는 단위 290건, PostgreSQL 통합 127건과 합성 백업·격
 - live migration을 `4a7c9e12d5f0 → 8e31b7c4d2a6 (head)`로 적용했고 웹·DB가 모두 `healthy`, 웹 restart 0건이다. 새 학급·연결·감사 테이블은 합성 운영 데이터를 만들지 않아 각각 0건이다.
 - loopback·공인 HTTPS TLS/health/보안 헤더, 공개 `/calculate` 200과 기준 50칸, 비로그인 `/account/records`·`/dashboard` 302를 확인했다. 실제 주 관리자 비파괴 Chromium 3건에서 새 대시보드 메뉴, 규칙 CSV 검증, 390px, JavaScript 비활성 SSR과 console error 0건을 확인했다.
 - 배포 시점 이후 web 로그의 5xx·traceback·fatal·critical·unhandled·exception 패턴은 0건이다. 실제 학생·교사 계정이나 학급·성적·상담 합성 자료는 운영 DB에 추가하지 않았다.
+
+## Phase 17 배포 전 검증 완료 항목
+
+- [x] 공개 상담 기본값을 직업위탁 재학생으로 고정하고 일반고 졸업생만 명시적 예외로 제공
+- [x] 1·2학년은 원적교, 기본 학생의 3학년은 위탁기관 성적으로 서버에서 확정해 화면의 성적 구분 드롭다운 제거
+- [x] 3학년 2학기 10칸을 포함한 6개 학기·60칸 입력과 3-2 전체 공란 상태의 검수·대학 선택·계산 허용
+- [x] 일반고 졸업생 프로필의 입력→검수→계정 상담 저장→DB→복제 전 구간 보존
+- [x] 확정 `INELIGIBLE` 전형을 공개 결과에서 제외하고 규칙·근거가 없는 전형은 계산하지 않은 채 `계산 기준 준비 중`으로 표시
+- [x] 사용자 제공 공개 CSV 4,970행·42개 대학을 모두 선택 기준정보로 보존하고 기존 동양미래대를 합친 최종 43개 대학과 주야·지역을 구분한 1,048개 학과를 개별 검색·선택 가능하게 연결
+- [x] 점수 척도·범위를 검수한 2026 결과 4,094행을 기본 연도로 게시할 seed와 idempotent CLI 작성, 2025 결과 482행 보존
+- [x] 점수 기준 누락 572건·범위 오류 308건으로 876개 원본 행을 제외하고 두 사유가 겹친 4행과 함께 0 또는 범위 밖 값을 임의 보정하지 않은 audit 기록
+- [x] `demo-student`·`demo-teacher`·`demo-main-admin`·`demo-assistant-admin` 네 공개 데모 계정과 역할별 대시보드·로그아웃 제공
+- [x] `/account/records`의 로그인·가입 `next` 보존과 로그인 상태의 계정 메뉴·로그아웃 navigation 복구
+- [x] 데모 주 관리자는 운영 회원·원문·규칙·입시결과를 변경할 수 없는 읽기 전용, 데모 보조 관리자는 승인 요청 목록만 확인하는 경계
+- [x] 실제 학생·교사 BYOK 키의 actor별 암호화·마스킹·교체·삭제와 데모 브라우저 세션별 격리·로그아웃 삭제
+- [x] AI 저장 payload v3에 2026 참고결과를 고정하고 기존 v2 저장 상담의 목록·인쇄 호환 유지
+- [x] 대학·학과 검색은 전체 1,048개 대상을 유지하되 한 번의 계산 요청은 서버·JavaScript·무JavaScript 모두 최대 5개로 제한
+- [x] Phase 16 DB 4개 대학·128개 학과·2025 결과 482행을 넣은 PostgreSQL에서 migration upgrade 후 전 행 보존과 새 분류값 변환 검증
+- [x] 단위 361건, PostgreSQL 통합 179건과 합성 백업·격리 복원, Phase 17 Playwright 6건, Phase 14 공개 회귀 3건 통과
+- [x] Ruff·포맷·mypy 151개 소스, 규칙·민감자료·공개 seed byte 재현성 검사 통과
+- [x] `.env.local` OpenAI 키는 출력·저장 없이 비식별 합성 요청 검증에만 사용했고 `gpt-4.1-mini` 응답 계약 확인 후 폐기
+
+공개 원본 `tmp/codex-reference/csv/result2026 (2).csv`는 603,788 bytes, SHA-256 `f8577f1e58dbcaa2d2e1bc11ea4ff68641f5e506466ab8d61c49c2ce65c3e8cd`이며 Git에 추가하지 않는다. 파생 catalog·result·audit의 SHA-256은 각각 `f45c3eedf7b41208bf4c25023dfdac657d6048bed5c0518c8eb874dd7e2a0d81`, `6546aedfd3aac0f4e051713f14aaaa3919d0b17b5060ec909be53fa3ac62215f`, `ddad414bee800ee3ed5ae650151febbb6a86260a645d24209ea503d74df3b42d`다. 사용자 작성 파일 `codex_cli_admission_refactor_prompt.md`, `run_admission_codex_background.sh`도 계속 수정·커밋하지 않는다.
+
+### Phase 17 운영 배포
+
+- 구현 검증은 완료했다. 운영 백업·격리 복원, migration·seed, 컨테이너 재빌드, 공인 HTTPS 역할별 Playwright 결과는 배포 후 별도 커밋으로 기록한다.

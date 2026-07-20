@@ -9,9 +9,10 @@ from typing import Any
 
 from app.services.consultations import BatchConsultationResult, ConsultationResult
 
-ANONYMOUS_PAYLOAD_SCHEMA_VERSION = 2
+ANONYMOUS_PAYLOAD_SCHEMA_VERSION = 3
+LEGACY_ANONYMOUS_PAYLOAD_SCHEMA_VERSION = 2
 TOP_LEVEL_KEYS = frozenset({"schema_version", "academic_year", "results"})
-RESULT_KEYS = frozenset(
+LEGACY_RESULT_KEYS = frozenset(
     {
         "item_status",
         "target",
@@ -22,6 +23,7 @@ RESULT_KEYS = frozenset(
         "warnings",
     }
 )
+RESULT_KEYS = LEGACY_RESULT_KEYS | {"reference_results"}
 TARGET_KEYS = frozenset(
     {
         "academic_year",
@@ -64,6 +66,27 @@ EVIDENCE_KEYS = frozenset(
         "document_status",
         "page_number",
         "locator",
+    }
+)
+REFERENCE_RESULT_KEYS = frozenset(
+    {
+        "result_academic_year",
+        "admission_round_code",
+        "admission_track_code",
+        "day_night",
+        "capacity",
+        "applicant_count",
+        "admitted_count",
+        "competition_rate",
+        "best_score",
+        "average_score",
+        "cutoff_score",
+        "score_basis",
+        "score_basis_label",
+        "score_direction",
+        "is_direct_grade_comparison_allowed",
+        "publication_version",
+        "source_reference",
     }
 )
 
@@ -122,7 +145,7 @@ def validated_saved_payload_copy(data: object) -> dict[str, Any]:
     """Return a JSON-only, schema-complete copy suitable for durable SSR snapshots."""
     if not isinstance(data, dict):
         raise ValueError("저장 상담 payload는 객체여야 합니다.")
-    _validate_payload_keys(data)
+    _validate_payload_keys(data, allow_empty_results=True)
     if not isinstance(data.get("academic_year"), int):
         raise ValueError("저장 상담 payload의 학년도가 유효하지 않습니다.")
     for row in data["results"]:
@@ -160,6 +183,9 @@ def _batch_item_payload(item: Any) -> dict[str, Any]:
         "eligibility": None,
         "average_grade": None,
         "admission_result": {"status": "NOT_AVAILABLE"},
+        "reference_results": [
+            _reference_result_payload(reference) for reference in item.reference_results
+        ],
         "evidence": [],
         "warnings": [f"ITEM_{item.status.value}"],
     }
@@ -177,6 +203,7 @@ def _consultation_result_payload(result: ConsultationResult) -> dict[str, Any]:
         },
         "average_grade": _average_grade_payload(result),
         "admission_result": _admission_result_payload(result),
+        "reference_results": [],
         "evidence": [
             {
                 "rule_kind": item.rule_kind,
@@ -236,14 +263,45 @@ def _admission_result_payload(result: ConsultationResult) -> dict[str, Any]:
     }
 
 
-def _validate_payload_keys(data: dict[str, Any]) -> None:
-    if frozenset(data) != TOP_LEVEL_KEYS or data.get("schema_version") != 2:
+def _reference_result_payload(reference: Any) -> dict[str, Any]:
+    return {
+        "result_academic_year": reference.result_academic_year,
+        "admission_round_code": reference.admission_round_code,
+        "admission_track_code": reference.admission_track_code,
+        "day_night": reference.day_night,
+        "capacity": reference.capacity,
+        "applicant_count": reference.applicant_count,
+        "admitted_count": reference.admitted_count,
+        "competition_rate": _decimal(reference.competition_rate),
+        "best_score": _decimal(reference.best_score),
+        "average_score": _decimal(reference.average_score),
+        "cutoff_score": _decimal(reference.cutoff_score),
+        "score_basis": reference.score_basis,
+        "score_basis_label": reference.score_basis_label,
+        "score_direction": reference.score_direction,
+        "is_direct_grade_comparison_allowed": reference.is_direct_grade_comparison_allowed,
+        "publication_version": reference.publication_version,
+        "source_reference": reference.source_reference,
+    }
+
+
+def _validate_payload_keys(data: dict[str, Any], *, allow_empty_results: bool = False) -> None:
+    schema_version = data.get("schema_version")
+    if frozenset(data) != TOP_LEVEL_KEYS or schema_version not in {
+        LEGACY_ANONYMOUS_PAYLOAD_SCHEMA_VERSION,
+        ANONYMOUS_PAYLOAD_SCHEMA_VERSION,
+    }:
         raise ValueError("AI payload 최상위 필드가 고정 schema와 다릅니다.")
     results = data.get("results")
-    if not isinstance(results, list) or not results:
+    if not isinstance(results, list) or (not results and not allow_empty_results):
         raise ValueError("AI payload results는 비어 있지 않은 배열이어야 합니다.")
     for row in results:
-        _require_exact_keys(row, RESULT_KEYS, "results")
+        expected_result_keys = (
+            LEGACY_RESULT_KEYS
+            if schema_version == LEGACY_ANONYMOUS_PAYLOAD_SCHEMA_VERSION
+            else RESULT_KEYS
+        )
+        _require_exact_keys(row, expected_result_keys, "results")
         _require_exact_keys(row["target"], TARGET_KEYS, "target")
         if row["eligibility"] is not None:
             _require_exact_keys(row["eligibility"], ELIGIBILITY_KEYS, "eligibility")
@@ -259,6 +317,12 @@ def _validate_payload_keys(data: dict[str, Any]) -> None:
             raise ValueError("AI payload evidence와 warnings는 배열이어야 합니다.")
         for evidence in row["evidence"]:
             _require_exact_keys(evidence, EVIDENCE_KEYS, "evidence")
+        if schema_version == ANONYMOUS_PAYLOAD_SCHEMA_VERSION:
+            references = row["reference_results"]
+            if not isinstance(references, list):
+                raise ValueError("AI payload reference_results는 배열이어야 합니다.")
+            for reference in references:
+                _require_exact_keys(reference, REFERENCE_RESULT_KEYS, "reference_results")
 
 
 def _require_exact_keys(value: object, allowed: frozenset[str], field: str) -> None:

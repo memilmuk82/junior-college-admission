@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from unicodedata import normalize
 
-from sqlalchemy import select, update
+from sqlalchemy import case, select, update
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -45,6 +45,7 @@ class PublishedImportedAdmissionResult:
     program_code: str
     admission_round_code: str
     admission_track_code: str
+    day_night: str
     capacity: int | None
     applicant_count: int | None
     admitted_count: int | None
@@ -58,6 +59,18 @@ class PublishedImportedAdmissionResult:
     historical_score_rule_version: str | None
     historical_score_rule_year: int | None
     source_reference: str
+
+    @property
+    def score_basis_label(self) -> str:
+        return {
+            "RANK_GRADE": "학생부 석차등급",
+            "CSAT_GRADE": "수능 등급(참고용)",
+            "POINT_SCORE": "수능 백분위·배점(참고용)",
+        }.get(self.score_basis, "기타 성적 척도(참고용)")
+
+    @property
+    def is_direct_grade_comparison_allowed(self) -> bool:
+        return self.score_basis == "RANK_GRADE" and self.score_direction == "LOWER_IS_BETTER"
 
 
 class DatabaseCatalogResolver:
@@ -92,7 +105,9 @@ class DatabaseCatalogResolver:
         *,
         institution_name: str,
         campus_name: str | None,
+        region: str | None,
         program_name: str,
+        day_night: str,
         admission_round_name: str,
         admission_track_name: str,
         target_academic_year: int,
@@ -101,19 +116,35 @@ class DatabaseCatalogResolver:
         if institution is None or not institution.code:
             return None
         campuses = self._campuses_by_institution.get(institution.id, [])
-        campus_matches = (
-            [row for row in campuses if _key(row.name) == _key(campus_name)]
-            if campus_name
-            else campuses
-        )
+        if campus_name:
+            campus_matches = [row for row in campuses if _key(row.name) == _key(campus_name)]
+            if region:
+                regional_matches = [
+                    row for row in campus_matches if row.region and _key(row.region) == _key(region)
+                ]
+                if regional_matches:
+                    campus_matches = regional_matches
+                elif not (len(campus_matches) == 1 and campus_matches[0].region is None):
+                    campus_matches = []
+        elif region:
+            campus_matches = [
+                row for row in campuses if row.region and _key(row.region) == _key(region)
+            ]
+        else:
+            campus_matches = campuses
         campus = campus_matches[0] if len(campus_matches) == 1 else None
         if campus is None or not campus.code:
             return None
-        program_matches = [
+        named_programs = [
             row
             for row in self._programs_by_campus.get(campus.id, [])
             if _key(row.name) == _key(program_name)
         ]
+        program_matches = [row for row in named_programs if row.day_night == day_night]
+        if not program_matches and len(named_programs) == 1:
+            only_program = named_programs[0]
+            if day_night == "UNKNOWN" or only_program.day_night == "UNKNOWN":
+                program_matches = named_programs
         program = program_matches[0] if len(program_matches) == 1 else None
         if program is None or not program.code:
             return None
@@ -141,6 +172,7 @@ class DatabaseCatalogResolver:
             admission_round_code=admission_round.code,
             admission_track_code=track.code,
             campus_name=campus.name,
+            day_night=program.day_night,
         )
 
 
@@ -174,7 +206,9 @@ def retarget_admission_result_dataset(
         match = resolver.resolve(
             institution_name=row.institution_name,
             campus_name=row.campus_name,
+            region=row.region,
             program_name=row.program_name,
+            day_night=row.day_night,
             admission_round_name=row.admission_round_name,
             admission_track_name=row.admission_track_name,
             target_academic_year=target_academic_year,
@@ -199,6 +233,7 @@ def retarget_admission_result_dataset(
             row.campus_code = match.campus_code
             row.campus_name = match.campus_name
             row.program_code = match.program_code
+            row.day_night = match.day_night
             row.admission_round_code = match.admission_round_code
             row.admission_track_code = match.admission_track_code
         row.validation_issues = issues
@@ -414,21 +449,23 @@ def load_published_imported_result(
     program_code: str,
     admission_round_code: str,
     admission_track_code: str,
+    day_night: str | None = None,
     score_basis: str = "RANK_GRADE",
 ) -> PublishedImportedAdmissionResult | None:
-    row = session.scalar(
-        select(AdmissionResultImportRow).where(
-            AdmissionResultImportRow.publication_status == "PUBLISHED",
-            AdmissionResultImportRow.target_academic_year == target_academic_year,
-            AdmissionResultImportRow.result_academic_year == result_academic_year,
-            AdmissionResultImportRow.institution_code == institution_code,
-            AdmissionResultImportRow.campus_code == campus_code,
-            AdmissionResultImportRow.program_code == program_code,
-            AdmissionResultImportRow.admission_round_code == admission_round_code,
-            AdmissionResultImportRow.admission_track_code == admission_track_code,
-            AdmissionResultImportRow.score_basis == score_basis,
-        )
-    )
+    filters = [
+        AdmissionResultImportRow.publication_status == "PUBLISHED",
+        AdmissionResultImportRow.target_academic_year == target_academic_year,
+        AdmissionResultImportRow.result_academic_year == result_academic_year,
+        AdmissionResultImportRow.institution_code == institution_code,
+        AdmissionResultImportRow.campus_code == campus_code,
+        AdmissionResultImportRow.program_code == program_code,
+        AdmissionResultImportRow.admission_round_code == admission_round_code,
+        AdmissionResultImportRow.admission_track_code == admission_track_code,
+        AdmissionResultImportRow.score_basis == score_basis,
+    ]
+    if day_night is not None:
+        filters.append(AdmissionResultImportRow.day_night == day_night)
+    row = session.scalar(select(AdmissionResultImportRow).where(*filters))
     if row is None:
         return None
     dataset = session.get(AdmissionResultImportDataset, row.dataset_id)
@@ -445,8 +482,28 @@ def list_published_imported_results_for_program(
     institution_code: str,
     campus_code: str,
     program_code: str,
-    score_basis: str = "RANK_GRADE",
+    admission_round_code: str | None = None,
+    admission_track_code: str | None = None,
+    day_night: str | None = None,
+    score_basis: str | None = "RANK_GRADE",
 ) -> tuple[PublishedImportedAdmissionResult, ...]:
+    filters = [
+        AdmissionResultImportDataset.lifecycle_status == "PUBLISHED",
+        AdmissionResultImportRow.publication_status == "PUBLISHED",
+        AdmissionResultImportRow.target_academic_year == target_academic_year,
+        AdmissionResultImportRow.result_academic_year == result_academic_year,
+        AdmissionResultImportRow.institution_code == institution_code,
+        AdmissionResultImportRow.campus_code == campus_code,
+        AdmissionResultImportRow.program_code == program_code,
+    ]
+    if admission_round_code is not None:
+        filters.append(AdmissionResultImportRow.admission_round_code == admission_round_code)
+    if admission_track_code is not None:
+        filters.append(AdmissionResultImportRow.admission_track_code == admission_track_code)
+    if day_night is not None:
+        filters.append(AdmissionResultImportRow.day_night == day_night)
+    if score_basis is not None:
+        filters.append(AdmissionResultImportRow.score_basis == score_basis)
     pairs = tuple(
         session.execute(
             select(AdmissionResultImportDataset, AdmissionResultImportRow)
@@ -454,19 +511,17 @@ def list_published_imported_results_for_program(
                 AdmissionResultImportRow,
                 AdmissionResultImportRow.dataset_id == AdmissionResultImportDataset.id,
             )
-            .where(
-                AdmissionResultImportDataset.lifecycle_status == "PUBLISHED",
-                AdmissionResultImportRow.publication_status == "PUBLISHED",
-                AdmissionResultImportRow.target_academic_year == target_academic_year,
-                AdmissionResultImportRow.result_academic_year == result_academic_year,
-                AdmissionResultImportRow.institution_code == institution_code,
-                AdmissionResultImportRow.campus_code == campus_code,
-                AdmissionResultImportRow.program_code == program_code,
-                AdmissionResultImportRow.score_basis == score_basis,
-            )
+            .where(*filters)
             .order_by(
                 AdmissionResultImportRow.admission_round_code,
                 AdmissionResultImportRow.admission_track_code,
+                AdmissionResultImportRow.day_night,
+                case(
+                    (AdmissionResultImportRow.score_basis == "RANK_GRADE", 1),
+                    (AdmissionResultImportRow.score_basis == "CSAT_GRADE", 2),
+                    (AdmissionResultImportRow.score_basis == "POINT_SCORE", 3),
+                    else_=4,
+                ),
             )
         )
     )
@@ -487,6 +542,7 @@ def _published_result(
         program_code=str(row.program_code),
         admission_round_code=str(row.admission_round_code),
         admission_track_code=str(row.admission_track_code),
+        day_night=row.day_night,
         capacity=row.capacity,
         applicant_count=row.applicant_count,
         admitted_count=row.admitted_count,
@@ -545,6 +601,7 @@ def _row_business_key(row: AdmissionResultImportRow) -> tuple[object, ...] | Non
         row.program_code,
         row.admission_round_code,
         row.admission_track_code,
+        row.day_night,
         row.score_basis,
     )
     return values if all(value is not None and value != "" for value in values) else None

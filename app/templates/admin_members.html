@@ -42,13 +42,14 @@
 
       {% if error %}<div class="admin-alert" role="alert" tabindex="-1">{{ error }}</div>{% endif %}
       {% if message in notice_messages %}<div class="members-notice" role="status">{{ notice_messages[message] }}</div>{% endif %}
+      {% if demo_mode %}<div class="public-notice" role="status"><strong>읽기 전용 공개 체험</strong> 실제 회원 계정과 가입 정보는 표시하지 않으며 승인·역할·상태 변경도 수행하지 않습니다.</div>{% endif %}
 
       <section class="admin-section" aria-labelledby="member-list-heading">
         <div class="admin-section__heading">
           <h2 id="member-list-heading">회원 목록</h2>
           <span>{{ members|length }}명</span>
         </div>
-        <p class="form-help">가입 신청은 요청한 학생·교사 역할 또는 기존 일반 회원의 승인 대기로 생성됩니다. 보조 관리자의 유일한 관리 권한은 해당 회원의 승인입니다.</p>
+        <p class="form-help">{% if demo_mode %}이 화면은 역할별 메뉴 확인을 위한 합성 빈 목록입니다.{% else %}가입 신청은 요청한 학생·교사 역할 또는 기존 일반 회원의 승인 대기로 생성됩니다. 보조 관리자의 유일한 관리 권한은 해당 회원의 승인입니다.{% endif %}</p>
 
         {% if members %}
           <div class="admin-table-wrap members-table-wrap">
@@ -117,11 +118,11 @@
             </table>
           </div>
         {% else %}
-          <p class="admin-empty">표시할 회원이 없습니다.</p>
+          <p class="admin-empty">{{ '공개 체험에서는 실제 회원을 표시하지 않습니다.' if demo_mode else '표시할 회원이 없습니다.' }}</p>
         {% endif %}
       </section>
 
-      {% if operator.role == 'ADMIN' %}
+      {% if operator.role == 'ADMIN' and not demo_mode %}
         <aside class="members-warning" aria-label="관리자 안전 규칙">
           <h2>관리자 안전 규칙</h2>
           <p>마지막 활성 관리자는 강등하거나 중지할 수 없습니다. 계정·역할·상태 변경은 감사 기록으로 남습니다.</p>

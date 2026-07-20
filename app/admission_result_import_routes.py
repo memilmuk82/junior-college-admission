@@ -22,7 +22,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth import actor_ref, admin_required, csrf_token, require_csrf
+from app.auth import actor_ref, admin_required, csrf_token, is_demo_user, require_csrf
 from app.crawlers.procollege import PROCOLLEGE_COLUMNS, ProcollegeAdapter, RequestsFormTransport
 from app.database import db
 from app.models import AdmissionResultImportDataset, AdmissionResultImportRow
@@ -95,13 +95,16 @@ def _private(content: str, status: int = 200) -> Response:
 @bp.get("")
 @admin_required
 def index() -> Response:
-    datasets = tuple(
-        cast(Session, db.session).scalars(
-            select(AdmissionResultImportDataset).order_by(
-                AdmissionResultImportDataset.created_at.desc()
+    if is_demo_user():
+        datasets: tuple[AdmissionResultImportDataset, ...] = ()
+    else:
+        datasets = tuple(
+            cast(Session, db.session).scalars(
+                select(AdmissionResultImportDataset).order_by(
+                    AdmissionResultImportDataset.created_at.desc()
+                )
             )
         )
-    )
     return _render_index(datasets=datasets)
 
 
@@ -448,6 +451,7 @@ def _render_index(
             datasets=datasets,
             error=error,
             csrf_token=csrf_token(),
+            demo_mode=is_demo_user(),
         ),
         status,
     )

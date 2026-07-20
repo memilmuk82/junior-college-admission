@@ -1,0 +1,5303 @@
+{
+  "catalog": {
+    "institution_count": 42,
+    "policy": "원본 4,970행의 모든 제공 대학·학과·주야·전형을 선택 기준정보로 보존",
+    "program_count": 1048,
+    "region_campus_count": 44,
+    "row_count": 4970
+  },
+  "derived_files": {
+    "catalog_path": "data/seed/phase17_public_admission_catalog.csv",
+    "catalog_sha256": "f45c3eedf7b41208bf4c25023dfdac657d6048bed5c0518c8eb874dd7e2a0d81",
+    "result_path": "data/seed/phase17_public_admission_results_2026.csv",
+    "result_sha256": "6546aedfd3aac0f4e051713f14aaaa3919d0b17b5060ec909be53fa3ac62215f"
+  },
+  "excluded_results": {
+    "reason_counts": {
+      "SCORE_BASIS_MISSING": 572,
+      "SCORE_OUT_OF_RANGE": 308
+    },
+    "row_count": 876,
+    "rows": [
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 142
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 143
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 144
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 145
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 146
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 147
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 148
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 149
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 150
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 151
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 152
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 153
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 154
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 155
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 156
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 157
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 158
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 159
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 161
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 260
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 261
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 262
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 263
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 264
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 269
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 270
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 271
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 273
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 274
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 275
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 276
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 277
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 278
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 280
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 353
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 354
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 355
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 356
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 357
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 358
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 359
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 360
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 361
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 362
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 363
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 364
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 365
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 366
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 624
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 625
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 626
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 627
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 628
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 629
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 631
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 632
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 633
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 636
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 637
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 642
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 643
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 644
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 678
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 679
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 680
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 681
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 687
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 688
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 689
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 833
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 834
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 835
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 836
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 837
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 838
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 839
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 840
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 841
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 842
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 843
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 844
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 845
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 846
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 847
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 848
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 849
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 850
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 851
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 852
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 853
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 854
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 855
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 856
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 857
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 858
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 859
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 860
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 861
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 918
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 919
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 920
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 921
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 922
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 923
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 924
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 925
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 926
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 927
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 928
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 929
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 930
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 931
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 932
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 933
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 934
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 935
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 936
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 937
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 938
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 939
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 940
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 941
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 942
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 943
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 944
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 945
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1002
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1003
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1004
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1005
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1008
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1009
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1011
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1013
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1014
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1015
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1016
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1018
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1320
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1321
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1322
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1324
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1325
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1326
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1327
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1328
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1329
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1330
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1331
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1339
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1380
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1381
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1382
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1383
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1384
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1385
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1386
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1387
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1388
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1389
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1390
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1518
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1547
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1561
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1563
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1571
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1576
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1577
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1579
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1581
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1584
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1601
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1602
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1604
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1607
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1608
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1611
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1617
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1620
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1622
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1625
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1638
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1641
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1643
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1644
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1645
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1646
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1647
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1648
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1650
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1651
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1652
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1654
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1655
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1656
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1657
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1658
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1659
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1660
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1661
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1662
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1663
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1664
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1665
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1666
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1668
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1669
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1670
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1671
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1674
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1675
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1676
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1677
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1678
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1679
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1680
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1681
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1682
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1683
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1684
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1685
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1686
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1687
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1688
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1689
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1690
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1691
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1692
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1693
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1694
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1695
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1696
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1697
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1698
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1699
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1700
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1701
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1702
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1703
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1704
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1705
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1707
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1708
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1709
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1710
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1711
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1712
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1713
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1714
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1715
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1716
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1717
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1718
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1720
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1721
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1722
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1723
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1724
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1725
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1726
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1727
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1728
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1729
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1730
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1731
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1732
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1733
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1734
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1735
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1736
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING",
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1737
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1738
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1739
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1740
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING",
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1744
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1745
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1746
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1747
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1754
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1758
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1772
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1776
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1777
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1778
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1789
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1793
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1807
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1811
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1812
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1813
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1825
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1829
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1843
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1847
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1848
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1849
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1860
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1864
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1878
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1882
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1883
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 1884
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1933
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1934
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1935
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1936
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1937
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1938
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1939
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1940
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1941
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1942
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1943
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1944
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1945
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1946
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1947
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1948
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1949
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1950
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1951
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1952
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1953
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 1954
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2057
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2058
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2059
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2060
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2061
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2062
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2064
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2065
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2069
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2070
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2071
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2072
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2073
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2074
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2075
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2076
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2077
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2078
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2079
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2080
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2082
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2083
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2084
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2085
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2086
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2087
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2088
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2090
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2091
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2092
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2093
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2094
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2095
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2096
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2098
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2099
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2103
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2104
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2105
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2106
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2107
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2108
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2109
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2110
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2111
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2112
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2113
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2114
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2116
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2117
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2118
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2119
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2120
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2121
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2122
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2124
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2228
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2229
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2230
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2231
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2232
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2233
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2234
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2235
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2236
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2237
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2238
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2239
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2240
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2241
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2242
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2243
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2244
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2245
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2246
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2247
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2248
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2249
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2250
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2251
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2252
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2253
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2254
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2255
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2256
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2257
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2274
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2275
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2276
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2277
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2279
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2281
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2282
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2283
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2284
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2285
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2286
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2287
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2288
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2495
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2496
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2500
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2660
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2661
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2662
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2663
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2664
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2665
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2666
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2667
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2668
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2669
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2670
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2671
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2696
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2698
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2699
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2701
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2703
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2710
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2712
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2713
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2714
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2715
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2716
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2717
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2718
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2719
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2720
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2721
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2722
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2723
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2724
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2725
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2726
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2727
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2728
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2729
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2730
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2731
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2732
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2733
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2734
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2735
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2736
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2737
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2738
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2903
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2904
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2905
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2906
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2907
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2908
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2909
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2910
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2911
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2912
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2913
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2914
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2915
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2916
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2917
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2918
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2919
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2920
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2921
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2922
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2923
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2924
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2925
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 2926
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING",
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 2927
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3001
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3002
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3003
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3004
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3005
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3006
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3007
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3008
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3009
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3010
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3011
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3012
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3013
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3014
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3015
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3016
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3204
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3205
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3206
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING",
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 3207
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3208
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3209
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3210
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3211
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3212
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3213
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3214
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3215
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3216
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3217
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3218
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3219
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3220
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3221
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3222
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3223
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3224
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3225
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3274
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3319
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3323
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3337
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3339
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3371
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3443
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3444
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3446
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3447
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3449
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3493
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3494
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3495
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3497
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3498
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3499
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3500
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3501
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3502
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3503
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3504
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3505
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3506
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3507
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3508
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3509
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3510
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3511
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3512
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3513
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3514
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3515
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3516
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3517
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3518
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3519
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3520
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3521
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3522
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3523
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3524
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3525
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3526
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3528
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3529
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3603
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3728
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3757
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3763
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3768
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3772
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3773
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3774
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3775
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3776
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3777
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3778
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3779
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3780
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3781
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3782
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3783
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3784
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3785
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3786
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3787
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3788
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3789
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3790
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3791
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3792
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3793
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3794
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3795
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3796
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3797
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3798
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3799
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3800
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3801
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3802
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3803
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3804
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3805
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3806
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3807
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3808
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3963
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3964
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3965
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3966
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3967
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3970
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3971
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3972
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3973
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3974
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3975
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3976
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3977
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3978
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3979
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3980
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3981
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3983
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3985
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3986
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 3990
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4317
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4318
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4319
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4321
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4322
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4323
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4324
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4325
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4326
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4327
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4328
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4329
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4330
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4331
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4332
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4334
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4335
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4336
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4337
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4338
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4339
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4340
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4341
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4342
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4343
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4344
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4345
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4346
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4347
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4348
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4363
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4364
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4365
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4366
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4367
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4368
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4369
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4377
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4378
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4379
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4380
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4381
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4382
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4383
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4384
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4386
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4387
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4388
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4389
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4390
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4391
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4392
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4393
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4394
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4395
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4396
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4397
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4398
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4399
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4400
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4401
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4625
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4675
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4676
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4677
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4678
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4679
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4680
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4681
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4682
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4685
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4686
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4687
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4688
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4689
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4690
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4691
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4692
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4693
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4694
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4695
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4696
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4697
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4698
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4699
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4700
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4701
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4702
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4703
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4705
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4706
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4707
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4708
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4709
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4710
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4711
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4712
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4713
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4714
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4715
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4718
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4719
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4720
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4721
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4722
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4723
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4724
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4725
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4726
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4727
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4730
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4731
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4732
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4735
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4737
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4738
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4739
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4740
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4741
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4742
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4743
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4744
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4745
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4746
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4747
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4748
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4749
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4750
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4751
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4752
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4753
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4754
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4755
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4756
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4757
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4758
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4759
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4760
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4763
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4764
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4765
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4768
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4771
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4772
+      },
+      {
+        "reason_codes": [
+          "SCORE_BASIS_MISSING"
+        ],
+        "source_row_number": 4773
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4782
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4783
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4800
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4802
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4803
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4815
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4816
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4827
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4828
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4832
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4833
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4835
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4836
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4840
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4843
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4844
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4845
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4846
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4847
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4848
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4849
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4850
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4851
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4852
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4853
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4854
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4855
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4856
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4857
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4858
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4859
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4860
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4861
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4862
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4863
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4864
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4865
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4866
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4867
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4868
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4869
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4870
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4871
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4872
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4873
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4875
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4876
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4877
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4878
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4879
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4880
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4881
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4882
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4883
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4884
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4885
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4886
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4887
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4888
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4889
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4890
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4891
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4892
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4893
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4894
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4895
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4896
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4897
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4898
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4899
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4900
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4902
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4903
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4904
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4905
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4914
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4915
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4932
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4934
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4935
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4947
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4948
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4959
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4960
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4964
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4965
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4967
+      },
+      {
+        "reason_codes": [
+          "SCORE_OUT_OF_RANGE"
+        ],
+        "source_row_number": 4968
+      }
+    ],
+    "zero_or_out_of_range_values_are_not_coerced": true
+  },
+  "published_results": {
+    "csat_grade_row_count": 208,
+    "point_score_row_count": 324,
+    "policy": "2026 공개 참고 결과이며 2027 성적 규칙으로 직접 비교하지 않음",
+    "rank_grade_row_count": 3562,
+    "row_count": 4094
+  },
+  "schema": "phase17_public_admission_audit",
+  "source": {
+    "filename": "result2026 (2).csv",
+    "institution_count": 42,
+    "result_academic_year": 2026,
+    "row_count": 4970,
+    "sha256": "f8577f1e58dbcaa2d2e1bc11ea4ff68641f5e506466ab8d61c49c2ce65c3e8cd",
+    "size": 603788,
+    "target_academic_year": 2027
+  },
+  "version": 1
+}

@@ -9,7 +9,7 @@
   <body class="auth-page">
     <header class="auth-header">
       <a class="brand-link" href="{{ url_for('main.index') }}">2027 전문대 입시 상담</a>
-      <a href="{{ url_for('auth.login') }}">로그인</a>
+      <a href="{{ url_for('auth.login', account_type=account_type, next=next or none) }}">로그인</a>
     </header>
 
     <main class="auth-shell auth-status-card" id="main-content">
@@ -22,7 +22,7 @@
         <p>승인 여부는 내부 운영 담당자에게 확인하고, 승인된 뒤 로그인하세요.</p>
       </div>
       <nav class="auth-links" aria-label="계정 이동">
-        <a href="{{ url_for('auth.login') }}">로그인 화면으로</a>
+        <a href="{{ url_for('auth.login', account_type=account_type, next=next or none) }}">로그인 화면으로</a>
         <a href="{{ url_for('main.index') }}">처음 화면으로</a>
       </nav>
     </main>

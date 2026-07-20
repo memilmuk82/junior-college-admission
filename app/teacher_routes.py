@@ -8,8 +8,14 @@ from flask import Blueprint, Response, make_response, redirect, render_template,
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth import csrf_token, require_csrf, roles_required, session_user
+from app.auth import csrf_token, is_demo_user, require_csrf, roles_required, session_user
 from app.database import db
+from app.models import (
+    ClassroomStudent,
+    StudentAcademicRecord,
+    StudentCourseRecord,
+    TeacherClassroom,
+)
 from app.services.classroom_links import (
     ClassroomLinkError,
     add_classroom_course,
@@ -65,31 +71,45 @@ def _render_classrooms(
 ) -> Response:
     user = session_user()
     assert user is not None
+    demo_mode = is_demo_user(user)
     database_session = cast(Session, db.session)
-    classrooms = list_teacher_classrooms(database_session, user=user)
-    students_by_classroom = {
-        classroom.id: list_classroom_students(
-            database_session, user=user, classroom_id=classroom.id
+    classrooms: tuple[TeacherClassroom, ...]
+    students_by_classroom: dict[str, tuple[ClassroomStudent, ...]]
+    selected_student: ClassroomStudent | None
+    records: tuple[StudentAcademicRecord, ...]
+    courses_by_record: dict[str, tuple[StudentCourseRecord, ...]]
+    if demo_mode:
+        classrooms = ()
+        students_by_classroom = {}
+        selected_student = None
+        records = ()
+        courses_by_record = {}
+    else:
+        classrooms = list_teacher_classrooms(database_session, user=user)
+        students_by_classroom = {
+            classroom.id: list_classroom_students(
+                database_session, user=user, classroom_id=classroom.id
+            )
+            for classroom in classrooms
+        }
+        selected_student_id = request.args.get("student_id", "").strip() or issued_student_id
+        selected_student = next(
+            (
+                student
+                for students in students_by_classroom.values()
+                for student in students
+                if student.id == selected_student_id
+            ),
+            None,
         )
-        for classroom in classrooms
-    }
-    selected_student_id = request.args.get("student_id", "").strip() or issued_student_id
-    selected_student = next(
-        (
-            student
-            for students in students_by_classroom.values()
-            for student in students
-            if student.id == selected_student_id
-        ),
-        None,
-    )
-    records = (
-        classroom_student_records(
-            database_session, user=user, classroom_student_id=selected_student.id
+        records = (
+            classroom_student_records(
+                database_session, user=user, classroom_student_id=selected_student.id
+            )
+            if selected_student is not None
+            else ()
         )
-        if selected_student is not None
-        else ()
-    )
+        courses_by_record = academic_record_courses(database_session, records=records)
     return _private(
         render_template(
             "teacher_classrooms.html",
@@ -104,11 +124,12 @@ def _render_classrooms(
                 else None
             ),
             records=records,
-            courses_by_record=academic_record_courses(database_session, records=records),
+            courses_by_record=courses_by_record,
             error=error,
             connection_code=connection_code,
             issued_student_id=issued_student_id,
             message=request.args.get("message"),
+            demo_mode=demo_mode,
         ),
         status,
     )
@@ -252,13 +273,17 @@ def _filtered_rows() -> tuple[InstitutionalOutcomeView, ...]:
 def _render_outcomes(*, error: str | None = None, status: int = 200) -> Response:
     user = session_user()
     assert user is not None
+    demo_mode = is_demo_user(user)
     filters = _filters()
-    try:
-        rows = _filtered_rows()
-    except InstitutionalResultError as filter_error:
-        rows = ()
-        error = error or str(filter_error)
-        status = max(status, 400)
+    if demo_mode:
+        rows: tuple[InstitutionalOutcomeView, ...] = ()
+    else:
+        try:
+            rows = _filtered_rows()
+        except InstitutionalResultError as filter_error:
+            rows = ()
+            error = error or str(filter_error)
+            status = max(status, 400)
     options = list_track_options(cast(Session, db.session), academic_year=2027)
     return _private(
         render_template(
@@ -270,6 +295,7 @@ def _render_outcomes(*, error: str | None = None, status: int = 200) -> Response
             track_options=options,
             filters=filters,
             error=error,
+            demo_mode=demo_mode,
         ),
         status,
     )

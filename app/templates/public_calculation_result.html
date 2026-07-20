@@ -2,7 +2,7 @@
 <html lang="ko">
   <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>상담 결과 비교 · 진학상담 2027</title><link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}"></head>
   <body class="product-page public-calculation-page">
-    <header class="product-header"><a class="product-brand" href="{{ url_for('main.index') }}">진학상담 2027 <span>공공 상담</span></a><nav><strong>2027학년도</strong><a href="{{ url_for('auth.login') }}">저장/로그인</a></nav></header>
+    <header class="product-header"><a class="product-brand" href="{{ url_for('main.index') }}">진학상담 2027 <span>공공 상담</span></a><nav><strong>2027학년도</strong>{% include '_account_access_nav.html' %}</nav></header>
     <main class="product-shell">
       <nav class="public-steps" aria-label="상담 단계"><a href="{{ url_for('main.public_calculation_input') }}"><span>1</span> 성적 입력</a><a href="{{ url_for('main.review_input', review_session_id=calculation_id) }}"><span>2</span> 입력 확인</a><a href="{{ url_for('main.public_calculation_targets', calculation_id=calculation_id) }}"><span>3</span> 대학·학과 선택</a><strong aria-current="step"><span>4</span> 결과 비교</strong></nav>
 
@@ -15,11 +15,12 @@
       {% set eligibility_labels = {'ELIGIBLE':'지원 가능','INELIGIBLE':'지원 불가','NEEDS_REVIEW':'추가 확인 필요'} %}
       <section class="result-list" aria-labelledby="result-heading">
         <div class="panel-heading"><div><span class="eyebrow">OFFICIAL COMPARISON</span><h2 id="result-heading">전형별 결과 {{ result.items|length }}건</h2></div><span>자격 확인 → 성적 계산 순서</span></div>
+        {% if not result.items %}<div class="admin-alert" role="status"><h3>현재 학생 정보에 해당하는 전형이 없습니다</h3><p>공식 지원자격 판정에서 지원 불가가 확정된 전형은 공개 결과와 출력에서 제외했습니다. 학생 구분이나 추가 사실을 확인하세요.</p></div>{% endif %}
         {% for item in result.items %}
           {% if item.result %}{% set row = item.result %}{% set eligibility_code = row.eligibility.status.value %}
             <article class="result-card" data-consultation-result-row>
               <header>
-                <div><span>{{ row.target.institution_name }} · {{ row.target.campus_name }}</span><h3>{{ row.target.program_name }}</h3><p>{{ row.target.admission_round_name }} · {{ row.target.admission_track_name }}</p></div>
+                <div><span>{{ row.target.institution_name }} · {{ row.target.campus_name }}</span><h3>{{ row.target.program_name }}{% if row.target.day_night == 'DAY' %} · 주간{% elif row.target.day_night == 'NIGHT' %} · 야간{% endif %}</h3><p>{{ row.target.admission_round_name }} · {{ row.target.admission_track_name }}</p></div>
                 <span class="status-badge status-badge--{{ eligibility_code|lower }}">{{ eligibility_labels.get(eligibility_code, '추가 확인 필요') }}</span>
               </header>
               <div class="result-metrics">
@@ -38,8 +39,17 @@
             </article>
           {% else %}{% set historical = item.reference_results[0] if item.reference_results else none %}
             <article class="result-card result-card--review" data-consultation-result-row>
-              <header><div><span>{{ item.program.institution_name }} · {{ item.program.campus_name }}</span><h3>{{ item.program.program_name }}</h3><p>{{ item.target.admission_round_name if item.target else (historical.admission_round_code if historical else '전형 기준 준비 중') }}</p></div><span class="status-badge status-badge--needs_review">추가 확인 필요</span></header>
-              <div class="result-metrics"><div><span>내 반영 평균등급</span><strong>계산하지 않음</strong><small>공식 계산 기준을 확인 중입니다.</small></div><div><span>공개 입시결과</span>{% if historical %}<strong>평균 {{ historical.average_score if historical.average_score is not none else '미제공' }}</strong><small>최저 {{ historical.cutoff_score if historical.cutoff_score is not none else '미제공' }} · 참고용</small>{% else %}<strong>자료 없음</strong>{% endif %}</div><div><span>확인 상태</span><strong>상담자 확인 필요</strong><small>{{ item.message }}</small></div></div>
+              <header><div><span>{{ item.program.institution_name }} · {{ item.program.campus_name }}</span><h3>{{ item.program.program_name }}{% if item.program.day_night == 'DAY' %} · 주간{% elif item.program.day_night == 'NIGHT' %} · 야간{% endif %}</h3><p>{{ item.target.admission_round_name if item.target else (historical.admission_round_code if historical else '전형 기준 준비 중') }}</p></div><span class="status-badge status-badge--needs_review">계산 기준 준비 중</span></header>
+              <div class="result-metrics"><div><span>내 반영 평균등급</span><strong>계산하지 않음</strong><small>2027 공식 계산 기준을 확인 중입니다.</small></div><div><span>공개 입시결과</span>{% if historical %}<strong>{{ historical.result_academic_year }}학년도 {{ item.reference_results|length }}건</strong><small>{{ historical.score_basis_label }} · 참고용</small>{% else %}<strong>자료 없음</strong><small>선택한 연도의 공개 결과가 없습니다.</small>{% endif %}</div><div><span>확인 상태</span><strong>상담자 확인 필요</strong><small>{{ item.message }}</small></div></div>
+              {% if item.reference_results %}
+                <details class="result-evidence" open>
+                  <summary>{{ historical.result_academic_year }}학년도 공개 입시결과 {{ item.reference_results|length }}건 보기</summary>
+                  <p>과거 결과는 합격 예측이 아닌 참고자료입니다. 학생부 석차등급 외 척도는 현재 입력 성적과 직접 비교할 수 없습니다.</p>
+                  <div class="table-scroll"><table><thead><tr><th>모집시기·전형</th><th>성적 기준</th><th>평균·최저</th><th>모집·경쟁률</th></tr></thead><tbody>
+                    {% for reference in item.reference_results %}<tr><td>{{ reference.admission_round_code }}<br>{{ reference.admission_track_code }}{% if reference.day_night == 'DAY' %} · 주간{% elif reference.day_night == 'NIGHT' %} · 야간{% endif %}</td><td>{{ reference.score_basis_label }}{% if not reference.is_direct_grade_comparison_allowed %}<br><strong>직접 비교 불가</strong>{% endif %}</td><td>평균 {{ reference.average_score if reference.average_score is not none else '미제공' }}<br>최저 {{ reference.cutoff_score if reference.cutoff_score is not none else '미제공' }}</td><td>모집 {{ reference.capacity if reference.capacity is not none else '미제공' }}명<br>경쟁률 {{ reference.competition_rate if reference.competition_rate is not none else '미제공' }}</td></tr>{% endfor %}
+                  </tbody></table></div>
+                </details>
+              {% endif %}
             </article>
           {% endif %}
         {% endfor %}
@@ -48,7 +58,7 @@
       <p class="result-disclaimer">평균·최저 등급의 차이는 합격 가능성이나 추천 순위가 아닙니다. 모집요강과 대학 발표 자료를 반드시 함께 확인하세요.</p>
 
       <section class="result-next-actions">
-        <div><span class="eyebrow">PRINT</span><h2>A4 상담자료</h2><p>학생용은 핵심 요약, 교사용은 판정·계산·근거 trace를 포함합니다.</p><div class="print-actions__buttons">{% for audience,label in [('student','학생용 A4'),('teacher','교사용 A4')] %}<form method="post" action="{{ url_for('main.public_calculation_print', calculation_id=calculation_id, audience=audience) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% for field in ['academic_year','admission_result_year','home_school_type','final_school_type','graduation_status','vocational_training_status','vocational_training_semesters','vocational_training_hours','vocational_training_months','transferred','ged'] %}<input type="hidden" name="{{ field }}" value="{{ values.get(field,'') }}">{% endfor %}{% for program_id in values.getlist('program_ids') %}<input type="hidden" name="program_ids" value="{{ program_id }}">{% endfor %}<button type="submit" class="button-link button-link--secondary">{{ label }} 열기</button></form>{% endfor %}</div></div>
+        <div><span class="eyebrow">PRINT</span><h2>A4 상담자료</h2><p>학생용은 핵심 요약, 교사용은 판정·계산·근거 trace를 포함합니다.</p><div class="print-actions__buttons">{% for audience,label in [('student','학생용 A4'),('teacher','교사용 A4')] %}<form method="post" action="{{ url_for('main.public_calculation_print', calculation_id=calculation_id, audience=audience) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% for field in ['student_profile','academic_year','admission_result_year','home_school_type','final_school_type','graduation_status','vocational_training_status','vocational_training_semesters','vocational_training_hours','vocational_training_months','transferred','ged'] %}<input type="hidden" name="{{ field }}" value="{{ values.get(field,'') }}">{% endfor %}{% for program_id in values.getlist('program_ids') %}<input type="hidden" name="program_ids" value="{{ program_id }}">{% endfor %}<button type="submit" class="button-link button-link--secondary">{{ label }} 열기</button></form>{% endfor %}</div></div>
         <div><span class="eyebrow">OPTIONAL SAVE</span><h2>결과 저장</h2><p>공개 상담은 끝까지 로그인 없이 사용할 수 있습니다. 다시 열거나 조건을 바꾸려면 로그인 후 저장하세요.</p><div class="result-toolbar"><a class="button-link" href="{{ url_for('main.save_public_calculation', calculation_id=calculation_id) }}">로그인 후 저장</a></div></div>
       </section>
       <form class="complete-form" method="post" action="{{ url_for('main.complete_public_calculation', calculation_id=calculation_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="text-action text-action--danger" type="submit">상담 완료하고 임시 입력 삭제</button></form>

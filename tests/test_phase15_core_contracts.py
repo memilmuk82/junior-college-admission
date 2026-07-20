@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
 from werkzeug.datastructures import MultiDict
 
 from app.crawlers.procollege import ProcollegeAdapter
@@ -12,6 +13,7 @@ from app.services.admission_results import (
     collect_admission_result_raw,
     stage_admission_result_raw,
 )
+from app.services.public_student_profiles import GENERAL_GRADUATE, VOCATIONAL_CURRENT
 
 
 class FixtureTransport:
@@ -47,6 +49,38 @@ def test_public_consultation_forces_the_approved_2027_cohort() -> None:
     assert values["graduation_status"] == "EXPECTED"
     assert values["vocational_training_status"] == "PARTICIPATING"
     assert values["ged"] == "FALSE"
+    assert values["student_profile"] == VOCATIONAL_CURRENT
+
+
+def test_public_consultation_allows_only_the_explicit_general_graduate_exception() -> None:
+    values = _public_target_values(
+        MultiDict(
+            {
+                "student_profile": GENERAL_GRADUATE,
+                "graduation_status": "EXPECTED",
+                "vocational_training_status": "PARTICIPATING",
+                "vocational_training_semesters": "2",
+                "vocational_training_hours": "999",
+                "vocational_training_months": "12",
+                "ged": "TRUE",
+            }
+        )
+    )
+
+    assert values["student_profile"] == GENERAL_GRADUATE
+    assert values["home_school_type"] == "GENERAL"
+    assert values["final_school_type"] == "GENERAL"
+    assert values["graduation_status"] == "GRADUATED"
+    assert values["vocational_training_status"] == "NONE"
+    assert values["vocational_training_semesters"] == ""
+    assert values["vocational_training_hours"] == ""
+    assert values["vocational_training_months"] == ""
+    assert values["ged"] == "FALSE"
+
+
+def test_public_consultation_rejects_an_unknown_student_profile() -> None:
+    with pytest.raises(ValueError, match="학생 구분"):
+        _public_target_values(MultiDict({"student_profile": "UNTRUSTED"}))
 
 
 def test_procollege_fixture_uses_the_existing_raw_and_staging_contract() -> None:

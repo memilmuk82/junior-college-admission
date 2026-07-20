@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth import csrf_token, require_csrf, roles_required, session_user
+from app.auth import csrf_token, is_demo_user, require_csrf, roles_required, session_user
 from app.database import db
 from app.models import AdmissionRound, DataValidationDecision, Institution, SourceDocument
 from app.services.source_documents import (
@@ -41,23 +41,28 @@ def _private(content: str, status: int = 200) -> Response:
 
 def _render_index(*, error: str | None = None, status: int = 200) -> Response:
     database_session = cast(Session, db.session)
-    documents = tuple(
-        database_session.scalars(
-            select(SourceDocument).order_by(
-                SourceDocument.academic_year.desc(),
-                SourceDocument.is_current.desc(),
-                SourceDocument.created_at.desc(),
+    demo_mode = is_demo_user()
+    if demo_mode:
+        documents: tuple[SourceDocument, ...] = ()
+        decisions: tuple[DataValidationDecision, ...] = ()
+    else:
+        documents = tuple(
+            database_session.scalars(
+                select(SourceDocument).order_by(
+                    SourceDocument.academic_year.desc(),
+                    SourceDocument.is_current.desc(),
+                    SourceDocument.created_at.desc(),
+                )
             )
         )
-    )
-    decisions = tuple(
-        database_session.scalars(
-            select(DataValidationDecision).order_by(
-                DataValidationDecision.resolution_status,
-                DataValidationDecision.created_at.desc(),
+        decisions = tuple(
+            database_session.scalars(
+                select(DataValidationDecision).order_by(
+                    DataValidationDecision.resolution_status,
+                    DataValidationDecision.created_at.desc(),
+                )
             )
         )
-    )
     institutions = tuple(database_session.scalars(select(Institution).order_by(Institution.name)))
     rounds = tuple(
         database_session.scalars(
@@ -75,6 +80,7 @@ def _render_index(*, error: str | None = None, status: int = 200) -> Response:
             institutions=institutions,
             rounds=rounds,
             error=error,
+            demo_mode=demo_mode,
         ),
         status,
     )

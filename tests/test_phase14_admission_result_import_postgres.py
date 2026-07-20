@@ -29,7 +29,17 @@ from app.services.admission_result_imports import (
     persist_admission_result_preview,
     publish_admission_result_dataset,
 )
-from app.services.phase14_public_seed import load_phase14_public_seed
+from app.services.ai_payloads import (
+    build_anonymous_consultation_payload,
+    validated_saved_payload_copy,
+)
+from app.services.consultations import (
+    BatchConsultationRequest,
+    ConsultationItemStatus,
+    run_batch_consultation,
+)
+from app.services.eligibility import StudentFacts
+from app.services.phase14_public_seed import load_phase14_public_seed, load_phase17_public_seed
 from app.services.temporary_uploads import TemporaryUploadStore
 
 
@@ -423,4 +433,221 @@ def test_phase14_public_seed_loads_482_xlsx_rows_for_four_real_institutions(
             result.admission_track_code == "SPECIAL-GENERAL-HS" for result in program_results
         )
         assert list_published_result_years(session, 2027) == (2025,)
+        session.rollback()
+
+
+def test_phase17_seed_publishes_2026_reference_results_and_preserves_2025(
+    postgres_engine: Engine,
+) -> None:
+    with Session(postgres_engine) as session:
+        seeded = load_phase17_public_seed(
+            session,
+            repository_root=Path("."),
+            actor_ref="synthetic-phase17-verifier",
+            occurred_at=datetime.now(UTC),
+        )
+        seeded_again = load_phase17_public_seed(
+            session,
+            repository_root=Path("."),
+            actor_ref="synthetic-phase17-verifier",
+            occurred_at=datetime.now(UTC),
+        )
+        session.flush()
+
+        assert seeded == seeded_again
+        assert list_published_result_years(session, 2027) == (2026, 2025)
+        dataset = session.get(AdmissionResultImportDataset, seeded.result_2026_dataset_id)
+        assert dataset is not None
+        assert (
+            dataset.result_academic_year,
+            dataset.target_academic_year,
+            dataset.original_row_count,
+            dataset.valid_row_count,
+            dataset.review_row_count,
+            dataset.error_row_count,
+            dataset.published_row_count,
+        ) == (2026, 2027, 4094, 4094, 0, 0, 4094)
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(AdmissionResultImportRow)
+                .where(
+                    AdmissionResultImportRow.dataset_id == dataset.id,
+                    AdmissionResultImportRow.score_basis == "POINT_SCORE",
+                )
+            )
+            == 324
+        )
+        csat_row = session.scalar(
+            select(AdmissionResultImportRow).where(
+                AdmissionResultImportRow.dataset_id == dataset.id,
+                AdmissionResultImportRow.score_basis == "CSAT_GRADE",
+            )
+        )
+        assert csat_row is not None
+        csat_reference = load_published_imported_result(
+            session,
+            target_academic_year=2027,
+            result_academic_year=2026,
+            institution_code=str(csat_row.institution_code),
+            campus_code=str(csat_row.campus_code),
+            program_code=str(csat_row.program_code),
+            admission_round_code=str(csat_row.admission_round_code),
+            admission_track_code=str(csat_row.admission_track_code),
+            day_night=csat_row.day_night,
+            score_basis="CSAT_GRADE",
+        )
+        assert csat_reference is not None
+        assert csat_reference.score_basis_label == "수능 등급(참고용)"
+        assert csat_reference.is_direct_grade_comparison_allowed is False
+
+        catalog_names = set(session.scalars(select(Institution.name)))
+        assert "동양미래대학교" in catalog_names
+        assert len(catalog_names & set(seeded.source_institution_names)) == 42
+
+        day_rows = tuple(
+            session.scalars(
+                select(AdmissionResultImportRow).where(
+                    AdmissionResultImportRow.dataset_id == dataset.id,
+                    AdmissionResultImportRow.institution_name == "두원공과대학교",
+                    AdmissionResultImportRow.program_name == "자동차과",
+                    AdmissionResultImportRow.admission_round_code == "SUSI-1",
+                    AdmissionResultImportRow.admission_track_code == "GENERAL",
+                )
+            )
+        )
+        assert {(row.day_night, str(row.average_score)) for row in day_rows} == {
+            ("DAY", "5.2400"),
+            ("NIGHT", "5.6400"),
+        }
+
+        seoyeong_rows = tuple(
+            session.scalars(
+                select(AdmissionResultImportRow).where(
+                    AdmissionResultImportRow.dataset_id == dataset.id,
+                    AdmissionResultImportRow.institution_name == "서영대학교",
+                    AdmissionResultImportRow.program_name == "치위생과",
+                    AdmissionResultImportRow.admission_round_code == "SUSI-1",
+                    AdmissionResultImportRow.admission_track_code == "SPECIAL-VOCATIONAL-HS",
+                )
+            )
+        )
+        assert {(row.region, str(row.average_score)) for row in seoyeong_rows} == {
+            ("경기", "4.0000"),
+            ("광주", "5.8000"),
+        }
+        assert len({row.campus_code for row in seoyeong_rows}) == 2
+
+        example = session.scalar(
+            select(AdmissionResultImportRow).where(
+                AdmissionResultImportRow.dataset_id == dataset.id,
+                AdmissionResultImportRow.institution_name == "경기과학기술대학교",
+                AdmissionResultImportRow.program_name == "경영학과",
+                AdmissionResultImportRow.admission_round_code == "SUSI-1",
+                AdmissionResultImportRow.admission_track_code == "SPECIAL-GENERAL-HS",
+                AdmissionResultImportRow.day_night == "DAY",
+            )
+        )
+        assert example is not None
+        loaded = load_published_imported_result(
+            session,
+            target_academic_year=2027,
+            result_academic_year=2026,
+            institution_code=str(example.institution_code),
+            campus_code=str(example.campus_code),
+            program_code=str(example.program_code),
+            admission_round_code="SUSI-1",
+            admission_track_code="SPECIAL-GENERAL-HS",
+            day_night="DAY",
+        )
+        assert loaded is not None
+        assert (
+            str(loaded.capacity),
+            str(loaded.competition_rate),
+            str(loaded.average_score),
+            str(loaded.cutoff_score),
+        ) == ("20", "9.7500", "6.5300", "7.8300")
+
+        catalog_program = session.scalar(
+            select(Program)
+            .join(Campus, Program.campus_id == Campus.id)
+            .join(Institution, Campus.institution_id == Institution.id)
+            .where(
+                Institution.name == "경기과학기술대학교",
+                Program.name == "경영학과",
+                Program.day_night == "DAY",
+            )
+        )
+        assert catalog_program is not None
+        track_preparing = run_batch_consultation(
+            session,
+            BatchConsultationRequest(
+                student_id="synthetic-phase17-reference-student",
+                program_ids=(catalog_program.id,),
+                academic_year=2027,
+                facts=StudentFacts(),
+                admission_result_year=2026,
+            ),
+        )
+        assert len(track_preparing.items) == 5
+        assert all(
+            item.status is ConsultationItemStatus.PREPARING
+            and item.target is not None
+            and len(item.reference_results) == 1
+            and item.reference_results[0].admission_round_code == item.target.admission_round_code
+            and item.reference_results[0].admission_track_code == item.target.admission_track_code
+            and item.reference_results[0].day_night == item.target.day_night
+            for item in track_preparing.items
+        )
+
+        session.execute(
+            delete(AdmissionTrack).where(AdmissionTrack.program_id == catalog_program.id)
+        )
+        session.flush()
+        preparing = run_batch_consultation(
+            session,
+            BatchConsultationRequest(
+                student_id="synthetic-phase17-reference-student",
+                program_ids=(catalog_program.id,),
+                academic_year=2027,
+                facts=StudentFacts(),
+                admission_result_year=2026,
+            ),
+        )
+        assert len(preparing.items) == 1
+        item = preparing.items[0]
+        assert item.status is ConsultationItemStatus.PREPARING
+        assert item.target is None
+        assert len(item.reference_results) == 5
+        assert {result.score_basis for result in item.reference_results} == {
+            "RANK_GRADE",
+            "POINT_SCORE",
+        }
+        assert all(
+            not result.is_direct_grade_comparison_allowed
+            for result in item.reference_results
+            if result.score_basis == "POINT_SCORE"
+        )
+        assert all(
+            result.institution_code == example.institution_code
+            and result.campus_code == example.campus_code
+            and result.program_code == example.program_code
+            and result.day_night == "DAY"
+            for result in item.reference_results
+        )
+        saved_payload = validated_saved_payload_copy(
+            build_anonymous_consultation_payload(preparing).data
+        )
+        saved_references = saved_payload["results"][0]["reference_results"]
+        assert len(saved_references) == 5
+        assert {reference["score_basis"] for reference in saved_references} == {
+            "RANK_GRADE",
+            "POINT_SCORE",
+        }
+        assert all(reference["result_academic_year"] == 2026 for reference in saved_references)
+        assert any(
+            reference["average_score"] == "65.0600"
+            and reference["is_direct_grade_comparison_allowed"] is False
+            for reference in saved_references
+        )
         session.rollback()

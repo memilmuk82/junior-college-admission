@@ -5,12 +5,13 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import select
+from sqlalchemy import exists, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models import (
     AdmissionEligibilityRule,
+    AdmissionResultImportRow,
     AdmissionRound,
     AdmissionTrack,
     Campus,
@@ -81,6 +82,7 @@ class ConsultationError(ValueError):
 
 
 PUBLIC_AVERAGE_GRADE_SCALES = frozenset({"RANK_GRADE", "DEMO_SYNTHETIC_RANK_GRADE"})
+MAX_BATCH_PROGRAMS = 5
 
 
 class ConsultationStatus(StrEnum):
@@ -133,6 +135,10 @@ class BatchConsultationRequest:
         normalized = tuple(dict.fromkeys(item.strip() for item in self.program_ids if item.strip()))
         if not normalized:
             raise ConsultationError("희망 대학·학과를 하나 이상 선택해야 합니다.")
+        if len(normalized) > MAX_BATCH_PROGRAMS:
+            raise ConsultationError(
+                f"한 번에 비교할 대학·학과는 최대 {MAX_BATCH_PROGRAMS}개입니다."
+            )
         if normalized != self.program_ids:
             object.__setattr__(self, "program_ids", normalized)
         if not 2000 <= self.academic_year <= 2100:
@@ -158,6 +164,7 @@ class ConsultationTarget:
     admission_track_code: str
     institution_code: str = ""
     campus_code: str = ""
+    day_night: str = "UNKNOWN"
 
 
 @dataclass(frozen=True)
@@ -168,6 +175,9 @@ class ConsultationProgram:
     campus_name: str
     program_name: str
     program_code: str | None
+    day_night: str = "UNKNOWN"
+    institution_code: str = ""
+    campus_code: str = ""
 
 
 @dataclass(frozen=True)
@@ -383,6 +393,7 @@ def load_consultation_target(session: Session, admission_track_id: str) -> Consu
         admission_track_code=track.code,
         institution_code=institution.code or "",
         campus_code=campus.code or "",
+        day_night=program.day_night,
     )
 
 
@@ -415,15 +426,30 @@ def list_consultation_programs(
 ) -> tuple[ConsultationProgram, ...]:
     """List every program with a track in the year, including rule-preparation states."""
 
+    track_exists = exists(
+        select(AdmissionTrack.id)
+        .join(AdmissionRound, AdmissionTrack.admission_round_id == AdmissionRound.id)
+        .where(
+            AdmissionTrack.program_id == Program.id,
+            AdmissionRound.academic_year == academic_year,
+        )
+    )
+    reference_result_exists = exists(
+        select(AdmissionResultImportRow.id).where(
+            AdmissionResultImportRow.publication_status == "PUBLISHED",
+            AdmissionResultImportRow.target_academic_year == academic_year,
+            AdmissionResultImportRow.institution_code == Institution.code,
+            AdmissionResultImportRow.campus_code == Campus.code,
+            AdmissionResultImportRow.program_code == Program.code,
+            AdmissionResultImportRow.day_night == Program.day_night,
+        )
+    )
     rows = tuple(
         session.execute(
             select(Program, Campus, Institution)
             .join(Campus, Program.campus_id == Campus.id)
             .join(Institution, Campus.institution_id == Institution.id)
-            .join(AdmissionTrack, AdmissionTrack.program_id == Program.id)
-            .join(AdmissionRound, AdmissionTrack.admission_round_id == AdmissionRound.id)
-            .where(AdmissionRound.academic_year == academic_year)
-            .distinct()
+            .where(or_(track_exists, reference_result_exists))
             .order_by(Institution.name, Campus.name, Program.name, Program.id)
         )
     )
@@ -435,6 +461,9 @@ def list_consultation_programs(
             campus_name=campus.name,
             program_name=program.name,
             program_code=program.code,
+            day_night=program.day_night,
+            institution_code=institution.code or "",
+            campus_code=campus.code or "",
         )
         for program, campus, institution in rows
     )
@@ -698,6 +727,24 @@ def run_batch_consultation(
                 .order_by(AdmissionRound.code, AdmissionTrack.code, AdmissionTrack.id)
             )
         )
+        if not track_ids:
+            reference_results = _program_reference_results(
+                session,
+                program=program,
+                target_year=request.academic_year,
+                result_year=request.admission_result_year,
+            )
+            items.append(
+                BatchConsultationItem(
+                    program,
+                    None,
+                    ConsultationItemStatus.PREPARING,
+                    None,
+                    "계산 기준 준비 중: 해당 학과의 연결 전형이 아직 준비되지 않았습니다.",
+                    reference_results,
+                )
+            )
+            continue
         for track_id in track_ids:
             target: ConsultationTarget | None = None
             try:
@@ -814,6 +861,36 @@ def _preparing_reference_results(
         institution_code=target.institution_code,
         campus_code=target.campus_code,
         program_code=program.program_code,
+        admission_round_code=target.admission_round_code,
+        admission_track_code=target.admission_track_code,
+        day_night=target.day_night,
+        score_basis=None,
+    )
+
+
+def _program_reference_results(
+    session: Session,
+    *,
+    program: ConsultationProgram,
+    target_year: int,
+    result_year: int | None,
+) -> tuple[PublishedImportedAdmissionResult, ...]:
+    if (
+        result_year is None
+        or program.program_code is None
+        or not program.institution_code
+        or not program.campus_code
+    ):
+        return ()
+    return list_published_imported_results_for_program(
+        session,
+        target_academic_year=target_year,
+        result_academic_year=result_year,
+        institution_code=program.institution_code,
+        campus_code=program.campus_code,
+        program_code=program.program_code,
+        day_night=program.day_night,
+        score_basis=None,
     )
 
 
@@ -927,6 +1004,8 @@ def _load_imported_result_comparison(
         program_code=target.program_code,
         admission_round_code=target.admission_round_code,
         admission_track_code=target.admission_track_code,
+        day_night=target.day_night,
+        score_basis="RANK_GRADE",
     )
     if imported is None:
         return AdmissionResultComparison(
@@ -1070,6 +1149,7 @@ __all__ = [
     "ConsultationResult",
     "ConsultationStatus",
     "ConsultationTarget",
+    "MAX_BATCH_PROGRAMS",
     "classify_admission_result",
     "list_consultation_programs",
     "list_consultation_targets",
