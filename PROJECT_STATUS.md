@@ -438,3 +438,26 @@ Phase 18은 단일 `role` 스키마를 변경하지 않고 비데모 `ADMIN`에 
 - 후속 커밋 `379e57f`을 `origin/main`에 push했다. 실사용 계정·BYOK 포함 백업 `admission_20260720_115319_3899759.dump`의 SHA-256 `2a35f5b8d7e9099f0c8148221982d4368c8a93086107e61fab812d7c2e04faeb`, archive와 격리 복원을 확인했다.
 - 기존 DB 컨테이너 `072f1a30e7d5...`와 volume을 유지하고 웹만 컨테이너 `ccbc036a4579...`, 이미지 `sha256:d117c49d03bcdb080303f99fb047ea1dcb7c7d7e13589176edb6d93ae6f560ec`로 교체했다.
 - 공인 HTTPS Chromium 2건에서 기본 실사용 관리자 흐름과 `demo-main-admin 로그인 → 로그아웃하지 않고 /auth/login → 실사용 관리자 로그인 → 대시보드`를 통과했다. 운영 access log는 해당 POST를 모두 302로 기록했고 403·console·page error는 없었다.
+
+## Phase 19·20 운영 배포 완료
+
+- [x] 이메일 로그인 ID, 가입 이메일 인증, 인증 재발송, 비밀번호 찾기·재설정, 회원정보 비밀번호·이메일 변경, 명시적 Google 계정 연결·해제 구현
+- [x] 학생·교사·주 관리자·승인 전용 보조 관리자 체험계정과 운영 DB에서 분리된 쓰기 가능한 `/demo/` 환경 제공
+- [x] 체험 이메일 outbox, 로컬 Google 동의, 공개 seed 기반 크롤러 fixture, 세션별 암호화 BYOK로 외부 부작용 없는 전체 흐름 제공
+- [x] 3학년 1학기만 위탁 성적으로 분류하고 1·2학년과 선택 입력인 3학년 2학기는 원적교 성적으로 서버 확정
+- [x] 검수 공개 자료 43개 대학·1,079개 학과·5,092개 전형과 2025 결과 482행·2026 결과 4,094행 보존
+- [x] 기능별 화면 설명과 공개 입시자료·합성 익명 학생자료 구분, 역할별 허용·금지 범위 표시
+- [x] 단위 392건, PostgreSQL 통합 223건, 실제 HTTPS Phase 20 역할 E2E 6건, Phase 17 공개 E2E 4건 통과
+- [x] Ruff·포맷·mypy 166개 소스, 규칙·민감자료·Compose·Nginx·로그 회전 검증 통과
+
+### Phase 19·20 운영 배포
+
+- 구현 커밋 `a0653bc`와 공개 E2E 안정화 커밋 `1474ef4`를 `origin/main`에 push했다.
+- 배포 전 백업 `admission_20260720_235952_1746964.dump`의 SHA-256 `174620f4db7149fba6e91ba9c495b0b2a605010bd395fba27f5b1f7f3ae4e4e5`, archive와 network-none/tmpfs 격리 복원을 확인했다.
+- 운영 DB volume을 유지하고 migration을 `b6f1e8a42c73 → 3d9c0f7a21b4 (head)`로 적용했다. 활성 주 관리자 소유 BYOK 1건과 공개 catalog·2025/2026 결과를 보존했다.
+- 운영 웹 이미지 `sha256:ceb0296ef5ebcb59cb827a5952409edd4dd25f928cdb117dc7d6a9f504a14b90`와 격리 체험 웹 이미지 `sha256:8a19971b044246af574bc553086699b0ecfa1d180cbaf47c3bec894498a7fc4c`로 재빌드했고 모든 운영·체험 컨테이너가 `healthy`다.
+- 호스트 Nginx에 `/demo/` loopback proxy와 query token 비기록 경계를 설치하고 `nginx -t` 후 reload했다. `logrotate` timer를 설치·활성화하고 전용 로그 5개를 `0640 www-data:adm`으로 고정했다.
+- 공개 `https://admission.memilmuk82.com/demo/`에서 네 역할의 저장·수정·학생 연결·승인·관리 import·fixture 수집·비밀번호·Google·BYOK 흐름 6건과 위탁/일반고·무JavaScript·390px 공개 흐름 4건을 통과했다.
+- E2E 뒤 체험 volume만 초기화했다. 최종 기준은 활성 계정 4, 학급 2, 학생 3, 성적 레코드 15·과목 93, 상담 0, 교내 결과 2, BYOK·AI 초안 0건이다.
+
+최종 판정은 `PASS_PRODUCTION_PHASE_20`이다. 운영 SMTP와 실제 Google OIDC는 별도 자격증명이 없어 기본 비활성이고, 체험 환경에서는 동일 사용자 흐름을 outbox와 로컬 동의로 전부 검증할 수 있다.
