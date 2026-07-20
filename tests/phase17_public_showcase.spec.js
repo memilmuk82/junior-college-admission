@@ -7,14 +7,33 @@ const appUrl = process.env.PHASE17_E2E_URL
   || process.env.PUBLIC_CALCULATION_URL
   || process.env.ADMIN_URL;
 const screenshotDir = process.env.SCREENSHOT_DIR || '/tmp/phase17-qa';
+const authRequestIntervalMs = Number(
+  process.env.E2E_AUTH_REQUEST_INTERVAL_MS || (appUrl?.startsWith('https://') ? '3200' : '0'),
+);
+let lastAuthRequestAt = 0;
 
 function requireEnvironment() {
   if (!appUrl) test.skip(true, 'PHASE17_E2E_URL is required');
   mkdirSync(screenshotDir, { recursive: true });
 }
 
+async function paceAuthRequest() {
+  const remaining = authRequestIntervalMs - (Date.now() - lastAuthRequestAt);
+  if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
+  lastAuthRequestAt = Date.now();
+}
+
+async function gotoLogin(page, suffix = '') {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await paceAuthRequest();
+    const response = await page.goto(`${appUrl}/auth/login${suffix}`);
+    if (response?.status() !== 429) return;
+  }
+  throw new Error('운영 로그인 rate limit이 해제되지 않았습니다.');
+}
+
 async function demoPassword(page) {
-  await page.goto(`${appUrl}/auth/login`);
+  await gotoLogin(page);
   await expect(page.getByRole('heading', { name: '역할 통합 로그인' })).toBeVisible();
   const value = await page.locator('.demo-credentials dl').last().locator('code').textContent();
   expect(value).toBeTruthy();
@@ -23,18 +42,36 @@ async function demoPassword(page) {
 
 async function login(page, username, password, next = '') {
   const suffix = next ? `?next=${encodeURIComponent(next)}` : '';
-  await page.goto(`${appUrl}/auth/login${suffix}`);
-  await page.locator('input[name="username"]').fill(username);
-  await page.locator('input[name="password"]').fill(password);
-  await page.getByRole('button', { name: /^로그인/ }).click();
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    if (next || await page.locator('input[name="username"]').count() === 0) {
+      await gotoLogin(page, suffix);
+    }
+    await page.locator('input[name="username"]').fill(username);
+    await page.locator('input[name="password"]').fill(password);
+    await paceAuthRequest();
+    const responsePromise = page.waitForResponse((response) => (
+      response.url().startsWith(`${appUrl}/auth/login`)
+        && response.request().method() === 'POST'
+    ));
+    await page.getByRole('button', { name: /^로그인/ }).click();
+    const response = await responsePromise;
+    if (response.status() !== 429) return;
+    await gotoLogin(page, suffix);
+  }
+  throw new Error('운영 로그인 rate limit 안에서 데모 로그인을 완료하지 못했습니다.');
 }
 
 async function logout(page) {
   if (!page.url().endsWith('/dashboard')) await page.goto(`${appUrl}/dashboard`);
   const form = page.locator('form[action="/auth/logout"]');
   await expect(form).toBeVisible();
+  // 로그아웃의 302 목적지도 rate limit 대상인 /auth/login이다.
+  await paceAuthRequest();
   await form.getByRole('button', { name: '로그아웃' }).click();
   await expect(page).toHaveURL(/\/auth\/login/);
+  if (await page.getByRole('heading', { name: '역할 통합 로그인' }).count() === 0) {
+    await gotoLogin(page);
+  }
 }
 
 test('위탁 기본 성적표에서 빈 3-2로 2026 전체 대학 검색과 참고결과까지 간다', async ({ page }) => {

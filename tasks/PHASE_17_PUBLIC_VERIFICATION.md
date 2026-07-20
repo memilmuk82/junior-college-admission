@@ -50,9 +50,9 @@
 4. 운영 PostgreSQL custom-format 백업과 격리 복원을 검증한다.
 5. 기존 DB·volume을 보존하고 `web-production`만 재빌드한 뒤 seed·health·역할별 HTTPS smoke를 확인한다.
 
-## 배포 전 검증 결과
+## 검증 및 배포 결과
 
-- [x] 수용 기준 1~9를 단위·PostgreSQL 통합·Chromium 행동 검증으로 확인
+- [x] 수용 기준 1~10을 단위·PostgreSQL 통합·Chromium 행동 검증으로 확인
 - [x] 원본 4,970행·42개 대학과 기존 목록을 합친 최종 43개 대학, 모든 선택 기준정보 4,970행·고유 학과/주야 1,048개 보존
 - [x] 2026 참고결과 4,094행과 제외 876행의 사유·원본 행 번호·사유 중복 4행 audit 고정
 - [x] 파생 catalog·result·audit byte 재현성과 출처 manifest 일치
@@ -61,8 +61,8 @@
 - [x] Ruff·포맷·mypy 151개 소스, 규칙·민감자료 검사 통과
 - [x] OpenAI 키를 출력·저장하지 않고 비식별 합성 공급자 응답 검증에만 재사용
 - [x] 최종 diff 독립 재감사에서 남은 HIGH·MEDIUM 결함 없음
-- [ ] 구현 커밋·`origin/main` push
-- [ ] 운영 custom-format 백업·archive·격리 복원 검증
-- [ ] 운영 migration·2026 seed·웹 재빌드와 공인 HTTPS 역할별 Playwright
+- [x] 구현 커밋·`origin/main` push
+- [x] 운영 custom-format 백업·archive·격리 복원 검증
+- [x] 운영 migration·2026 seed·웹 재빌드와 공인 HTTPS 역할별 Playwright
 
-현재 판정은 `PASS_PREDEPLOY_PHASE_17`이다. 운영 검증을 완료하기 전에는 `PASS_PRODUCTION_PHASE_17`로 기록하지 않는다.
+현재 판정은 `PASS_PRODUCTION_PHASE_17`이다. 기존 DB 컨테이너와 PostgreSQL/upload volume을 보존했고 공인 HTTPS 사용자 행동 검증까지 완료했다.

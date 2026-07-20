@@ -13,7 +13,11 @@
 - AI 저장 snapshot을 v3로 올려 선택한 각 대상의 2026 결과연도·모집시기·전형·주야·모집인원·경쟁률·평균·최저·점수 방향을 저장·A4 출력하고, 기존 v2 snapshot도 목록과 인쇄에서 계속 읽는다.
 - 공개 seed를 다시 생성해 catalog `f45c3eed...`, result `6546aed...`, audit `ddad414b...` 해시가 byte 단위로 동일함을 확인했다. 원본 CSV·PDF·XLSX와 사용자 작성 미추적 파일은 Git에 추가하지 않았다.
 - 단위 361건, PostgreSQL 통합 180건과 합성 백업·격리 복원, Phase 17 Chromium 6건, Phase 14 공개 회귀 3건, Ruff·포맷·mypy 151개 소스, 규칙·민감자료 검사를 통과했다. 데스크톱·390px·무JavaScript, 60칸 입력, 전체 선택 목록, 2026 결과, 일반고 예외 필터, 네 역할 권한, BYOK 세션 격리와 console/page error 0건을 확인했다.
-- 운영 배포 전 게이트는 `PASS_PREDEPLOY_PHASE_17`이다. 구현 커밋 push 뒤 운영 custom-format 백업과 격리 복원을 확인하고, DB 컨테이너·PostgreSQL/upload volume을 보존한 채 web만 재빌드한다.
+- 구현 커밋 `fd2e506`과 운영 legacy 데모 충돌 보완 커밋 `4399ece`를 `origin/main`에 push했다. 운영 전 `phase17_predeploy_20260720_104018.dump` 백업의 SHA-256 `2cd642771cfa1be288e386919985e5e303ff28d6087c6adf3665b3dc91180aa2`, archive와 network-none/tmpfs 격리 복원을 검증했다.
+- 기존 DB 컨테이너 `072f1a30e7d5...`와 PostgreSQL/upload volume을 그대로 유지하고 web만 이미지 `sha256:0c8029b75788db7fc6a399a0270d2f452fbaef10db8cabdafbf60097f5632b3c`로 교체했다. 이전 이미지 `sha256:378fa56bcfe8d8f29a871301a864d84062df3d66a03d97bbb6c95d6d06e22bbb`는 `rollback-phase17-fd2e506-20260720` 태그로 보존했다.
+- live migration `8e31b7c4d2a6 → b6f1e8a42c73`과 2026 seed를 적용했다. 최종 대학·캠퍼스·학과는 43·45·1,079개, 게시 결과는 2025 482행·2026 4,094행이며 실제 비데모 계정 1건은 보존됐다. 네 역할 데모는 활성, legacy 데모는 정지 상태다.
+- loopback·공인 HTTPS TLS/health/보안 헤더, host Nginx 문법과 active 상태를 통과했다. 운영 Playwright는 로그인 20회/분 rate limit을 존중하도록 요청을 조절해 Phase 17 6건과 Phase 14 공개 회귀 3건을 통과했다.
+- E2E 종료 후 데모 BYOK credential·초안은 0건이고 web·DB 로그의 5xx·traceback·fatal·critical·unhandled 패턴도 0건이다. 운영 화면 8장을 육안 검토해 데스크톱·390px 배치와 역할별 읽기 전용 경계가 정상임을 확인하고 게이트를 `PASS_PRODUCTION_PHASE_17`로 확정했다.
 
 ## 2026-07-20 · Phase 16 역할별 업무공간과 학생·교사 연동
 

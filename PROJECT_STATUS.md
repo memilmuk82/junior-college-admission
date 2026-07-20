@@ -2,9 +2,9 @@
 
 - 기준일: 2026-07-20
 - 현재 단계: Phase 17 공개 검증 흐름과 2026 입시결과 복구
-- 단계 판정: `PASS_PREDEPLOY_PHASE_17` — 위탁학생 기본 성적 계약, 2026 공개 결과, 전체 대학·학과 선택, 네 역할 데모와 BYOK 격리를 로컬 회귀로 검증
-- 현재 작업: 구현·데이터 파생·로컬 회귀 완료, 운영 백업·migration `b6f1e8a42c73`·seed·웹 재빌드와 공인 HTTPS 검증 대기
-- 다음 게이트: 구현 커밋을 `origin/main`에 push하고 운영 custom-format 백업·격리 복원을 통과한 뒤 기존 DB·volume을 보존해 `web-production`만 재빌드
+- 단계 판정: `PASS_PRODUCTION_PHASE_17` — 위탁학생 기본 성적 계약, 2026 공개 결과, 전체 대학·학과 선택, 네 역할 데모와 BYOK 격리를 운영 HTTPS에서 검증
+- 현재 작업: 구현 커밋·push, 운영 backup/restore 검증, migration `b6f1e8a42c73`, 2026 seed, `web-production` 비파괴 재빌드와 역할별 Chromium 회귀 완료
+- 다음 게이트: 운영자가 로그인 화면의 네 데모 계정으로 사용자 인수 확인을 진행하고, 공식 모집요강 기반 실행 규칙은 기존 사람 검수·게시 게이트를 계속 적용
 
 ## 저장소 인벤토리
 
@@ -393,4 +393,11 @@ Phase 12 회귀는 단위 290건, PostgreSQL 통합 127건과 합성 백업·격
 
 ### Phase 17 운영 배포
 
-- 구현 검증은 완료했다. 운영 백업·격리 복원, migration·seed, 컨테이너 재빌드, 공인 HTTPS 역할별 Playwright 결과는 배포 후 별도 커밋으로 기록한다.
+- 구현 커밋 `fd2e506`과 legacy 데모 전환 보완 커밋 `4399ece`를 `origin/main`에 push하고 각 시점의 로컬·원격 SHA 일치를 확인했다.
+- 배포 전 백업 `phase17_predeploy_20260720_104018.dump`의 SHA-256 `2cd642771cfa1be288e386919985e5e303ff28d6087c6adf3665b3dc91180aa2`, archive와 network-none/tmpfs 격리 복원을 검증했다. 복원 source migration은 `8e31b7c4d2a6`, 저장소 head는 `b6f1e8a42c73`, 공개 테이블은 48개였다.
+- 이전 웹 이미지 `sha256:378fa56bcfe8d8f29a871301a864d84062df3d66a03d97bbb6c95d6d06e22bbb`를 `junior-college-admission-production-app:rollback-phase17-fd2e506-20260720`으로 보존했다. schema 변경 뒤 DB 복원 없는 image-only rollback은 금지한다.
+- 기존 DB 컨테이너 `072f1a30e7d5...`와 `junior-college-admission-live_production_postgres_data`·`junior-college-admission-live_production_uploads` volume을 유지하고 웹만 컨테이너 `b425d2f94758...`, 이미지 `sha256:0c8029b75788db7fc6a399a0270d2f452fbaef10db8cabdafbf60097f5632b3c`로 교체했다. DB·웹은 `healthy`, restart 0건이다.
+- live migration을 `8e31b7c4d2a6 → b6f1e8a42c73 (head)`로 적용하고 idempotent seed를 실행했다. 운영 기준정보는 대학 43·캠퍼스 45·학과 1,079개이며 게시 결과는 2025 482행, 2026 4,094행이다. 2026 척도별 수는 석차등급 3,562·수능등급 208·점수 324행이다.
+- 기존 실제 비데모 계정 1건을 보존했다. 네 고정 역할 데모는 모두 `ACTIVE`, legacy `demo:public`은 `SUSPENDED`이며 운영 E2E 종료 후 데모 세션 BYOK credential·초안은 각각 0건이다.
+- loopback과 공인 HTTPS의 TLS·health·보안 헤더, host Nginx active·설정 문법을 확인했다. 운영 Chromium은 Phase 17 6건과 Phase 14 회귀 3건을 통과했고 로그인 20회/분 정책을 존중하는 간격, JavaScript 비활성, 390px, console/page error 0건을 검증했다.
+- 운영 스크린샷 8장을 직접 확인해 성적 입력·대학 선택·2026 결과·일반고 예외·관리자 읽기 전용·BYOK 마스킹·모바일 배치 이상이 없음을 확인했다. 배포 뒤 web·DB 로그의 5xx·traceback·fatal·critical·unhandled 패턴은 0건이다.
