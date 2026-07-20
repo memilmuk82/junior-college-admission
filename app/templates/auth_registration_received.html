@@ -16,12 +16,19 @@
       <div class="auth-status-mark" aria-hidden="true">✓</div>
       <p class="admin-eyebrow">REGISTRATION RECEIVED</p>
       <h1>가입 신청 접수</h1>
-      <p class="auth-lead">입력한 정보의 기존 등록 여부와 관계없이 같은 안내를 제공합니다. 신규 신청은 관리자 승인 후 로그인하여 사용할 수 있습니다.</p>
+      <p class="auth-lead">입력한 정보의 기존 등록 여부와 관계없이 같은 안내를 제공합니다. 이메일이 도착했다면 인증 절차를 진행해 주세요.</p>
       <div class="auth-alert auth-alert--info" role="status">
-        <strong>승인 전에는 보호 기능이 열리지 않습니다.</strong>
-        <p>승인 여부는 내부 운영 담당자에게 확인하고, 승인된 뒤 로그인하세요.</p>
+        <strong>1단계 이메일 인증 → 2단계 관리자 승인</strong>
+        <p>이메일 인증은 주소 소유를 확인하는 절차입니다. 학생·교사 역할은 관리자 또는 보조 관리자가 별도로 승인합니다.</p>
       </div>
+      <dl class="auth-action-guide" aria-label="가입 신청 다음 단계 안내">
+        <div><dt>무엇인가요?</dt><dd>가입 정보가 접수되었고 이메일 확인을 기다리는 상태입니다.</dd></div>
+        <div><dt>지금 할 일</dt><dd>받은 메일의 인증 링크를 열어 이메일 주소 소유를 확인하세요.</dd></div>
+        <div><dt>완료되면</dt><dd>이메일만 인증됩니다. 관리자 승인이 끝나야 역할별 기능을 사용할 수 있습니다.</dd></div>
+      </dl>
       <nav class="auth-links" aria-label="계정 이동">
+        {% if config.DEMO_EMAIL_OUTBOX_ENABLED %}<a class="button-link" href="{{ url_for('auth.demo_outbox') }}">체험 인증 메일 확인</a>{% endif %}
+        <a href="{{ url_for('auth.resend_email_verification') }}">인증 메일 다시 받기</a>
         <a href="{{ url_for('auth.login', account_type=account_type, next=next or none) }}">로그인 화면으로</a>
         <a href="{{ url_for('main.index') }}">처음 화면으로</a>
       </nav>

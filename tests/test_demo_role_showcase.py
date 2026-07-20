@@ -262,6 +262,46 @@ def test_each_demo_role_logs_into_its_dashboard_and_logs_out(
     assert client.get("/dashboard").status_code == 302
 
 
+def test_demo_roles_show_requested_scores_and_role_scoped_menus(
+    showcase_app: Flask,
+) -> None:
+    _bootstrap(showcase_app)
+
+    student = showcase_app.test_client()
+    assert _login(student, DEMO_ROLE_LOGIN_NAMES["STUDENT"]).status_code == 302
+    student_records = student.get("/account/records")
+    student_body = student_records.get_data(as_text=True)
+    assert student_records.status_code == 200
+    assert "빅데이터 프로그래밍" in student_body
+    assert "91.35" in student_body
+    assert "63.50" in student_body
+    assert "27.50" in student_body
+
+    for role in ("TEACHER", "ADMIN"):
+        client = showcase_app.test_client()
+        assert _login(client, DEMO_ROLE_LOGIN_NAMES[role]).status_code == 302
+        dashboard_body = client.get("/dashboard").get_data(as_text=True)
+        assert 'href="/teacher/classrooms"' in dashboard_body
+        assert 'href="/admin/ai/settings"' in dashboard_body
+        classroom = client.get("/teacher/classrooms")
+        classroom_body = classroom.get_data(as_text=True)
+        assert classroom.status_code == 200
+        assert "DEMO-001" in classroom_body
+        assert "응용 프로그래밍 개발" in classroom_body
+        assert client.get("/teacher/outcomes").status_code == 200
+        assert client.get("/admin/ai/settings").status_code == 200
+
+    assistant = showcase_app.test_client()
+    assert _login(assistant, DEMO_ROLE_LOGIN_NAMES["ASSISTANT_ADMIN"]).status_code == 302
+    assistant_dashboard = assistant.get("/dashboard").get_data(as_text=True)
+    assert 'href="/admin/members"' in assistant_dashboard
+    assert 'href="/teacher/classrooms"' not in assistant_dashboard
+    assert 'href="/admin/ai/settings"' not in assistant_dashboard
+    assert assistant.get("/teacher/classrooms").status_code == 403
+    assert assistant.get("/teacher/outcomes").status_code == 403
+    assert assistant.get("/admin/ai/settings").status_code == 403
+
+
 def test_demo_main_admin_session_can_be_replaced_by_real_admin_login(
     showcase_app: Flask,
     postgres_engine: Engine,
@@ -499,7 +539,7 @@ def test_demo_review_allowlist_rejects_non_anonymous_import_confirmation(
     assert store.session_path(review_session_id).is_dir()
 
 
-def test_demo_operational_views_are_empty_and_sensitive_get_exports_are_blocked(
+def test_demo_operational_views_are_synthetic_and_sensitive_get_exports_are_blocked(
     showcase_app: Flask,
 ) -> None:
     _bootstrap(showcase_app)
@@ -510,8 +550,8 @@ def test_demo_operational_views_are_empty_and_sensitive_get_exports_are_blocked(
         ("/admin/rules", "실제 규칙 초안"),
         ("/admin/sources", "실제 업로드 파일명"),
         ("/admin/admission-results", "실제 import 데이터셋"),
-        ("/teacher/outcomes", "실제 기관 내부 학생 코드"),
-        ("/account/records", "읽기 전용 체험 계정"),
+        ("/teacher/outcomes", "합성 지원결과 체험"),
+        ("/account/records", "합성 성적 체험"),
     ):
         response = client.get(path)
         assert response.status_code == 200
@@ -530,13 +570,18 @@ def test_demo_operational_views_are_empty_and_sensitive_get_exports_are_blocked(
         "/account/consultations/synthetic-consultation/print/teacher",
     ):
         assert client.get(path).status_code == 403
-    assert client.get("/teacher/classrooms").status_code == 403
+    classroom = client.get("/teacher/classrooms")
+    assert classroom.status_code == 200
+    assert "합성 학급 체험" in classroom.get_data(as_text=True)
 
     _logout(client)
     assert _login(client, DEMO_ROLE_LOGIN_NAMES["TEACHER"]).status_code == 302
     classrooms = client.get("/teacher/classrooms")
     assert classrooms.status_code == 200
-    assert "실제 학급·익명 학생·성적" in classrooms.get_data(as_text=True)
+    classrooms_body = classrooms.get_data(as_text=True)
+    assert "합성 학급 체험" in classrooms_body
+    assert "DEMO-001" in classrooms_body
+    assert "빅데이터 프로그래밍" in classrooms_body
     assert client.get("/teacher/outcomes.csv").status_code == 403
 
 

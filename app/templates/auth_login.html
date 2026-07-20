@@ -16,12 +16,25 @@
       <p class="admin-eyebrow">ROLE SIGN IN</p>
       <h1>역할 통합 로그인</h1>
       <p class="auth-lead">학생·교사·주 관리자·보조 관리자 계정이 같은 로그인 화면을 사용하며, 로그인 뒤 역할별 업무공간으로 이동합니다.</p>
+      <dl class="auth-action-guide" aria-label="로그인 사용 안내">
+        <div><dt>무엇인가요?</dt><dd>이메일 또는 기존 아이디와 비밀번호로 본인 계정에 들어가는 화면입니다.</dd></div>
+        <div><dt>언제 쓰나요?</dt><dd>가입한 계정이나 공개 체험 계정으로 역할별 기능을 확인할 때 사용합니다.</dd></div>
+        <div><dt>완료되면</dt><dd>활성 계정은 업무공간으로, 인증·승인 대기 계정은 현재 상태 안내로 이동합니다.</dd></div>
+      </dl>
+
+      {% if demo_sandbox_entry_url and not config.DEMO_SANDBOX_ENABLED %}
+        <section class="demo-credentials" aria-labelledby="full-demo-entry-heading">
+          <h2 id="full-demo-entry-heading">운영 데이터와 분리된 전체 기능 체험</h2>
+          <p>학생·교사·보조 관리자·주 관리자 역할로 저장·수정·연동을 확인하려면 별도 체험 DB로 이동하세요. 공개 대학·2025/2026 결과는 검수 자료를 사용합니다.</p>
+          <a class="button-link" href="{{ demo_sandbox_entry_url }}">전체 기능 체험 계정 보기</a>
+        </section>
+      {% endif %}
 
       {% if demo_credentials and demo_public_password %}
         <section class="demo-credentials" aria-labelledby="demo-account-title">
-          <h2 id="demo-account-title">포트폴리오 공개 체험 계정 · 역할별 로그인</h2>
-          <p>실제 회원 정보는 표시하거나 변경하지 않는 showcase 계정입니다. 학생·교사 BYOK 키는 현재 브라우저 로그인 세션에만 암호화 저장되고 로그아웃할 때 삭제됩니다.</p>
-          <dl class="demo-account-grid">{% for credential in demo_credentials %}<div><dt>{{ credential.label }}</dt><dd><code>{{ credential.login_name }}</code></dd></div>{% endfor %}</dl>
+          <h2 id="demo-account-title">{{ '전체 기능 체험 계정' if config.DEMO_SANDBOX_ENABLED else '포트폴리오 공개 체험 계정' }} · 역할별 로그인</h2>
+          {% if config.DEMO_SANDBOX_ENABLED %}<p>운영 DB와 분리된 체험 DB에서 역할별 저장·수정·연동을 실제로 실행합니다. 공개 대학·입시결과는 검수 자료이며, 학생·학급·성적은 체험 자료입니다.</p>{% else %}<p>실제 회원 정보는 표시하거나 변경하지 않는 showcase 계정입니다. 학생·교사 BYOK 키는 현재 브라우저 로그인 세션에만 암호화 저장되고 로그아웃할 때 삭제됩니다.</p>{% endif %}
+          <dl class="demo-account-grid">{% for credential in demo_credentials %}<div><dt>{{ credential.label }}</dt><dd><code>{{ credential.login_name }}</code>{% if config.DEMO_SANDBOX_ENABLED %}<form method="post" action="{{ url_for('auth.demo_start', role=credential.role.lower()) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="text-action" type="submit">{{ credential.label }} 기능 체험 시작</button></form>{% endif %}</dd></div>{% endfor %}</dl>
           <dl><div><dt>공통 비밀번호</dt><dd><code>{{ demo_public_password }}</code></dd></div></dl>
         </section>
       {% endif %}
@@ -32,18 +45,19 @@
           <p>{{ error }}</p>
         </div>
       {% endif %}
+      {% if message == 'email_verified' %}<div class="auth-alert auth-alert--info" role="status"><strong>이메일 인증을 완료했습니다.</strong><p>관리자 승인을 마친 계정은 로그인할 수 있습니다.</p></div>{% elif message == 'password_reset' %}<div class="auth-alert auth-alert--info" role="status"><strong>비밀번호를 재설정했습니다.</strong><p>새 비밀번호로 로그인해 주세요.</p></div>{% elif message == 'google_link_required' %}<div class="auth-alert auth-alert--info" role="status"><strong>같은 이메일의 기존 계정이 있습니다.</strong><p>이메일 또는 기존 아이디와 비밀번호로 로그인한 뒤 ‘계정 보안’에서 Google 계정을 연결하세요. 자료는 자동 병합하지 않습니다.</p></div>{% endif %}
 
       <form class="auth-form" method="post" action="{{ url_for('auth.login') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
 
-        <label for="login-name">아이디 <span class="field-note">관리자 ID 또는 회원 아이디</span></label>
+        <label for="login-name">이메일 또는 기존 아이디</label>
         <input
           id="login-name"
           name="username"
           value="{{ login_name|default('') }}"
           minlength="4"
-          maxlength="80"
+          maxlength="320"
           autocomplete="username"
           autocapitalize="none"
           spellcheck="false"
@@ -55,7 +69,7 @@
           id="login-password"
           name="password"
           type="password"
-          maxlength="128"
+          maxlength="256"
           autocomplete="current-password"
           required
         >
@@ -67,15 +81,17 @@
 
       {% if google_enabled %}
         <div class="auth-divider" aria-hidden="true"><span>또는</span></div>
-        <a class="auth-provider-button" href="{{ url_for('auth.google_start') }}">
+        <a class="auth-provider-button" href="{{ url_for('auth.google_start', next=next or none) }}">
           Google 계정으로 로그인
         </a>
-        <p class="auth-provider-note">Google은 기존 승인 계정 로그인용입니다. 학생·교사 역할 신규 신청은 위 로컬 회원가입을 사용하세요.</p>
+        <p class="auth-provider-note">연결된 Google 계정은 기존 자료 계정으로 로그인합니다. 처음 사용하는 검증 Google 계정은 관리자 승인 대기 Google 전용 계정으로 신청되며, 이메일이 같다는 이유만으로 기존 계정과 자동 병합하지 않습니다.</p>
       {% endif %}
 
       <nav class="auth-links" aria-label="계정 도움말">
         <a href="{{ url_for('auth.register', account_type='student', next=next or none) }}">학생 회원가입</a>
         <a href="{{ url_for('auth.register', account_type='teacher', next=next or none) }}">교사 회원가입</a>
+        <a href="{{ url_for('auth.forgot_password') }}">비밀번호를 잊으셨나요?</a>
+        {% if config.DEMO_EMAIL_OUTBOX_ENABLED %}<a href="{{ url_for('auth.demo_outbox') }}">체험 인증 메일함</a>{% endif %}
         <a href="{{ url_for('main.index') }}">처음 화면으로</a>
       </nav>
     </main>

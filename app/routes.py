@@ -49,6 +49,7 @@ from app.services.consultations import (
     list_consultation_programs,
     run_batch_consultation,
 )
+from app.services.demo_scores import DEMO_SCORE_ROWS, DemoScoreRow
 from app.services.eligibility import EligibilityStatus
 from app.services.membership import DEMO_ACTOR_REF, has_teacher_capability
 from app.services.public_student_profiles import (
@@ -84,18 +85,6 @@ SOURCE_FORMAT_LABELS = {
 
 ANONYMOUS_OWNER_SESSION_KEY = "anonymous_calculation_owner"
 ANONYMOUS_ID_SESSION_KEY = "anonymous_calculation_id"
-EXAMPLE_COURSE_ROWS = (
-    (2025, 1, 1, "국어", "국어", "4", "2"),
-    (2025, 1, 1, "수학", "수학", "4", "3"),
-    (2025, 1, 2, "영어", "영어", "4", "2"),
-    (2025, 1, 2, "사회", "통합사회", "3", "3"),
-    (2026, 2, 1, "국어", "문학", "4", "2"),
-    (2026, 2, 1, "수학", "수학Ⅰ", "4", "2"),
-    (2026, 2, 2, "영어", "영어Ⅰ", "4", "1"),
-    (2026, 2, 2, "과학", "통합과학", "3", "2"),
-    (2027, 3, 1, "국어", "화법과 작문", "3", "2"),
-    (2027, 3, 1, "수학", "확률과 통계", "3", "2"),
-)
 REFERENCE_TERMS = (
     (2025, 1, 1),
     (2025, 1, 2),
@@ -114,11 +103,12 @@ def _classify_public_preview(
     resolved_profile = resolve_public_student_profile(student_profile)
     rows = []
     for row in preview.rows:
-        if row.grade not in {1, 2, 3}:
+        if row.grade not in {1, 2, 3} or row.semester not in {1, 2}:
             rows.append(row)
             continue
+        assert row.semester is not None
         record_source, is_vocational = public_record_classification(
-            resolved_profile, grade=row.grade
+            resolved_profile, grade=row.grade, semester=row.semester
         )
         rows.append(
             replace(
@@ -138,8 +128,9 @@ def _classify_public_values(
         row = dict(source)
         try:
             grade = int(row.get("grade", ""))
+            semester = int(row.get("semester", ""))
             record_source, is_vocational = public_record_classification(
-                student_profile, grade=grade
+                student_profile, grade=grade, semester=semester
             )
         except ValueError:
             pass
@@ -205,7 +196,9 @@ def _csrf_token() -> str:
 def _require_csrf() -> None:
     expected = session.get("csrf_token")
     supplied = request.form.get("csrf_token", "")
-    if not isinstance(expected, str) or not hmac.compare_digest(expected, supplied):
+    if not isinstance(expected, str) or not hmac.compare_digest(
+        expected.encode("utf-8"), supplied.encode("utf-8")
+    ):
         abort(400)
 
 
@@ -324,20 +317,39 @@ def _input_defaults(
     defaults: list[dict[str, str]] = []
     example_rows_by_term = {
         (academic_year, grade, semester): tuple(
-            row for row in EXAMPLE_COURSE_ROWS if row[:3] == (academic_year, grade, semester)
+            row
+            for row in DEMO_SCORE_ROWS
+            if (row.academic_year, row.grade, row.semester) == (academic_year, grade, semester)
         )
         for academic_year, grade, semester in REFERENCE_TERMS
     }
-    source_rows: list[tuple[int, int, int, str, str, str, str]] = []
+    source_rows: list[DemoScoreRow | None] = []
     for academic_year, grade, semester in REFERENCE_TERMS:
         examples = example_rows_by_term[(academic_year, grade, semester)] if example else ()
         source_rows.extend(examples)
-        source_rows.extend(
-            (academic_year, grade, semester, "", "", "", "")
-            for _ in range(REFERENCE_ROWS_PER_TERM - len(examples))
+        source_rows.extend(None for _ in range(REFERENCE_ROWS_PER_TERM - len(examples)))
+    term_index = 0
+    for source in source_rows:
+        if source is None:
+            academic_year, grade, semester = REFERENCE_TERMS[term_index // REFERENCE_ROWS_PER_TERM]
+            group = subject = credits = rank_grade = ""
+            raw_score = course_mean = standard_deviation = ""
+        else:
+            academic_year, grade, semester = (
+                source.academic_year,
+                source.grade,
+                source.semester,
+            )
+            group = source.subject_group
+            subject = source.subject_name
+            credits = source.credits
+            rank_grade = source.rank_grade
+            raw_score = source.raw_score
+            course_mean = source.course_mean
+            standard_deviation = source.standard_deviation
+        record_source, is_vocational = public_record_classification(
+            resolved_profile, grade=grade, semester=semester
         )
-    for academic_year, grade, semester, group, subject, credits, rank_grade in source_rows:
-        record_source, is_vocational = public_record_classification(resolved_profile, grade=grade)
         defaults.append(
             {
                 "academic_year": str(academic_year),
@@ -346,9 +358,9 @@ def _input_defaults(
                 "subject_group": group,
                 "subject_name": subject,
                 "credits": credits,
-                "raw_score": "",
-                "course_mean": "",
-                "standard_deviation": "",
+                "raw_score": raw_score,
+                "course_mean": course_mean,
+                "standard_deviation": standard_deviation,
                 "achievement_level": "",
                 "enrollment_count": "",
                 "rank_grade": rank_grade,
@@ -356,6 +368,7 @@ def _input_defaults(
                 "is_vocational_training_semester": "TRUE" if is_vocational else "FALSE",
             }
         )
+        term_index += 1
     return tuple(defaults)
 
 
@@ -791,8 +804,9 @@ def review_input(review_session_id: str):
         for index in range(len(state.preview.rows)):
             try:
                 grade = int(review_form.get(f"rows-{index}-grade", ""))
+                semester = int(review_form.get(f"rows-{index}-semester", ""))
                 record_source, is_vocational = public_record_classification(
-                    state.student_profile, grade=grade
+                    state.student_profile, grade=grade, semester=semester
                 )
             except ValueError:
                 record_source, is_vocational = "HOME_SCHOOL_RECORD", False

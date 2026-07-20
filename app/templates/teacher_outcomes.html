@@ -5,7 +5,7 @@
     <header class="admin-header"><div><p class="admin-eyebrow">INSTITUTION DATA</p><a href="{{ url_for('teacher.outcomes') }}">교사 상담 업무</a></div><nav><a href="{{ url_for('main.dashboard') }}">업무공간</a><a href="{{ url_for('teacher.classrooms') }}">학급·학생</a><a href="{{ url_for('admin.ai_settings') }}">BYOK 상담 초안</a><a href="{{ url_for('account.records') }}">저장 상담</a></nav></header>
     <main class="admin-shell">
       <div class="admin-heading"><div><h1>기관 지원·합격 결과</h1><p>학생 이름 대신 기관 내부 익명 코드만 저장합니다. 공식 공개 결과와 학생 개인 자료에는 합쳐지지 않습니다.</p></div>{% if not demo_mode %}<a class="button-link button-link--secondary" href="{{ url_for('teacher.outcomes_csv', **filters) }}">현재 조회 CSV</a>{% endif %}</div>
-      {% if demo_mode %}<div class="public-notice" role="status"><strong>읽기 전용 공개 체험</strong> 실제 기관 내부 학생 코드·지원 결과·메모는 표시하지 않으며 등록과 CSV 내보내기도 차단됩니다.</div>{% endif %}
+      {% if config.DEMO_SANDBOX_ENABLED %}<div class="public-notice" role="status"><strong>체험용 교내 익명 결과</strong> 이 목록은 실제 학생·학교 자료가 아닌 수정 가능한 합성 시작값입니다. 등록할 대학·학과·전형은 검수된 공개 기준정보 전체에서 선택합니다. 공식 공개 입시결과와는 별도 저장됩니다.</div>{% elif demo_mode %}<div class="public-notice" role="status"><strong>합성 지원결과 체험</strong> 실제 기관·학생 자료는 표시하지 않으며 DEMO-001의 합성 결과만 제공합니다.</div>{% endif %}
       {% if error %}<div class="admin-alert" role="alert"><h2>처리할 수 없습니다</h2><p>{{ error }}</p></div>{% endif %}
 
       <section class="teacher-summary" aria-label="현재 조회 집계">

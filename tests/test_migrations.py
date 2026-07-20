@@ -23,7 +23,8 @@ PHASE14_HEAD = "2f8a4c6e91d3"
 PHASE15_HEAD = "4a7c9e12d5f0"
 PHASE16_HEAD = "8e31b7c4d2a6"
 PHASE17_HEAD = "b6f1e8a42c73"
-REPOSITORY_HEAD = PHASE17_HEAD
+PHASE19_HEAD = "3d9c0f7a21b4"
+REPOSITORY_HEAD = PHASE19_HEAD
 RULE_TABLE_TYPES_WITH_GOLDEN_ARTIFACT = (
     ("admission_eligibility_rules", "ADMISSION_ELIGIBILITY_RULE"),
     ("grade_source_scope_rules", "GRADE_SOURCE_SCOPE_RULE"),
@@ -129,6 +130,7 @@ def test_alembic_upgrade_creates_phase_one_schema(postgres_engine: Engine) -> No
         "admission_tracks",
         "alembic_version",
         "assessment_components",
+        "account_auth_tokens",
         "ai_consultation_drafts",
         "ai_provider_credentials",
         "campuses",
@@ -394,6 +396,8 @@ def test_membership_schema_contract(postgres_engine: Engine) -> None:
         "role",
         "status",
         "auth_version",
+        "email_verified_at",
+        "bootstrap_password_managed",
         "approved_by_user_id",
         "approved_at",
         "last_login_at",
@@ -407,6 +411,9 @@ def test_membership_schema_contract(postgres_engine: Engine) -> None:
     assert account_columns["role"]["nullable"] is False
     assert account_columns["status"]["nullable"] is False
     assert account_columns["auth_version"]["nullable"] is False
+    assert account_columns["email_verified_at"]["nullable"] is True
+    assert account_columns["bootstrap_password_managed"]["nullable"] is False
+    assert "false" in str(account_columns["bootstrap_password_managed"]["default"]).lower()
 
     account_checks = {
         constraint["name"]: constraint["sqltext"]
@@ -534,6 +541,23 @@ def test_membership_schema_contract(postgres_engine: Engine) -> None:
         "ck_user_account_audit_events_before_status_valid",
         "ck_user_account_audit_events_event_type_valid",
     } == audit_checks
+    audit_event_check = next(
+        constraint["sqltext"]
+        for constraint in inspector.get_check_constraints("user_account_audit_events")
+        if constraint["name"] == "ck_user_account_audit_events_event_type_valid"
+    )
+    assert all(
+        event_type in audit_event_check
+        for event_type in (
+            "EMAIL_VERIFICATION_REQUESTED",
+            "EMAIL_VERIFIED",
+            "EMAIL_CHANGED",
+            "PASSWORD_RESET_REQUESTED",
+            "PASSWORD_RESET_COMPLETED",
+            "GOOGLE_LINKED",
+            "GOOGLE_UNLINKED",
+        )
+    )
     audit_foreign_keys = inspector.get_foreign_keys("user_account_audit_events")
     assert any(
         tuple(foreign_key["constrained_columns"]) == ("target_user_id",)
@@ -556,6 +580,79 @@ def test_membership_schema_contract(postgres_engine: Engine) -> None:
     assert audit_indexes["ix_user_account_audit_events_target_occurred"] == (
         "target_user_id",
         "occurred_at",
+    )
+
+    auth_token_columns = {
+        column["name"]: column for column in inspector.get_columns("account_auth_tokens")
+    }
+    assert {
+        "id",
+        "user_account_id",
+        "purpose",
+        "token_digest",
+        "issued_auth_version",
+        "target_email",
+        "expires_at",
+        "consumed_at",
+        "revoked_at",
+        "created_at",
+        "updated_at",
+    } == auth_token_columns.keys()
+    assert {
+        "token",
+        "raw_token",
+        "verification_token",
+        "reset_token",
+    }.isdisjoint(auth_token_columns)
+    assert auth_token_columns["user_account_id"]["nullable"] is False
+    assert auth_token_columns["purpose"]["nullable"] is False
+    assert auth_token_columns["token_digest"]["nullable"] is False
+    assert auth_token_columns["issued_auth_version"]["nullable"] is False
+    assert auth_token_columns["target_email"]["nullable"] is False
+    assert auth_token_columns["expires_at"]["nullable"] is False
+    assert auth_token_columns["consumed_at"]["nullable"] is True
+    assert auth_token_columns["revoked_at"]["nullable"] is True
+
+    auth_token_checks = {
+        constraint["name"]: constraint["sqltext"]
+        for constraint in inspector.get_check_constraints("account_auth_tokens")
+    }
+    assert {
+        "ck_account_auth_tokens_consumed_after_creation",
+        "ck_account_auth_tokens_expiry_after_creation",
+        "ck_account_auth_tokens_issued_auth_version_positive",
+        "ck_account_auth_tokens_purpose_valid",
+        "ck_account_auth_tokens_revoked_after_creation",
+        "ck_account_auth_tokens_single_terminal_state",
+        "ck_account_auth_tokens_target_email_normalized",
+        "ck_account_auth_tokens_token_digest_valid",
+    } == auth_token_checks.keys()
+    assert "EMAIL_VERIFICATION" in auth_token_checks["ck_account_auth_tokens_purpose_valid"]
+    assert "PASSWORD_RESET" in auth_token_checks["ck_account_auth_tokens_purpose_valid"]
+    assert "64" in auth_token_checks["ck_account_auth_tokens_token_digest_valid"]
+
+    auth_token_uniques = {
+        constraint["name"]: tuple(constraint["column_names"])
+        for constraint in inspector.get_unique_constraints("account_auth_tokens")
+    }
+    assert auth_token_uniques["uq_account_auth_tokens_token_digest"] == ("token_digest",)
+    auth_token_foreign_keys = inspector.get_foreign_keys("account_auth_tokens")
+    assert any(
+        tuple(foreign_key["constrained_columns"]) == ("user_account_id",)
+        and foreign_key["referred_table"] == "user_accounts"
+        and tuple(foreign_key["referred_columns"]) == ("id",)
+        and foreign_key["options"].get("ondelete") == "CASCADE"
+        for foreign_key in auth_token_foreign_keys
+    )
+    auth_token_indexes = {
+        index["name"]: tuple(index["column_names"])
+        for index in inspector.get_indexes("account_auth_tokens")
+    }
+    assert auth_token_indexes["ix_account_auth_tokens_user_account_id"] == ("user_account_id",)
+    assert auth_token_indexes["ix_account_auth_tokens_user_purpose_created"] == (
+        "user_account_id",
+        "purpose",
+        "created_at",
     )
 
 
@@ -920,6 +1017,220 @@ def test_golden_artifact_constraints_are_enforced(postgres_engine: Engine) -> No
                 )
         finally:
             transaction.rollback()
+
+
+def test_phase19_account_security_upgrade_and_fail_closed_downgrade(
+    postgres_engine: Engine,
+) -> None:
+    config = Config("alembic.ini")
+    google_account_id = str(uuid4())
+    local_account_id = str(uuid4())
+    bootstrap_account_id = str(uuid4())
+    bootstrap_login = f"phase19-bootstrap-{bootstrap_account_id[:12]}"
+    identity_id = str(uuid4())
+    token_id = str(uuid4())
+    identity_created_at = datetime(2026, 7, 19, 9, 30, tzinfo=UTC)
+
+    try:
+        command.downgrade(config, PHASE17_HEAD)
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO user_accounts (
+                        id, actor_ref, login_name, email, display_name, password_hash,
+                        role, status, auth_version
+                    ) VALUES (
+                        :google_id, :google_actor_ref, NULL, :google_email,
+                        '합성 Google 회원', NULL, 'MEMBER', 'PENDING_APPROVAL', 1
+                    ), (
+                        :local_id, :local_actor_ref, :local_login, :local_email,
+                        '합성 기존 아이디 회원', 'synthetic-password-hash',
+                        'MEMBER', 'PENDING_APPROVAL', 1
+                    )
+                    """
+                ),
+                {
+                    "google_id": google_account_id,
+                    "google_actor_ref": f"user:{google_account_id}",
+                    "google_email": f"google-{google_account_id}@example.invalid",
+                    "local_id": local_account_id,
+                    "local_actor_ref": f"user:{local_account_id}",
+                    "local_login": f"google-{google_account_id}@example.invalid",
+                    "local_email": f"local-{local_account_id}@example.invalid",
+                },
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO user_accounts (
+                        id, actor_ref, login_name, email, display_name, password_hash,
+                        role, status, auth_version, approved_by_user_id, approved_at
+                    ) VALUES (
+                        :id, :login_name, :login_name, :email,
+                        '합성 bootstrap 관리자', 'synthetic-password-hash',
+                        'ADMIN', 'ACTIVE', 1, :id, now()
+                    )
+                    """
+                ),
+                {
+                    "id": bootstrap_account_id,
+                    "login_name": bootstrap_login,
+                    "email": f"bootstrap-{bootstrap_account_id[:24]}@local.invalid",
+                },
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO external_identities (
+                        id, user_account_id, provider, issuer, provider_subject,
+                        created_at, updated_at
+                    ) VALUES (
+                        :id, :user_account_id, 'GOOGLE',
+                        'https://accounts.google.com', :provider_subject,
+                        :created_at, :created_at
+                    )
+                    """
+                ),
+                {
+                    "id": identity_id,
+                    "user_account_id": google_account_id,
+                    "provider_subject": f"synthetic-google-{identity_id}",
+                    "created_at": identity_created_at,
+                },
+            )
+
+        with pytest.raises(DBAPIError, match="교차 충돌"):
+            command.upgrade(config, PHASE19_HEAD)
+        with postgres_engine.connect() as connection:
+            assert (
+                connection.scalar(text("SELECT version_num FROM alembic_version")) == PHASE17_HEAD
+            )
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE user_accounts SET login_name = :login_name WHERE id = :id"),
+                {"id": local_account_id, "login_name": f"local-{local_account_id}"},
+            )
+
+        command.upgrade(config, PHASE19_HEAD)
+        with postgres_engine.connect() as connection:
+            google_account = connection.execute(
+                text(
+                    """
+                    SELECT email_verified_at, bootstrap_password_managed
+                    FROM user_accounts
+                    WHERE id = :id
+                    """
+                ),
+                {"id": google_account_id},
+            ).one()
+            assert google_account.email_verified_at == identity_created_at
+            assert google_account.bootstrap_password_managed is False
+            assert (
+                connection.scalar(
+                    text("SELECT bootstrap_password_managed FROM user_accounts WHERE id = :id"),
+                    {"id": bootstrap_account_id},
+                )
+                is True
+            )
+            assert "account_auth_tokens" in inspect(connection).get_table_names()
+
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO account_auth_tokens (
+                        id, user_account_id, purpose, token_digest, issued_auth_version,
+                        target_email,
+                        expires_at
+                    ) VALUES (
+                        :id, :user_account_id, 'PASSWORD_RESET', :token_digest, 1,
+                        :target_email, now() + interval '30 minutes'
+                    )
+                    """
+                ),
+                {
+                    "id": token_id,
+                    "user_account_id": local_account_id,
+                    "token_digest": "a" * 64,
+                    "target_email": f"local-{local_account_id}@example.invalid",
+                },
+            )
+        with pytest.raises(DBAPIError, match="인증 token"):
+            command.downgrade(config, PHASE17_HEAD)
+        with postgres_engine.connect() as connection:
+            assert (
+                connection.scalar(text("SELECT version_num FROM alembic_version")) == PHASE19_HEAD
+            )
+
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM account_auth_tokens WHERE id = :id"),
+                {"id": token_id},
+            )
+            connection.execute(
+                text("UPDATE user_accounts SET email_verified_at = now() WHERE id = :id"),
+                {"id": local_account_id},
+            )
+        with pytest.raises(DBAPIError, match="이메일 검증 상태"):
+            command.downgrade(config, PHASE17_HEAD)
+
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE user_accounts SET email_verified_at = NULL WHERE id = :id"),
+                {"id": local_account_id},
+            )
+            connection.execute(
+                text("UPDATE user_accounts SET login_name = NULL WHERE id = :id"),
+                {"id": local_account_id},
+            )
+        with pytest.raises(DBAPIError, match="email-only"):
+            command.downgrade(config, PHASE17_HEAD)
+
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE user_accounts SET login_name = :login_name WHERE id = :id"),
+                {
+                    "id": local_account_id,
+                    "login_name": f"local-{local_account_id}",
+                },
+            )
+            connection.execute(
+                text("UPDATE user_accounts SET bootstrap_password_managed = false WHERE id = :id"),
+                {"id": bootstrap_account_id},
+            )
+        with pytest.raises(DBAPIError, match="bootstrap 비밀번호"):
+            command.downgrade(config, PHASE17_HEAD)
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE user_accounts SET bootstrap_password_managed = true WHERE id = :id"),
+                {"id": bootstrap_account_id},
+            )
+        command.downgrade(config, PHASE17_HEAD)
+        phase17_inspector = inspect(postgres_engine)
+        assert "account_auth_tokens" not in phase17_inspector.get_table_names()
+        assert {
+            "email_verified_at",
+            "bootstrap_password_managed",
+        }.isdisjoint(column["name"] for column in phase17_inspector.get_columns("user_accounts"))
+    finally:
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE user_accounts SET login_name = :login_name WHERE id = :id"),
+                {"id": local_account_id, "login_name": f"local-{local_account_id}"},
+            )
+        command.upgrade(config, REPOSITORY_HEAD)
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "DELETE FROM user_accounts WHERE id IN (:google_id, :local_id, :bootstrap_id)"
+                ),
+                {
+                    "google_id": google_account_id,
+                    "local_id": local_account_id,
+                    "bootstrap_id": bootstrap_account_id,
+                },
+            )
 
 
 def test_membership_downgrade_is_fail_closed_and_reversible_when_empty(

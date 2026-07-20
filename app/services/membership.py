@@ -7,7 +7,7 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import or_, select, text
+from sqlalchemy import and_, or_, select, text
 from sqlalchemy.orm import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -109,19 +109,13 @@ def is_demo_actor_ref(value: str | None) -> bool:
 
 
 def role_has_teacher_capability(role: str) -> bool:
-    """주 관리자는 교사 업무를 겸하고 보조 관리자는 승인 업무만 수행한다."""
+    """교사와 주 관리자만 교사 업무를 함께 수행한다."""
     return role in TEACHER_CAPABLE_ROLES
 
 
 def has_teacher_capability(user: UserAccount) -> bool:
-    """활성 교사 또는 비데모 주 관리자인지 판정한다.
-
-    공개 교사 데모는 기존 읽기 전용 교사 화면을 유지한다. 공개 주 관리자
-    데모는 관리자 메뉴만 보여 주며 운영 교사 자료에는 접근하지 않는다.
-    """
-    return user.status == "ACTIVE" and (
-        user.role == "TEACHER" or (user.role == "ADMIN" and not is_demo_actor_ref(user.actor_ref))
-    )
+    """활성 교사 또는 주 관리자의 교사 기능을 판정한다."""
+    return user.status == "ACTIVE" and role_has_teacher_capability(user.role)
 
 
 def canonicalize_google_issuer(value: str) -> str:
@@ -269,7 +263,7 @@ def _revoke_classroom_links(
 def register_local_member(
     session: Session,
     *,
-    login_name: str,
+    login_name: str | None = None,
     email: str,
     display_name: str,
     password: str,
@@ -281,14 +275,34 @@ def register_local_member(
     del requested_status
     _aware(occurred_at)
     _validate_password(password)
-    normalized_login_name = _normalize_login_name(login_name)
+    normalized_login_name = (
+        _normalize_login_name(login_name) if login_name and login_name.strip() else None
+    )
     normalized_email = _normalize_email(email)
     if normalized_login_name in DEMO_ROLE_LOGIN_NAME_SET or normalized_email in DEMO_ROLE_EMAILS:
         raise RegistrationConflict("예약된 계정 정보입니다.")
-    if reserved_login_name and normalized_login_name == _normalize_login_name(reserved_login_name):
+    if (
+        normalized_login_name is not None
+        and reserved_login_name
+        and normalized_login_name == _normalize_login_name(reserved_login_name)
+    ):
         raise RegistrationConflict("예약된 계정 정보입니다.")
     if normalized_email == DEMO_EMAIL:
         raise RegistrationConflict("예약된 계정 정보입니다.")
+    password_hash = generate_password_hash(password)
+    identity_conflicts = [
+        UserAccount.email == normalized_email,
+        UserAccount.login_name == normalized_email,
+    ]
+    if normalized_login_name is not None:
+        identity_conflicts.extend(
+            (
+                UserAccount.login_name == normalized_login_name,
+                UserAccount.email == normalized_login_name,
+            )
+        )
+    if session.scalar(select(UserAccount.id).where(or_(*identity_conflicts))) is not None:
+        raise RegistrationConflict("이미 사용 중인 계정 정보입니다.")
     account_id = new_id()
     role = requested_role if requested_role in {"STUDENT", "TEACHER"} else "MEMBER"
     member = UserAccount(
@@ -297,7 +311,7 @@ def register_local_member(
         login_name=normalized_login_name,
         email=normalized_email,
         display_name=_normalize_display_name(display_name),
-        password_hash=generate_password_hash(password),
+        password_hash=password_hash,
         role=role,
         status="PENDING_APPROVAL",
         auth_version=1,
@@ -324,12 +338,34 @@ def authenticate_local_member(
     occurred_at: datetime,
 ) -> UserAccount | None:
     _aware(occurred_at)
+    normalized_identifier = unicodedata.normalize("NFKC", login_name).strip().lower()
+    identity_filters = []
+    if "@" in normalized_identifier:
+        try:
+            normalized_email = _normalize_email(normalized_identifier)
+        except MembershipError:
+            pass
+        else:
+            identity_filters.append(
+                and_(
+                    UserAccount.email == normalized_email,
+                    UserAccount.email_verified_at.is_not(None),
+                )
+            )
     try:
-        normalized = _normalize_login_name(login_name)
+        normalized_login_name = _normalize_login_name(normalized_identifier)
     except MembershipError:
+        pass
+    else:
+        identity_filters.append(UserAccount.login_name == normalized_login_name)
+    if not identity_filters:
         check_password_hash(DUMMY_PASSWORD_HASH, password)
         return None
-    member = session.scalar(select(UserAccount).where(UserAccount.login_name == normalized))
+    matches = tuple(session.scalars(select(UserAccount).where(or_(*identity_filters)).limit(2)))
+    if len(matches) != 1:
+        check_password_hash(DUMMY_PASSWORD_HASH, password)
+        return None
+    member = matches[0]
     if member is None or member.password_hash is None:
         check_password_hash(DUMMY_PASSWORD_HASH, password)
         return None
@@ -381,7 +417,7 @@ def bootstrap_admin(
             raise MembershipError("공개 데모 계정은 실제 관리자로 부트스트랩할 수 없습니다.")
         if existing.role != "ADMIN" or existing.status != "ACTIVE":
             raise MembershipError("동일 로그인 ID의 기존 회원을 관리자로 자동 승격할 수 없습니다.")
-        if existing.password_hash != password_hash:
+        if existing.bootstrap_password_managed and existing.password_hash != password_hash:
             existing.password_hash = password_hash
             existing.auth_version += 1
             _audit(
@@ -409,6 +445,7 @@ def bootstrap_admin(
         role="ADMIN",
         status="ACTIVE",
         auth_version=1,
+        bootstrap_password_managed=True,
         approved_by_user_id=account_id,
         approved_at=occurred_at,
     )
@@ -1022,7 +1059,14 @@ def register_google_member(
         return member
 
     canonical_email = _normalize_email(email)
-    occupied = session.scalar(select(UserAccount.id).where(UserAccount.email == canonical_email))
+    occupied = session.scalar(
+        select(UserAccount.id).where(
+            or_(
+                UserAccount.email == canonical_email,
+                UserAccount.login_name == canonical_email,
+            )
+        )
+    )
     if occupied is not None:
         raise MembershipError("동일 이메일 계정은 관리자 확인 없이 자동 연결하지 않습니다.")
 
@@ -1037,6 +1081,7 @@ def register_google_member(
         role="MEMBER",
         status="PENDING_APPROVAL",
         auth_version=1,
+        email_verified_at=occurred_at,
     )
     session.add(member)
     session.flush()
@@ -1090,6 +1135,8 @@ def approve_pending_member(
         raise MembershipError("자기 자신을 승인할 수 없습니다.")
     if locked.role not in {"MEMBER", "STUDENT", "TEACHER"} or locked.status != "PENDING_APPROVAL":
         raise MembershipError("승인 대기 일반 회원·학생·교사만 승인할 수 있습니다.")
+    if locked.login_name is None and locked.email_verified_at is None:
+        raise MembershipError("이메일 인증을 완료한 회원만 승인할 수 있습니다.")
     before_status = locked.status
     locked.status = "ACTIVE"
     locked.approved_by_user_id = locked_actor.id

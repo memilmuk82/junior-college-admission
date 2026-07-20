@@ -1,0 +1,20 @@
+services:
+  web-production:
+    environment:
+      ACCOUNT_EMAIL_ENABLED: "true"
+      SMTP_HOST: "${SMTP_HOST:?SMTP_HOST must be set}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USERNAME_FILE: /run/secrets/smtp_username
+      SMTP_PASSWORD_FILE: /run/secrets/smtp_password
+      SMTP_USE_STARTTLS: "${SMTP_USE_STARTTLS:-true}"
+      EMAIL_FROM_ADDRESS: "${EMAIL_FROM_ADDRESS:?EMAIL_FROM_ADDRESS must be set}"
+      SMTP_TIMEOUT_SECONDS: "${SMTP_TIMEOUT_SECONDS:-10}"
+    secrets:
+      - smtp_username
+      - smtp_password
+
+secrets:
+  smtp_username:
+    file: "${PRODUCTION_SECRETS_DIR:?PRODUCTION_SECRETS_DIR must be set}/smtp_username"
+  smtp_password:
+    file: "${PRODUCTION_SECRETS_DIR:?PRODUCTION_SECRETS_DIR must be set}/smtp_password"

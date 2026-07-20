@@ -96,6 +96,8 @@ from app.services.consultations import (
     run_batch_consultation,
     run_consultation,
 )
+from app.services.demo_ai_provider import DemoNarrativeProvider
+from app.services.membership import has_teacher_capability
 from app.services.public_student_profiles import student_profile_from_facts
 from app.services.rule_admin import (
     RULE_CONTRACT_SCHEMA_VERSION,
@@ -203,7 +205,9 @@ def _actor_ref() -> str:
 
 def _byok_actor_ref() -> str:
     user = session_user()
-    if is_demo_user(user) and (user is None or user.role not in {"STUDENT", "TEACHER"}):
+    if is_demo_user(user) and (
+        user is None or (user.role != "STUDENT" and not has_teacher_capability(user))
+    ):
         abort(403)
     return byok_actor_ref()
 
@@ -329,7 +333,9 @@ def _authorized_records_loader(student_id: str) -> Callable[[], tuple]:
             select(StudentAcademicRecord).where(StudentAcademicRecord.student_id == student_id)
         )
     )
-    if user.role in {"STUDENT", "TEACHER"}:
+    if user.role == "STUDENT" or (
+        has_teacher_capability(user) and (user.role != "ADMIN" or is_demo_user(user))
+    ):
         if not records or any(
             not can_read_academic_record(database_session, user=user, record=record)
             for record in records
@@ -374,6 +380,7 @@ def _render_consultation_result(
     status: int = 200,
 ) -> Response:
     actor_ref = _actor_ref()
+    credential_actor_ref = _byok_actor_ref()
     demo_mode = is_demo_user()
     credentials = (
         ()
@@ -381,7 +388,7 @@ def _render_consultation_result(
         else tuple(
             cast(Session, db.session).scalars(
                 select(AiProviderCredential)
-                .where(AiProviderCredential.actor_ref == actor_ref)
+                .where(AiProviderCredential.actor_ref == credential_actor_ref)
                 .order_by(AiProviderCredential.provider)
             )
         )
@@ -541,10 +548,14 @@ def generate_ai_consultation_draft() -> Response | Any:
     provider_code = request.form.get("provider", "")
     model_name = request.form.get("model_name", "")
     try:
-        adapter = provider_adapter(provider_code, model_name)
+        adapter = (
+            DemoNarrativeProvider(provider_code)
+            if current_app.config.get("DEMO_SANDBOX_ENABLED")
+            else provider_adapter(provider_code, model_name)
+        )
         draft = generate_consultation_narrative(
             cast(Session, db.session),
-            actor_ref=_actor_ref(),
+            actor_ref=_byok_actor_ref(),
             provider_code=provider_code,
             model_name=model_name,
             result=result,
@@ -641,7 +652,7 @@ def delete_ai_credential(provider: str) -> Any:
 
 def _owned_ai_draft(draft_id: str) -> AiConsultationDraft:
     record = cast(Session, db.session).get(AiConsultationDraft, draft_id)
-    if record is None or record.actor_ref != _actor_ref():
+    if record is None or record.actor_ref != _byok_actor_ref():
         abort(404)
     return record
 
@@ -655,7 +666,7 @@ def _render_ai_draft(
     return _private(
         render_template(
             "admin_ai_draft.html",
-            actor_ref=_actor_ref(),
+            actor_ref=_byok_actor_ref(),
             csrf_token=_csrf_token(),
             draft=record,
             error=error,
@@ -682,7 +693,7 @@ def confirm_ai_draft_route(draft_id: str) -> Response | Any:
         confirm_ai_draft(
             cast(Session, db.session),
             draft_id=record.id,
-            actor_ref=_actor_ref(),
+            actor_ref=_byok_actor_ref(),
             teacher_text=request.form.get("teacher_text", ""),
             confirmed_at=datetime.now(UTC),
         )
@@ -704,7 +715,7 @@ def reject_ai_draft_route(draft_id: str) -> Response | Any:
         reject_ai_draft(
             cast(Session, db.session),
             draft_id=record.id,
-            actor_ref=_actor_ref(),
+            actor_ref=_byok_actor_ref(),
         )
         db.session.commit()
     except AiDraftError as error:
@@ -721,7 +732,7 @@ def delete_ai_draft_route(draft_id: str) -> Response | Any:
     _require_csrf()
     record = _owned_ai_draft(draft_id)
     try:
-        delete_ai_draft(cast(Session, db.session), draft_id=record.id, actor_ref=_actor_ref())
+        delete_ai_draft(cast(Session, db.session), draft_id=record.id, actor_ref=_byok_actor_ref())
         db.session.commit()
     except AiDraftError as error:
         db.session.rollback()

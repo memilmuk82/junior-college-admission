@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>계정 보안 · 2027 전문대 입시 상담</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="admin-page account-security-page">
+    <header class="admin-header">
+      <div><p class="admin-eyebrow">ACCOUNT SECURITY</p><a href="{{ url_for('account.security') }}">계정 보안</a></div>
+      <nav><a href="{{ url_for('main.dashboard') }}">내 업무공간</a><form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="text-action" type="submit">로그아웃</button></form></nav>
+    </header>
+    <main class="admin-shell account-security" id="main-content">
+      {% set security_mutable = not demo_mode and current_user.status == 'ACTIVE' %}
+      <div class="admin-heading">
+        <div><h1>회원정보·로그인 보안</h1><p>이메일·비밀번호·Google 로그인 수단을 확인하고 변경합니다.</p></div>
+      </div>
+
+      {% set notices = {
+        'password_changed': '비밀번호를 변경했습니다. 다른 로그인 세션은 종료되었습니다.',
+        'email_requested': '이메일 변경 요청을 접수했습니다. 사용할 수 있는 주소라면 인증 링크가 전송되며, 링크 확인 전까지 기존 이메일이 유지됩니다.',
+        'google_connected': 'Google 계정을 이 계정에 연결했습니다.',
+        'google_disconnected': 'Google 계정 연결을 해제했습니다.'
+      } %}
+      {% if message in notices %}<div class="members-notice" role="status">{{ notices[message] }}</div>{% endif %}
+      {% if error %}<div class="admin-alert" role="alert" tabindex="-1">{{ error }}</div>{% endif %}
+      {% if config.DEMO_SANDBOX_ENABLED %}<div class="public-notice" role="status"><strong>격리 체험 계정 보안입니다.</strong> 비밀번호·이메일·Google 체험 연결은 실제로 저장되지만 체험 DB에만 남고 초기화될 수 있습니다.</div>{% elif demo_mode %}<div class="public-notice" role="status"><strong>읽기 전용 체험 계정입니다.</strong> 비밀번호·이메일·Google 연결을 변경할 수 없습니다.</div>{% endif %}
+      {% if not demo_mode and current_user.status != 'ACTIVE' %}<div class="public-notice" role="status"><strong>현재 계정 상태: {{ current_user.status }}</strong> 비밀번호·이메일 변경·Google 연결은 계정 승인·활성화 후 사용할 수 있습니다. 가입 이메일 인증과 인증 메일 재요청은 계정 상태 화면에서 계속 진행할 수 있습니다.</div>{% endif %}
+
+      <section class="account-security-summary" aria-labelledby="account-summary-heading">
+        <div class="admin-section__heading"><h2 id="account-summary-heading">기본 회원정보</h2><span>{{ current_user.role }}</span></div>
+        <dl>
+          <div><dt>표시 이름</dt><dd>{{ current_user.display_name }}</dd></div>
+          <div><dt>로그인 이메일</dt><dd>{{ current_user.email }}</dd></div>
+          <div><dt>이메일 상태</dt><dd>{% if current_user.email_verified_at %}<span class="security-status security-status--verified">인증 완료</span>{% elif current_user.login_name %}<span class="security-status">기존 계정 · 미인증</span>{% else %}<span class="security-status security-status--warning">인증 필요</span>{% endif %}</dd></div>
+          {% if current_user.login_name %}<div><dt>기존 아이디</dt><dd>{{ current_user.login_name }}</dd></div>{% endif %}
+        </dl>
+      </section>
+
+      <div class="account-security-grid">
+        <section class="admin-section" aria-labelledby="password-security-heading">
+          <div class="admin-section__heading"><h2 id="password-security-heading">비밀번호 변경</h2><span>{% if current_user.password_hash %}사용 중{% else %}미설정{% endif %}</span></div>
+          <dl class="auth-action-guide" aria-label="비밀번호 변경 사용 안내">
+            <div><dt>무엇인가요?</dt><dd>현재 로그인 비밀번호를 새 값으로 교체합니다.</dd></div>
+            <div><dt>언제 쓰나요?</dt><dd>비밀번호 노출이 의심되거나 새 비밀번호로 바꾸려 할 때 사용합니다.</dd></div>
+            <div><dt>완료되면</dt><dd>현재 브라우저만 유지되고 다른 로그인 세션은 종료됩니다.</dd></div>
+          </dl>
+          {% if current_user.password_hash %}
+            <p class="form-help">변경하면 현재 브라우저를 제외한 기존 로그인 세션이 종료됩니다.</p>
+            <form class="auth-form" method="post" action="{{ url_for('account.change_security_password') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <label for="current-password">현재 비밀번호</label>
+              <input id="current-password" name="current_password" type="password" maxlength="256" autocomplete="current-password" required {% if not security_mutable %}disabled{% endif %}>
+              <label for="security-new-password">새 비밀번호</label>
+              <input id="security-new-password" name="new_password" type="password" minlength="12" maxlength="256" autocomplete="new-password" required {% if not security_mutable %}disabled{% endif %}>
+              <label for="security-new-password-confirmation">새 비밀번호 확인</label>
+              <input id="security-new-password-confirmation" name="new_password_confirmation" type="password" minlength="12" maxlength="256" autocomplete="new-password" required {% if not security_mutable %}disabled{% endif %}>
+              <button class="primary-button auth-submit" type="submit" {% if not security_mutable %}disabled{% endif %}>비밀번호 변경</button>
+            </form>
+          {% else %}<p>Google 로그인 전용 계정입니다. 현재 별도 비밀번호가 설정되어 있지 않습니다.</p>{% endif %}
+        </section>
+
+        <section class="admin-section" aria-labelledby="email-security-heading">
+          <div class="admin-section__heading"><h2 id="email-security-heading">이메일 변경·인증</h2><span>{% if email_available %}메일 발송 가능{% else %}설정 필요{% endif %}</span></div>
+          <dl class="auth-action-guide" aria-label="이메일 변경 사용 안내">
+            <div><dt>무엇인가요?</dt><dd>로그인·복구에 사용할 이메일을 바꾸고 새 주소의 소유를 확인합니다.</dd></div>
+            <div><dt>언제 쓰나요?</dt><dd>기존 이메일을 더 이상 쓰지 않거나 로그인 주소를 바꿀 때 사용합니다.</dd></div>
+            <div><dt>완료되면</dt><dd>새 주소 확인 후 로그인 이메일만 바뀝니다. 자료·역할은 유지되며 관리자 승인은 별도입니다.</dd></div>
+          </dl>
+          <p class="form-help">새 주소의 인증 링크를 완료해야 로그인 이메일이 바뀌어요. 학생·성적·상담 자료는 별도 계정으로 옮기지 않습니다.</p>
+          {% if email_available and current_user.password_hash %}
+            <form class="auth-form" method="post" action="{{ url_for('account.change_security_email') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <label for="new-email">새 이메일</label>
+              <input id="new-email" name="email" type="email" maxlength="320" autocomplete="email" spellcheck="false" required {% if not security_mutable %}disabled{% endif %}>
+              <label for="email-current-password">현재 비밀번호</label>
+              <input id="email-current-password" name="current_password" type="password" maxlength="256" autocomplete="current-password" required {% if not security_mutable %}disabled{% endif %}>
+              <button class="primary-button auth-submit" type="submit" {% if not security_mutable %}disabled{% endif %}>인증 메일 보내기</button>
+            </form>
+          {% elif not email_available %}<p class="auth-alert auth-alert--info">운영 메일 발송 설정이 완료되면 이 기능을 사용할 수 있습니다. 기존 아이디 로그인은 계속 유지됩니다.</p>{% endif %}
+        </section>
+
+        <section class="admin-section" aria-labelledby="google-security-heading">
+          <div class="admin-section__heading"><h2 id="google-security-heading">Google 계정 연결</h2><span>{% if google_identity %}연결됨{% elif google_enabled %}연결 가능{% else %}설정 필요{% endif %}</span></div>
+          <dl class="auth-action-guide" aria-label="Google 계정 연결 사용 안내">
+            <div><dt>무엇인가요?</dt><dd>현재 회원 계정에 Google을 추가 로그인 수단으로 직접 연결합니다.</dd></div>
+            <div><dt>언제 쓰나요?</dt><dd>현재 인증 이메일과 같은 Google 계정으로 간편 로그인하려 할 때 사용합니다.</dd></div>
+            <div><dt>완료되면</dt><dd>현재 자료 계정에 연결됩니다. 새 계정 생성이나 자료 자동 병합은 하지 않습니다.</dd></div>
+          </dl>
+          {% if google_identity %}
+            <p>Google 인증으로 이 회원 계정에 로그인할 수 있습니다. 성적·상담 자료는 현재 계정에 그대로 유지됩니다.</p>
+            {% if current_user.password_hash %}<form class="auth-form" method="post" action="{{ url_for('account.disconnect_google') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <label for="google-disconnect-password">현재 비밀번호</label>
+              <input id="google-disconnect-password" name="current_password" type="password" maxlength="256" autocomplete="current-password" required {% if not security_mutable %}disabled{% endif %}>
+              <button class="danger-link" type="submit" {% if not security_mutable %}disabled{% endif %}>Google 연결 해제</button>
+            </form>{% else %}<p class="form-help">다른 로그인 수단이 없어 Google 연결을 해제할 수 없습니다.</p>{% endif %}
+          {% elif google_enabled and security_mutable and current_user.password_hash and current_user.email_verified_at %}
+            <p class="form-help">현재 비밀번호와 같은 인증 이메일의 Google 계정을 모두 확인한 뒤 연결합니다.</p>
+            <form class="auth-form" method="post" action="{{ url_for('account.connect_google') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <label for="google-connect-password">현재 비밀번호</label>
+              <input id="google-connect-password" name="current_password" type="password" maxlength="256" autocomplete="current-password" required {% if demo_mode %}disabled{% endif %}>
+              <button class="auth-provider-button" type="submit" {% if demo_mode %}disabled{% endif %}>Google 계정 연결</button>
+            </form>
+          {% elif not google_enabled %}<p class="auth-alert auth-alert--info">Google OIDC 운영 설정이 완료되면 연결할 수 있습니다.</p>{% elif not current_user.email_verified_at %}<p>이메일을 먼저 인증한 뒤 Google 계정을 연결할 수 있습니다.</p>{% endif %}
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

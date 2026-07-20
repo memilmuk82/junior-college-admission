@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -20,7 +20,7 @@ from app.models import (
     TeacherClassroom,
     UserAccount,
 )
-from app.services.membership import DEMO_ACTOR_REF, has_teacher_capability
+from app.services.membership import has_teacher_capability
 
 
 class ClassroomLinkError(ValueError):
@@ -46,14 +46,7 @@ def _require_teacher(user: UserAccount) -> None:
 
 
 def _teacher_account_condition() -> ColumnElement[bool]:
-    return or_(
-        UserAccount.role == "TEACHER",
-        and_(
-            UserAccount.role == "ADMIN",
-            UserAccount.actor_ref != DEMO_ACTOR_REF,
-            ~UserAccount.actor_ref.like("demo:role:%"),
-        ),
-    )
+    return UserAccount.role.in_(("TEACHER", "ADMIN"))
 
 
 def _require_student(user: UserAccount) -> None:

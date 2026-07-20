@@ -9,6 +9,9 @@ PRODUCTION_ENV_FILE ?= .env.production
 PRODUCTION_URL ?=
 PRODUCTION_CA_CERT ?=
 PRODUCTION_BACKUP_DIR ?= backups/production
+DEMO_ENV_FILE ?= .env.demo
+DEMO_PUBLIC_BASE_URL ?= https://admission.memilmuk82.com/demo
+DEMO_ORIGIN_PORT ?= 8002
 BACKUP_FILE ?=
 ROLLBACK_APP_IMAGE ?=
 ROLLBACK_APP_IMAGE_ID ?=
@@ -16,20 +19,23 @@ ROLLBACK_DATABASE_RESTORE_CONFIRMED ?=
 OIDC_CHANGE_APPROVED ?=
 OIDC_HOST_GATE_CONFIRMED ?=
 OIDC_BACKUP_RESTORE_CONFIRMED ?=
+ACCOUNT_AUTH_CHANGE_APPROVED ?=
+ACCOUNT_AUTH_HOST_GATE_CONFIRMED ?=
+ACCOUNT_AUTH_BACKUP_RESTORE_CONFIRMED ?=
 
-.PHONY: setup test-unit test-integration test-e2e test-phase13-e2e test-phase14-e2e test-phase14-import-e2e test-phase16-e2e test-phase17-e2e test-phase18-e2e lint validate-rules check-sensitive-data check production-bootstrap production-preflight production-up production-check production-e2e production-status production-logs production-down production-origin-up production-origin-check production-origin-status production-origin-logs production-origin-down production-origin-oidc-up production-origin-oidc-check production-origin-oidc-status production-origin-oidc-disable production-origin-rollback-app production-origin-backup production-origin-backup-verify production-origin-restore-verify production-origin-metrics alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
+.PHONY: setup test-unit test-integration test-e2e test-phase13-e2e test-phase14-e2e test-phase14-import-e2e test-phase16-e2e test-phase17-e2e test-phase18-e2e test-phase19-e2e test-phase20-e2e lint validate-rules check-sensitive-data check demo-bootstrap demo-up demo-check demo-reset demo-status demo-logs demo-down production-bootstrap production-preflight production-up production-check production-e2e production-status production-logs production-down production-origin-up production-origin-check production-origin-status production-origin-logs production-origin-down production-origin-oidc-up production-origin-oidc-check production-origin-oidc-status production-origin-oidc-disable production-origin-account-auth-preflight production-origin-account-auth-up production-origin-account-auth-check production-origin-account-auth-status production-origin-account-auth-disable production-origin-rollback-app production-origin-backup production-origin-backup-verify production-origin-restore-verify production-origin-metrics alpha-up alpha-check alpha-e2e alpha-e2e-full alpha-status alpha-logs alpha-down beta-up beta-check beta-e2e beta-e2e-full beta-status beta-logs beta-down
 
 setup:
 	uv sync --frozen
 	npm ci
 
 test-unit:
-	$(PYTHON) pytest tests/test_admin_auth.py tests/test_authentication.py tests/test_admission_result_file_imports.py tests/test_admission_results.py tests/test_ai_http_providers.py tests/test_ai_payloads.py tests/test_ai_security.py tests/test_rule_admin.py tests/test_score_rule_csv_preview.py tests/test_app.py tests/test_application_policies.py tests/test_consultation_forms.py tests/test_phase13_multi_program.py tests/test_phase14_xlsx_score_contract.py tests/test_public_calculation.py tests/test_public_student_profiles.py tests/test_student_record_access.py tests/test_eligibility.py tests/test_google_oidc_operations.py tests/test_host_nginx_security.py tests/test_image_imports.py tests/test_pilot_candidates.py tests/test_pilot_golden_candidates.py tests/test_postgres_operations.py tests/test_production_bootstrap.py tests/test_production_config.py tests/test_production_https_operations.py tests/test_review_forms.py tests/test_review_state.py tests/test_scanned_pdf_imports.py tests/test_score_calculation.py tests/test_score_components.py tests/test_score_conversion.py tests/test_score_golden.py tests/test_score_inputs.py tests/test_score_properties.py tests/test_score_rule_schema.py tests/test_score_selection.py tests/test_structured_imports.py tests/test_temporary_uploads.py tests/test_text_pdf_imports.py tests/test_validate_rules.py
+	$(PYTHON) pytest tests/test_account_emails.py tests/test_admin_auth.py tests/test_authentication.py tests/test_admission_result_file_imports.py tests/test_admission_results.py tests/test_ai_http_providers.py tests/test_ai_payloads.py tests/test_ai_security.py tests/test_rule_admin.py tests/test_score_rule_csv_preview.py tests/test_app.py tests/test_application_policies.py tests/test_consultation_forms.py tests/test_phase13_multi_program.py tests/test_phase14_xlsx_score_contract.py tests/test_phase20_demo_runtime.py tests/test_phase20_demo_stubs.py tests/test_public_calculation.py tests/test_public_student_profiles.py tests/test_student_record_access.py tests/test_eligibility.py tests/test_google_oidc_operations.py tests/test_host_nginx_security.py tests/test_image_imports.py tests/test_pilot_candidates.py tests/test_pilot_golden_candidates.py tests/test_postgres_operations.py tests/test_production_bootstrap.py tests/test_production_config.py tests/test_production_https_operations.py tests/test_review_forms.py tests/test_review_state.py tests/test_scanned_pdf_imports.py tests/test_score_calculation.py tests/test_score_components.py tests/test_score_conversion.py tests/test_score_golden.py tests/test_score_inputs.py tests/test_score_properties.py tests/test_score_rule_schema.py tests/test_score_selection.py tests/test_structured_imports.py tests/test_temporary_uploads.py tests/test_text_pdf_imports.py tests/test_validate_rules.py
 
 test-integration:
 	$(COMPOSE_TEST_ENV) docker compose --profile test rm -f -s -v db-test
 	$(COMPOSE_TEST_ENV) docker compose --profile test up -d --wait db-test
-	@status=0; TEST_DATABASE_URL=$(TEST_DATABASE_URL) $(PYTHON) pytest tests/test_account_records_postgres.py tests/test_admin_rule_routes.py tests/test_anonymous_save_postgres.py tests/test_verified_source_rules_postgres.py tests/test_phase14_consultation_acl_postgres.py tests/test_auth_routes.py tests/test_demo_role_showcase.py tests/test_membership.py tests/test_score_rule_csv_drafts.py tests/test_admission_result_models.py tests/test_phase14_admission_result_import_postgres.py tests/test_phase17_migration_upgrade_postgres.py tests/test_ai_credentials.py tests/test_ai_routes.py tests/test_rule_admin_models.py tests/test_confirmed_imports.py tests/test_consultations.py tests/test_consultation_routes.py tests/test_phase13_batch_postgres.py tests/test_database.py tests/test_migrations.py tests/test_models.py tests/test_published_rules.py tests/test_review_routes.py tests/test_phase15_postgres.py tests/test_phase16_classroom_links.py tests/test_phase16_role_workspaces.py tests/test_phase16_source_upload_security.py || status=$$?; \
+	@status=0; TEST_DATABASE_URL=$(TEST_DATABASE_URL) $(PYTHON) pytest tests/test_account_records_postgres.py tests/test_admin_rule_routes.py tests/test_anonymous_save_postgres.py tests/test_verified_source_rules_postgres.py tests/test_phase14_consultation_acl_postgres.py tests/test_auth_routes.py tests/test_demo_role_showcase.py tests/test_membership.py tests/test_score_rule_csv_drafts.py tests/test_admission_result_models.py tests/test_phase14_admission_result_import_postgres.py tests/test_phase17_migration_upgrade_postgres.py tests/test_phase19_account_security.py tests/test_phase19_auth_workflow_postgres.py tests/test_phase20_demo_routes_postgres.py tests/test_phase20_demo_sandbox.py tests/test_ai_credentials.py tests/test_ai_routes.py tests/test_rule_admin_models.py tests/test_confirmed_imports.py tests/test_consultations.py tests/test_consultation_routes.py tests/test_phase13_batch_postgres.py tests/test_database.py tests/test_migrations.py tests/test_models.py tests/test_published_rules.py tests/test_review_routes.py tests/test_phase15_postgres.py tests/test_phase16_classroom_links.py tests/test_phase16_role_workspaces.py tests/test_phase16_source_upload_security.py || status=$$?; \
 		if [ $$status -eq 0 ]; then $(COMPOSE_TEST_ENV) COMPOSE_FILE=docker-compose.yml DB_SERVICE=db-test ./scripts/collect_postgres_metrics.sh > /dev/null || status=$$?; fi; \
 		if [ $$status -eq 0 ]; then $(COMPOSE_TEST_ENV) COMPOSE_FILE=docker-compose.yml DB_SERVICE=db-test ./scripts/check_postgres_backup_restore.sh || status=$$?; fi; \
 		$(COMPOSE_TEST_ENV) docker compose --profile test rm -f -s -v db-test; \
@@ -63,6 +69,14 @@ test-phase18-e2e:
 	@test -n "$$PHASE18_E2E_URL" && test -n "$$PHASE18_ADMIN_USERNAME" && test -n "$$PHASE18_ADMIN_PASSWORD"
 	npx playwright test --config tests/playwright.phase18.config.js
 
+test-phase19-e2e:
+	@test -n "$$PHASE19_E2E_URL" && test -n "$$PHASE19_ACCOUNT_IDENTIFIER" && test -n "$$PHASE19_ACCOUNT_PASSWORD"
+	npx playwright test --config tests/playwright.phase19.config.js
+
+test-phase20-e2e:
+	@test -n "$$PHASE20_E2E_URL"
+	npx playwright test --config tests/playwright.phase20.config.js
+
 lint:
 	$(PYTHON) ruff check .
 	$(PYTHON) ruff format --check .
@@ -76,12 +90,39 @@ check-sensitive-data:
 
 check: lint test-unit test-integration validate-rules check-sensitive-data
 
+demo-bootstrap:
+	test ! -e "$(DEMO_ENV_FILE)"
+	$(PYTHON) python scripts/bootstrap_demo_runtime.py --public-base-url "$(DEMO_PUBLIC_BASE_URL)" --env-file "$(DEMO_ENV_FILE)" --secrets-dir secrets/demo
+
+demo-up:
+	test -f "$(DEMO_ENV_FILE)"
+	docker compose -f docker-compose.demo.yml --env-file "$(DEMO_ENV_FILE)" config --quiet
+	docker compose -f docker-compose.demo.yml --env-file "$(DEMO_ENV_FILE)" up -d --build --wait
+
+demo-check:
+	test -f "$(DEMO_ENV_FILE)"
+	python3 -c "import urllib.request; request=urllib.request.Request('http://127.0.0.1:$(DEMO_ORIGIN_PORT)/health', headers={'Host': 'admission.memilmuk82.com'}); urllib.request.urlopen(request, timeout=5).read()"
+	docker compose -f docker-compose.demo.yml --env-file "$(DEMO_ENV_FILE)" exec -T web-demo flask --app wsgi db current
+	docker compose -f docker-compose.demo.yml --env-file "$(DEMO_ENV_FILE)" exec -T web-demo flask --app wsgi demo-sandbox bootstrap
+
+demo-reset:
+	DEMO_ENV_FILE="$(DEMO_ENV_FILE)" ./scripts/reset_demo_runtime.sh
+
+demo-status:
+	docker compose -f docker-compose.demo.yml --env-file "$(DEMO_ENV_FILE)" ps
+
+demo-logs:
+	docker compose -f docker-compose.demo.yml --env-file "$(DEMO_ENV_FILE)" logs --tail=200 gateway-demo web-demo db-demo
+
+demo-down:
+	docker compose -f docker-compose.demo.yml --env-file "$(DEMO_ENV_FILE)" stop gateway-demo web-demo db-demo
+
 production-bootstrap:
 	test -n "$(PRODUCTION_HOST)"
 	UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.bootstrap_production --public-host "$(PRODUCTION_HOST)"
 
 production-preflight:
-	UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.check_production_readiness
+	PRODUCTION_ENV_FILE=$(PRODUCTION_ENV_FILE) UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.check_production_readiness
 
 production-up:
 	test -f $(PRODUCTION_ENV_FILE)
@@ -154,6 +195,39 @@ production-origin-oidc-disable:
 	test -f $(PRODUCTION_ENV_FILE)
 	GOOGLE_OIDC_ENABLED=false PRODUCTION_ENV_FILE=$(PRODUCTION_ENV_FILE) UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.check_production_readiness
 	GOOGLE_OIDC_ENABLED=false docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml --env-file $(PRODUCTION_ENV_FILE) up -d --no-build --no-deps --force-recreate --wait web-production
+
+# Account email and Google linking share one user-facing account-security flow.
+# Keep both overrides in every lifecycle command so enabling one cannot silently
+# remove the other. The one-off production preflight runs before web replacement.
+production-origin-account-auth-preflight:
+	test "$(ACCOUNT_AUTH_CHANGE_APPROVED)" = "APPROVED"
+	test "$(ACCOUNT_AUTH_HOST_GATE_CONFIRMED)" = "PASSED"
+	test "$(ACCOUNT_AUTH_BACKUP_RESTORE_CONFIRMED)" = "VERIFIED"
+	test -f $(PRODUCTION_ENV_FILE)
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml -f docker-compose.smtp.yml -f docker-compose.google-oidc.yml --env-file $(PRODUCTION_ENV_FILE) config --quiet
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml -f docker-compose.smtp.yml -f docker-compose.google-oidc.yml --env-file $(PRODUCTION_ENV_FILE) build web-production
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml -f docker-compose.smtp.yml -f docker-compose.google-oidc.yml --env-file $(PRODUCTION_ENV_FILE) run --rm --no-deps web-production python -c 'from app import create_app; app = create_app(); assert app.config["APP_ENV"] == "production"; assert app.config["ACCOUNT_EMAIL_ENABLED"] is True; assert app.config["GOOGLE_OIDC_ENABLED"] is True'
+
+production-origin-account-auth-up: production-origin-account-auth-preflight
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml -f docker-compose.smtp.yml -f docker-compose.google-oidc.yml --env-file $(PRODUCTION_ENV_FILE) up -d --no-build --wait web-production
+
+production-origin-account-auth-check:
+	test -n "$(PRODUCTION_URL)" && test -n "$(PRODUCTION_CA_CERT)"
+	PRODUCTION_URL="$(PRODUCTION_URL)" PRODUCTION_CA_CERT="$(PRODUCTION_CA_CERT)" UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.check_production_https
+	PRODUCTION_URL="$(PRODUCTION_URL)" PRODUCTION_CA_CERT="$(PRODUCTION_CA_CERT)" UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.check_google_oidc_https
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml -f docker-compose.smtp.yml -f docker-compose.google-oidc.yml --env-file $(PRODUCTION_ENV_FILE) exec -T web-production python -c 'from app import create_app; app = create_app(); assert app.config["ACCOUNT_EMAIL_ENABLED"] is True; assert app.config["GOOGLE_OIDC_ENABLED"] is True'
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml -f docker-compose.smtp.yml -f docker-compose.google-oidc.yml --env-file $(PRODUCTION_ENV_FILE) exec -T web-production flask --app wsgi db current
+
+production-origin-account-auth-status:
+	docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml -f docker-compose.smtp.yml -f docker-compose.google-oidc.yml --env-file $(PRODUCTION_ENV_FILE) ps
+
+# Emergency stop for both external account providers. This keeps the current
+# image and schema while removing all four external credential secret mounts.
+production-origin-account-auth-disable:
+	test "$(ACCOUNT_AUTH_CHANGE_APPROVED)" = "APPROVED"
+	test -f $(PRODUCTION_ENV_FILE)
+	ACCOUNT_EMAIL_ENABLED=false GOOGLE_OIDC_ENABLED=false PRODUCTION_ENV_FILE=$(PRODUCTION_ENV_FILE) UV_CACHE_DIR=/tmp/junior-college-admission-uv-cache $(PYTHON) python -m scripts.check_production_readiness
+	ACCOUNT_EMAIL_ENABLED=false GOOGLE_OIDC_ENABLED=false docker compose -f docker-compose.production.yml -f docker-compose.host-nginx.yml --env-file $(PRODUCTION_ENV_FILE) up -d --no-build --no-deps --force-recreate --wait web-production
 
 # Image-only rollback is forbidden after a schema change. This target is usable only
 # after the approved pre-change DB backup has been restored and verified separately.

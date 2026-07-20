@@ -11,7 +11,7 @@
     <header class="admin-header"><div><p class="admin-eyebrow">CONSULTATION</p>{% if demo_mode %}<a href="{{ url_for('main.index') }}">처음 화면</a>{% elif current_user %}<a href="{{ url_for('main.dashboard') }}">내 업무공간</a>{% else %}<a href="{{ url_for('admin.rules') }}">규칙 관리자</a>{% endif %}</div><span>{{ actor_ref }}</span></header>
     <main class="admin-shell consultation-shell">
       <a class="admin-back" href="{{ url_for('main.index') }}">← 처음 화면</a>
-      {% if demo_mode %}<div class="demo-banner" role="status"><strong>합성 데이터 전용 체험</strong><span>가상 학생·대학·규칙만 사용하며 입력한 상담 메모는 저장하지 않습니다.</span></div>{% endif %}
+      {% if config.DEMO_SANDBOX_ENABLED %}<div class="demo-banner" role="status"><strong>공개 입시자료 + 합성 익명 학생 체험</strong><span>학생 성적은 합성 시작값이지만 대학·학과·전형과 2025·2026 입시결과는 검수된 공개 자료입니다. 결과와 메모는 체험 DB에 저장할 수 있습니다.</span></div>{% elif demo_mode %}<div class="demo-banner" role="status"><strong>합성 데이터 전용 체험</strong><span>가상 학생·대학·규칙만 사용하며 입력한 상담 메모는 저장하지 않습니다.</span></div>{% endif %}
       <div class="admin-heading"><div><h1>단계형 상담 시작</h1><p>학생 사실 → 지원자격 → 성적 범위 → 계산 순서를 서버에서 강제합니다.</p></div><span class="step-indicator">1 / 3 입력</span></div>
       {% if errors %}<div class="admin-alert" role="alert"><h2>입력을 확인하세요</h2><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
       {% if not programs %}<div class="admin-alert" role="status"><h2>선택 가능한 학과가 없습니다</h2><p>이 모집학년도에 등록된 학과·전형 기준정보가 없습니다.</p></div>{% endif %}

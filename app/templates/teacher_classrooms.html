@@ -13,8 +13,8 @@
     </header>
 
     <main class="admin-shell">
-      <div class="admin-heading"><div><h1>학과·학급과 학생 성적</h1><p>학생 이름·학번 대신 교사가 정한 비식별 코드만 사용합니다. 학생 계정 연결은 학생이 일회용 코드를 직접 입력해야 완료됩니다.</p></div>{% if not demo_mode %}<a class="button-link" href="{{ url_for('admin.new_consultation') }}">새 상담자료 만들기</a>{% endif %}</div>
-      {% if demo_mode %}<div class="public-notice" role="status"><strong>읽기 전용 공개 체험</strong> 실제 학급·익명 학생·성적·연결 정보는 표시하지 않으며 추가와 연결 작업도 차단됩니다.</div>{% endif %}
+      <div class="admin-heading"><div><h1>학과·학급과 학생 성적</h1><p>학생 이름·학번 대신 교사가 정한 비식별 코드만 사용합니다. 학생 계정 연결은 학생이 일회용 코드를 직접 입력해야 완료됩니다.</p></div>{% if not demo_mode %}<a class="button-link" href="{{ url_for('teacher.classrooms') }}#classroom-list-heading">학생을 선택해 상담자료 만들기</a>{% endif %}</div>
+      {% if config.DEMO_SANDBOX_ENABLED %}<div class="public-notice" role="status"><strong>수정 가능한 합성 학급·학생 자료</strong> 실제 학생 원본이 없는 개인 영역만 합성 익명값으로 시작합니다. 학급·학생·과목을 추가하고, 연결 코드를 다른 학생 체험 세션에서 승인한 뒤 양쪽 자료가 연동되는지 확인하세요. 대학·입시결과 선택지는 검수된 공개 자료입니다.</div>{% elif demo_mode %}<div class="public-notice" role="status"><strong>합성 학급 체험</strong> DEMO-001 학생과 제공된 성적은 실제 개인정보가 아닌 화면 체험용 자료입니다. 운영 학급과 학생 자료는 표시되지 않습니다.</div>{% endif %}
 
       {% if error %}<div class="admin-alert" role="alert"><h2>처리할 수 없습니다</h2><p>{{ error }}</p></div>{% endif %}
       {% if message == 'created' %}<div class="members-notice" role="status">학급을 만들었습니다.</div>{% elif message == 'course_added' %}<div class="members-notice" role="status">학생 성적 과목을 추가했습니다.</div>{% elif message == 'disconnected' %}<div class="members-notice" role="status">학생 계정 연결을 해제했습니다.</div>{% endif %}
@@ -76,11 +76,14 @@
               <summary>성적 과목 추가</summary>
               <form method="post" action="{{ url_for('teacher.add_student_course', classroom_student_id=selected_student.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="public-notice" data-course-source-policy>
+                  <strong>성적 출처는 학년별로 자동 적용됩니다.</strong>
+                  1·2학년은 이미 확정된 학교생활기록부 성적(위탁학기 아님), 3학년 1학기만 직업위탁 성적으로 고정됩니다. 3학년 2학기는 학교생활기록부 성적(위탁학기 아님)으로 선택 입력하며, 입력하지 않아도 대학 선택과 성적 산출을 진행할 수 있습니다.
+                </div>
                 <div class="student-course-grid">
                   <label>학년도<input name="academic_year" type="number" min="2000" max="2100" value="2027" required></label>
                   <label>학년<select name="grade" required><option value="1">1학년</option><option value="2">2학년</option><option value="3" selected>3학년</option></select></label>
                   <label>학기<select name="semester" required><option value="1">1학기</option><option value="2">2학기</option></select></label>
-                  <label>성적 출처<select name="record_source" required><option value="HOME_SCHOOL_RECORD">학교생활기록부</option><option value="VOCATIONAL_TRAINING_RECORD">직업위탁 성적</option><option value="MANUAL_INPUT">교사 직접 입력</option><option value="GED_RECORD">검정고시</option></select></label>
                   <label>교과<input name="subject_group" maxlength="120"></label>
                   <label>과목명<input name="subject_name" maxlength="200" required></label>
                   <label>이수단위<input name="credits" inputmode="decimal"></label>
@@ -90,14 +93,13 @@
                   <label>표준편차<input name="standard_deviation" inputmode="decimal"></label>
                   <label>성취도<input name="achievement_level" maxlength="20"></label>
                   <label>수강자수<input name="enrollment_count" inputmode="numeric"></label>
-                  <label class="check-control"><input type="checkbox" name="is_vocational_training_semester" value="TRUE"> 위탁학기</label>
                 </div>
                 <button type="submit">검수 완료 과목으로 추가</button>
               </form>
             </details>
 
             <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>소유 구분</th><th>학기</th><th>출처</th><th>과목·성적</th></tr></thead><tbody>
-              {% for record in records %}<tr><td>{{ '학생 계정 공유 · 읽기 전용' if record.owner_user_account_id else '교사 입력' }}</td><td>{{ record.academic_year }} · {{ record.grade }}-{{ record.semester }}</td><td>{{ record.record_source }}</td><td><ul class="record-course-list">{% for course in courses_by_record.get(record.id, ()) %}<li><strong>{{ course.subject_name }}</strong><span>단위 {{ course.credits if course.credits is not none else '-' }} · 등급 {{ course.rank_grade if course.rank_grade is not none else '-' }} · 원점수 {{ course.raw_score_label or course.raw_score or '-' }}</span></li>{% endfor %}</ul></td></tr>{% else %}<tr><td colspan="4">등록되거나 연결 공유된 성적이 없습니다.</td></tr>{% endfor %}
+              {% for record in records %}<tr><td>{{ '학생 계정 공유 · 읽기 전용' if record.owner_user_account_id else '교사 입력' }}</td><td>{{ record.academic_year }} · {{ record.grade }}-{{ record.semester }}</td><td>{{ '학교생활기록부' if record.record_source == 'HOME_SCHOOL_RECORD' else ('직업위탁 성적' if record.record_source == 'VOCATIONAL_TRAINING_RECORD' else record.record_source) }}</td><td><ul class="record-course-list">{% for course in courses_by_record.get(record.id, ()) %}<li><strong>{{ course.subject_name }}</strong><span>단위 {{ course.credits if course.credits is not none else '-' }} · 등급 {{ course.rank_grade if course.rank_grade is not none else '-' }} · 원점수 {{ course.raw_score_label or course.raw_score or '-' }} · 과목평균 {{ course.course_mean if course.course_mean is not none else '-' }} · 표준편차 {{ course.standard_deviation if course.standard_deviation is not none else '-' }}</span></li>{% endfor %}</ul></td></tr>{% else %}<tr><td colspan="4">등록되거나 연결 공유된 성적이 없습니다.</td></tr>{% endfor %}
             </tbody></table></div>
           {% else %}
             <div class="admin-section__heading"><h2 id="student-detail-heading">학생 성적·상담</h2><span>학생 선택</span></div>

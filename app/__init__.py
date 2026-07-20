@@ -10,6 +10,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 DEVELOPMENT_SECRET_KEY = "development-only-change-me"
 SCRYPT_PASSWORD_HASH = re.compile(r"scrypt:\d+:\d+:\d+\$[^$]{8,}\$[0-9a-f]{64,}\Z")
+BARE_EMAIL_ADDRESS = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+\Z")
+APPLICATION_ROOT_PATTERN = re.compile(r"/(?:[A-Za-z0-9._~-]+(?:/[A-Za-z0-9._~-]+)*)?\Z")
 MAX_SECRET_FILE_BYTES = 64 * 1024
 
 
@@ -61,9 +63,64 @@ def _valid_fernet_key(value: object) -> bool:
     return True
 
 
-def _configure_production_security(app: Flask) -> None:
-    if app.config.get("APP_ENV") != "production":
+def _valid_smtp_host(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and 0 < len(value) <= 253
+        and value == value.strip()
+        and not any(character.isspace() for character in value)
+        and "://" not in value
+    )
+
+
+def _valid_bare_email_address(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and 3 <= len(value) <= 320
+        and value == value.strip()
+        and BARE_EMAIL_ADDRESS.fullmatch(value) is not None
+    )
+
+
+def _valid_single_line_secret(value: object) -> bool:
+    return isinstance(value, str) and bool(value) and "\n" not in value and "\r" not in value
+
+
+def _valid_bounded_integer(value: object, *, minimum: int, maximum: int) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (str, int)):
+        return False
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return False
+    return str(parsed) == str(value).strip() and minimum <= parsed <= maximum
+
+
+def _valid_bounded_number(value: object, *, minimum: float, maximum: float) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        return False
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return False
+    return minimum <= parsed <= maximum
+
+
+def _application_root(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    if not APPLICATION_ROOT_PATTERN.fullmatch(normalized):
+        return None
+    return normalized.rstrip("/") or "/"
+
+
+def _configure_deployed_security(app: Flask) -> None:
+    environment = app.config.get("APP_ENV")
+    if environment not in {"production", "demo-sandbox"}:
         return
+
+    demo_sandbox = environment == "demo-sandbox"
 
     trusted_hosts = app.config.get("TRUSTED_HOSTS")
     if isinstance(trusted_hosts, str):
@@ -82,34 +139,73 @@ def _configure_production_security(app: Flask) -> None:
         ("postgresql+psycopg://", "postgresql://")
     ):
         failures.append("DATABASE_URL")
-    if not isinstance(app.config.get("ADMIN_USERNAME"), str) or not app.config["ADMIN_USERNAME"]:
-        failures.append("ADMIN_USERNAME")
-    password_hash = app.config.get("ADMIN_PASSWORD_HASH")
-    if not isinstance(password_hash, str) or not SCRYPT_PASSWORD_HASH.fullmatch(password_hash):
-        failures.append("ADMIN_PASSWORD_HASH")
+    if not demo_sandbox:
+        if (
+            not isinstance(app.config.get("ADMIN_USERNAME"), str)
+            or not app.config["ADMIN_USERNAME"]
+        ):
+            failures.append("ADMIN_USERNAME")
+        password_hash = app.config.get("ADMIN_PASSWORD_HASH")
+        if not isinstance(password_hash, str) or not SCRYPT_PASSWORD_HASH.fullmatch(password_hash):
+            failures.append("ADMIN_PASSWORD_HASH")
     if not _valid_fernet_key(app.config.get("BYOK_MASTER_KEY")):
         failures.append("BYOK_MASTER_KEY")
     if not isinstance(trusted_hosts, list) or not trusted_hosts:
         failures.append("TRUSTED_HOSTS")
     public_base_url = app.config.get("PUBLIC_BASE_URL")
     parsed_base_url = urlparse(public_base_url) if isinstance(public_base_url, str) else None
+    application_root = _application_root(app.config.get("APPLICATION_ROOT"))
+    expected_base_path = "" if application_root == "/" else application_root
     if (
         parsed_base_url is None
         or parsed_base_url.scheme != "https"
         or not parsed_base_url.hostname
         or parsed_base_url.hostname not in (trusted_hosts or [])
-        or parsed_base_url.path not in {"", "/"}
+        or parsed_base_url.path.rstrip("/") != expected_base_path
         or parsed_base_url.params
         or parsed_base_url.query
         or parsed_base_url.fragment
     ):
         failures.append("PUBLIC_BASE_URL")
+    if application_root is None:
+        failures.append("APPLICATION_ROOT")
     try:
         proxy_hops = int(app.config.get("TRUST_PROXY_HOPS", 0))
     except (TypeError, ValueError):
         proxy_hops = 0
     if proxy_hops != 1:
         failures.append("TRUST_PROXY_HOPS")
+    if demo_sandbox:
+        if app.config.get("DEMO_SANDBOX_ENABLED") is not True:
+            failures.append("DEMO_SANDBOX_ENABLED")
+        instance_id = app.config.get("DEMO_SANDBOX_INSTANCE_ID")
+        if not isinstance(instance_id, str) or not re.fullmatch(
+            r"[a-z0-9][a-z0-9-]{2,47}", instance_id
+        ):
+            failures.append("DEMO_SANDBOX_INSTANCE_ID")
+        if app.config.get("GOOGLE_OIDC_ENABLED"):
+            failures.append("GOOGLE_OIDC_ENABLED")
+        if app.config.get("DEMO_GOOGLE_STUB_ENABLED") is not True:
+            failures.append("DEMO_GOOGLE_STUB_ENABLED")
+        if app.config.get("DEMO_EMAIL_OUTBOX_ENABLED") is not True:
+            failures.append("DEMO_EMAIL_OUTBOX_ENABLED")
+        if app.config.get("DEMO_CRAWLER_FIXTURE_ENABLED") is not True:
+            failures.append("DEMO_CRAWLER_FIXTURE_ENABLED")
+        if app.config.get("SESSION_COOKIE_NAME") in {None, "", "session"}:
+            failures.append("SESSION_COOKIE_NAME")
+        if app.config.get("SESSION_COOKIE_PATH") != application_root:
+            failures.append("SESSION_COOKIE_PATH")
+    elif any(
+        app.config.get(name)
+        for name in (
+            "DEMO_SANDBOX_ENABLED",
+            "DEMO_GOOGLE_STUB_ENABLED",
+            "DEMO_EMAIL_OUTBOX_ENABLED",
+            "DEMO_CRAWLER_FIXTURE_ENABLED",
+        )
+    ):
+        failures.append("DEMO_SANDBOX_ENABLED")
+
     if app.config.get("GOOGLE_OIDC_ENABLED"):
         if not isinstance(app.config.get("GOOGLE_OIDC_CLIENT_ID"), str) or not app.config.get(
             "GOOGLE_OIDC_CLIENT_ID"
@@ -132,6 +228,23 @@ def _configure_production_security(app: Flask) -> None:
                 or parsed_redirect.fragment
             ):
                 failures.append("GOOGLE_REDIRECT_URI")
+    if app.config.get("ACCOUNT_EMAIL_ENABLED") and not demo_sandbox:
+        if not _valid_smtp_host(app.config.get("SMTP_HOST")):
+            failures.append("SMTP_HOST")
+        if not _valid_bounded_integer(app.config.get("SMTP_PORT"), minimum=1, maximum=65535):
+            failures.append("SMTP_PORT")
+        if not _valid_single_line_secret(app.config.get("SMTP_USERNAME")):
+            failures.append("SMTP_USERNAME")
+        if not _valid_single_line_secret(app.config.get("SMTP_PASSWORD")):
+            failures.append("SMTP_PASSWORD")
+        if app.config.get("SMTP_USE_STARTTLS") is not True:
+            failures.append("SMTP_USE_STARTTLS")
+        if not _valid_bare_email_address(app.config.get("EMAIL_FROM_ADDRESS")):
+            failures.append("EMAIL_FROM_ADDRESS")
+        if not _valid_bounded_number(
+            app.config.get("SMTP_TIMEOUT_SECONDS"), minimum=0.1, maximum=30
+        ):
+            failures.append("SMTP_TIMEOUT_SECONDS")
     if failures:
         raise RuntimeError(
             "운영 시작 조건이 충족되지 않았습니다: " + ", ".join(sorted(set(failures)))
@@ -151,6 +264,7 @@ def _configure_production_security(app: Flask) -> None:
         x_proto=proxy_hops,
         x_host=proxy_hops,
         x_port=proxy_hops,
+        x_prefix=proxy_hops if demo_sandbox else 0,
     )
 
     @app.after_request
@@ -168,6 +282,9 @@ def create_app(test_config: dict | None = None) -> Flask:
     app = Flask(__name__)
     app.config.from_mapping(
         APP_ENV=os.environ.get("APP_ENV", "development"),
+        APPLICATION_ROOT=os.environ.get("APPLICATION_ROOT", "/"),
+        SESSION_COOKIE_NAME=os.environ.get("SESSION_COOKIE_NAME", "session"),
+        SESSION_COOKIE_PATH=os.environ.get("SESSION_COOKIE_PATH", "/"),
         SECRET_KEY=_environment_value("SECRET_KEY", DEVELOPMENT_SECRET_KEY),
         DATABASE_URL=_environment_value("DATABASE_URL"),
         TEMP_UPLOAD_ROOT=os.environ.get(
@@ -183,8 +300,25 @@ def create_app(test_config: dict | None = None) -> Flask:
         GOOGLE_OIDC_CLIENT_ID=_environment_value("GOOGLE_OIDC_CLIENT_ID"),
         GOOGLE_OIDC_CLIENT_SECRET=_environment_value("GOOGLE_OIDC_CLIENT_SECRET"),
         GOOGLE_REDIRECT_URI=os.environ.get("GOOGLE_REDIRECT_URI"),
+        ACCOUNT_EMAIL_ENABLED=_environment_bool("ACCOUNT_EMAIL_ENABLED"),
+        SMTP_HOST=os.environ.get("SMTP_HOST"),
+        SMTP_PORT=os.environ.get("SMTP_PORT", "587"),
+        SMTP_USERNAME=_environment_value("SMTP_USERNAME"),
+        SMTP_PASSWORD=_environment_value("SMTP_PASSWORD"),
+        SMTP_USE_STARTTLS=_environment_bool("SMTP_USE_STARTTLS", True),
+        EMAIL_FROM_ADDRESS=os.environ.get("EMAIL_FROM_ADDRESS"),
+        SMTP_TIMEOUT_SECONDS=os.environ.get("SMTP_TIMEOUT_SECONDS", "10"),
+        ACCOUNT_EMAIL_OUTBOX=None,
+        ACCOUNT_EMAIL_TRANSPORT=None,
         DEMO_LOGIN_NAME=os.environ.get("DEMO_LOGIN_NAME"),
-        DEMO_PUBLIC_PASSWORD=os.environ.get("DEMO_PUBLIC_PASSWORD"),
+        DEMO_PUBLIC_PASSWORD=_environment_value("DEMO_PUBLIC_PASSWORD"),
+        DEMO_SANDBOX_PUBLIC_PASSWORD=_environment_value("DEMO_SANDBOX_PUBLIC_PASSWORD"),
+        DEMO_SANDBOX_ENTRY_URL=os.environ.get("DEMO_SANDBOX_ENTRY_URL"),
+        DEMO_SANDBOX_ENABLED=_environment_bool("DEMO_SANDBOX_ENABLED"),
+        DEMO_SANDBOX_INSTANCE_ID=os.environ.get("DEMO_SANDBOX_INSTANCE_ID"),
+        DEMO_EMAIL_OUTBOX_ENABLED=_environment_bool("DEMO_EMAIL_OUTBOX_ENABLED"),
+        DEMO_GOOGLE_STUB_ENABLED=_environment_bool("DEMO_GOOGLE_STUB_ENABLED"),
+        DEMO_CRAWLER_FIXTURE_ENABLED=_environment_bool("DEMO_CRAWLER_FIXTURE_ENABLED"),
         # 환경변수 관리자 로그인은 로컬 개발 호환용이다. alpha/beta/production은
         # 시작 시 DB 관리자를 부트스트랩하고 DB 인증만 사용한다.
         ALLOW_LEGACY_ADMIN_LOGIN=os.environ.get("APP_ENV", "development") == "development",
@@ -193,7 +327,21 @@ def create_app(test_config: dict | None = None) -> Flask:
     if test_config:
         app.config.update(test_config)
 
-    _configure_production_security(app)
+    if app.config.get("DEMO_EMAIL_OUTBOX_ENABLED"):
+        if app.config.get("DEMO_SANDBOX_ENABLED") is not True:
+            raise RuntimeError(
+                "체험 메일함은 격리 체험 환경에서만 사용할 수 있습니다: DEMO_SANDBOX_ENABLED"
+            )
+        app.config.update(
+            ACCOUNT_EMAIL_ENABLED=True,
+            ACCOUNT_EMAIL_OUTBOX=(
+                app.config.get("ACCOUNT_EMAIL_OUTBOX")
+                if app.config.get("ACCOUNT_EMAIL_OUTBOX") is not None
+                else []
+            ),
+        )
+
+    _configure_deployed_security(app)
 
     from app.database import init_database
 
@@ -225,6 +373,9 @@ def create_app(test_config: dict | None = None) -> Flask:
     from app.auth import register_auth_cli
 
     register_auth_cli(app)
+    from app.services.demo_sandbox import register_demo_sandbox_cli
+
+    register_demo_sandbox_cli(app)
     from app.phase14_cli import register_phase14_cli
 
     register_phase14_cli(app)

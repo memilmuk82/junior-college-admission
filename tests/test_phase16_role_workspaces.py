@@ -156,7 +156,7 @@ def _login(client: FlaskClient, login_name: str) -> Response:
         ),
         (
             "TEACHER",
-            ("/teacher/classrooms", "/admin/consultations/new", "/admin/ai/settings"),
+            ("/teacher/classrooms", "/admin/ai/settings"),
             ("학과·학급 학생 관리", "학생 상담자료 만들기", "BYOK AI 설정"),
             ("/admin/members", "/admin/admission-results", "/admin/sources"),
         ),
@@ -169,6 +169,7 @@ def _login(client: FlaskClient, login_name: str) -> Response:
                 "/teacher/classrooms",
                 "/admin/consultations/new",
                 "/admin/ai/settings",
+                "/teacher/outcomes",
                 "/admin/admission-results",
                 "/admin/sources",
             ),
@@ -198,14 +199,14 @@ def test_dashboard_shows_only_the_current_roles_workspace_menu(
         assert f'href="{path}"' not in body
 
 
-def test_assistant_login_lands_on_approval_queue(
+def test_assistant_login_lands_on_approval_only_dashboard(
     app_client: FlaskClient,
     role_accounts: dict[str, UserAccount],
 ) -> None:
     login = _login(app_client, role_accounts["ASSISTANT_ADMIN"].login_name or "")
 
     assert login.status_code == 302
-    assert login.headers["Location"].endswith("/admin/members")
+    assert login.headers["Location"].endswith("/dashboard")
 
 
 def test_assistant_approval_queue_has_no_nonapproval_actions(
@@ -224,20 +225,26 @@ def test_assistant_approval_queue_has_no_nonapproval_actions(
     assert "역할 변경" not in approval_body
 
 
-def test_assistant_cannot_access_consultation_byok_results_or_source_documents(
+def test_assistant_cannot_access_teacher_or_main_admin_data_tools(
     app_client: FlaskClient,
     role_accounts: dict[str, UserAccount],
 ) -> None:
     _login(app_client, role_accounts["ASSISTANT_ADMIN"].login_name or "")
-    restricted_statuses = {
+    statuses = {
+        "/teacher/classrooms": app_client.get("/teacher/classrooms").status_code,
         "/admin/consultations/new": app_client.get("/admin/consultations/new").status_code,
         "/admin/ai/settings": app_client.get("/admin/ai/settings").status_code,
+        "/teacher/outcomes": app_client.get("/teacher/outcomes").status_code,
+        "/account/records": app_client.get("/account/records").status_code,
         "/admin/admission-results": app_client.get("/admin/admission-results").status_code,
         "/admin/sources": app_client.get("/admin/sources").status_code,
     }
-    assert restricted_statuses == {
+    assert statuses == {
+        "/teacher/classrooms": 403,
         "/admin/consultations/new": 403,
         "/admin/ai/settings": 403,
+        "/teacher/outcomes": 403,
+        "/account/records": 403,
         "/admin/admission-results": 403,
         "/admin/sources": 403,
     }
@@ -338,10 +345,10 @@ def test_real_admin_dashboard_also_exposes_teacher_workspace_menu(
     assert dashboard.status_code == 200
     expected_teacher_menu = {
         "/teacher/classrooms": "학과·학급 학생 관리",
-        "/admin/consultations/new": "학생 상담자료 만들기",
         "/admin/ai/settings": "BYOK AI 설정",
         "/account/records": "저장 성적·상담 확인",
     }
     for path, label in expected_teacher_menu.items():
         assert f'href="{path}"' in body
         assert label in body
+    assert "학생 상담자료 만들기" in body

@@ -14,7 +14,16 @@
     </header>
 
     <main class="auth-shell auth-status-card" id="main-content">
-      {% if account.status == 'PENDING_APPROVAL' %}
+      {% if email_pending %}
+        <div class="auth-status-mark" aria-hidden="true">@</div>
+        <p class="admin-eyebrow">EMAIL VERIFICATION REQUIRED</p>
+        <h1>이메일 인증 필요</h1>
+        <p class="auth-lead">가입할 때 입력한 이메일로 보낸 인증 링크를 확인해 주세요. 기존 아이디 계정은 이 단계로 인해 잠기지 않습니다.</p>
+        <div class="auth-alert auth-alert--info" role="status">
+          <strong>이메일 인증 후에도 관리자 승인은 별도입니다.</strong>
+          <p>인증 메일을 받지 못했다면 아래 링크에서 다시 요청하세요.</p>
+        </div>
+      {% elif account.status == 'PENDING_APPROVAL' %}
         <div class="auth-status-mark" aria-hidden="true">…</div>
         <p class="admin-eyebrow">APPROVAL PENDING</p>
         <h1>관리자 승인 대기</h1>
@@ -40,11 +49,41 @@
         <p class="auth-lead">현재 계정 상태로는 요청한 기능을 사용할 수 없습니다.</p>
       {% endif %}
 
+      <dl class="auth-action-guide" aria-label="현재 계정 상태와 다음 단계 안내">
+        {% if email_pending %}
+          <div><dt>무엇인가요?</dt><dd>이메일 주소 소유 확인이 아직 끝나지 않은 상태입니다.</dd></div>
+          <div><dt>지금 할 일</dt><dd>인증 메일의 링크를 열거나 아래에서 메일을 다시 요청하세요.</dd></div>
+          <div><dt>완료되면</dt><dd>이메일 확인 후 관리자 역할 승인 대기 단계로 넘어갑니다.</dd></div>
+        {% elif account.status == 'PENDING_APPROVAL' %}
+          <div><dt>무엇인가요?</dt><dd>이메일 확인은 끝났지만 학생·교사 역할 승인을 기다리는 상태입니다.</dd></div>
+          <div><dt>지금 할 일</dt><dd>관리자 또는 보조 관리자의 계정 승인을 기다려 주세요.</dd></div>
+          <div><dt>완료되면</dt><dd>승인 후 다시 로그인하면 역할별 업무공간을 사용할 수 있습니다.</dd></div>
+        {% elif account.status == 'REJECTED' %}
+          <div><dt>무엇인가요?</dt><dd>관리자가 이 계정의 사용 신청을 승인하지 않은 상태입니다.</dd></div>
+          <div><dt>지금 할 일</dt><dd>내부 운영 담당자에게 신청 정보와 계정 상태를 확인하세요.</dd></div>
+          <div><dt>완료되면</dt><dd>관리자가 다시 승인해야 역할별 업무공간에 들어갈 수 있습니다.</dd></div>
+        {% elif account.status == 'SUSPENDED' %}
+          <div><dt>무엇인가요?</dt><dd>승인되었던 계정의 서비스 사용이 현재 중지된 상태입니다.</dd></div>
+          <div><dt>지금 할 일</dt><dd>내부 운영 담당자에게 중지 사유와 재활성화 여부를 확인하세요.</dd></div>
+          <div><dt>완료되면</dt><dd>관리자가 계정을 다시 활성화한 뒤 업무공간을 사용할 수 있습니다.</dd></div>
+        {% else %}
+          <div><dt>무엇인가요?</dt><dd>현재 상태로는 역할별 기능에 접근할 수 없는 계정입니다.</dd></div>
+          <div><dt>지금 할 일</dt><dd>회원정보를 확인하고 내부 운영 담당자에게 상태를 문의하세요.</dd></div>
+          <div><dt>완료되면</dt><dd>계정 상태가 활성으로 변경된 뒤 업무공간을 사용할 수 있습니다.</dd></div>
+        {% endif %}
+      </dl>
+
       <dl class="auth-account-summary">
         <div><dt>표시 이름</dt><dd>{{ account.display_name }}</dd></div>
-        <div><dt>아이디</dt><dd>{{ account.login_name or 'Google 계정' }}</dd></div>
+        <div><dt>로그인</dt><dd>{{ account.email if account.email_verified_at else (account.login_name or account.email) }}</dd></div>
+        <div><dt>이메일</dt><dd>{{ '인증 완료' if account.email_verified_at else '미인증' }}</dd></div>
         <div><dt>상태</dt><dd><span class="member-status member-status--{{ account.status|lower }}">{{ account.status }}</span></dd></div>
       </dl>
+
+      <nav class="auth-links" aria-label="계정 보안">
+        {% if email_pending %}<a href="{{ url_for('auth.resend_email_verification') }}">인증 메일 다시 받기</a>{% endif %}
+        <a href="{{ url_for('account.security') }}">회원정보·계정 보안</a>
+      </nav>
 
       <form method="post" action="{{ url_for('auth.logout') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

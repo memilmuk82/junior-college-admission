@@ -3,7 +3,7 @@ from __future__ import annotations
 import hmac
 import secrets
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import wraps
 from typing import Any, cast
 from urllib.parse import unquote, urlparse
@@ -30,6 +30,8 @@ from app.services.membership import (
 )
 
 DEMO_BYOK_SESSION_KEY = "demo_byok_actor_ref"
+GOOGLE_OIDC_INTENT_SESSION_KEY = "google_oidc_intent"
+GOOGLE_OIDC_INTENT_TTL = timedelta(minutes=10)
 SAFE_HTTP_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 DEMO_ALWAYS_ALLOWED_UNSAFE_ENDPOINTS = frozenset(
     {"admin.login", "auth.login", "auth.logout", "admin.logout"}
@@ -62,6 +64,17 @@ DEMO_BLOCKED_SAFE_ENDPOINTS = frozenset(
 )
 
 
+def _session_scoped_byok_user(user: UserAccount) -> bool:
+    role_allowed = user.role == "STUDENT" or has_teacher_capability(user)
+    return role_allowed and (
+        user.actor_ref.startswith("demo:role:")
+        or (
+            current_app.config.get("DEMO_SANDBOX_ENABLED") is True
+            and user.actor_ref.startswith("sandbox:")
+        )
+    )
+
+
 def csrf_token() -> str:
     token = session.get("csrf_token")
     if not isinstance(token, str):
@@ -74,7 +87,9 @@ def csrf_token() -> str:
 def require_csrf() -> None:
     expected = session.get("csrf_token") or session.get("admin_csrf_token")
     supplied = request.form.get("csrf_token", "")
-    if not isinstance(expected, str) or not hmac.compare_digest(expected, supplied):
+    if not isinstance(expected, str) or not hmac.compare_digest(
+        expected.encode("utf-8"), supplied.encode("utf-8")
+    ):
         abort(400)
 
 
@@ -88,6 +103,55 @@ def safe_next(value: str | None) -> str | None:
     if parsed.scheme or parsed.netloc:
         return None
     return value
+
+
+def current_request_path() -> str:
+    """Return a local redirect path including a trusted reverse-proxy script root."""
+
+    script_root = request.script_root.rstrip("/")
+    return f"{script_root}{request.path}" or "/"
+
+
+def begin_google_oidc_intent(
+    *, kind: str, user: UserAccount | None = None, requested_next: str | None = None
+) -> None:
+    """Google callback을 로그인 또는 현재 계정 연결 의도에 결속한다."""
+
+    if kind not in {"login", "link"} or (kind == "link") != (user is not None):
+        raise ValueError("올바른 Google OIDC 의도가 필요합니다.")
+    session[GOOGLE_OIDC_INTENT_SESSION_KEY] = {
+        "kind": kind,
+        "user_id": None if user is None else user.id,
+        "auth_version": None if user is None else user.auth_version,
+        "requested_next": safe_next(requested_next),
+        "issued_at": datetime.now(UTC).isoformat(),
+        "nonce": secrets.token_urlsafe(24),
+    }
+
+
+def consume_google_oidc_intent() -> dict[str, Any] | None:
+    """서명된 세션의 Google OIDC 의도를 한 번만 검증하고 소비한다."""
+
+    value = session.pop(GOOGLE_OIDC_INTENT_SESSION_KEY, None)
+    if not isinstance(value, dict) or value.get("kind") not in {"login", "link"}:
+        return None
+    issued_at = value.get("issued_at")
+    nonce = value.get("nonce")
+    if not isinstance(issued_at, str) or not isinstance(nonce, str) or len(nonce) < 24:
+        return None
+    try:
+        issued = datetime.fromisoformat(issued_at)
+    except ValueError:
+        return None
+    now = datetime.now(UTC)
+    if issued.tzinfo is None or issued > now or now - issued > GOOGLE_OIDC_INTENT_TTL:
+        return None
+    if value["kind"] == "link" and (
+        not isinstance(value.get("user_id"), str) or not isinstance(value.get("auth_version"), int)
+    ):
+        return None
+    value["requested_next"] = safe_next(value.get("requested_next"))
+    return cast(dict[str, Any], value)
 
 
 def start_user_session(user: UserAccount) -> None:
@@ -106,13 +170,13 @@ def start_user_session(user: UserAccount) -> None:
     if isinstance(anonymous_owner, str) and isinstance(anonymous_id, str):
         session["anonymous_calculation_owner"] = anonymous_owner
         session["anonymous_calculation_id"] = anonymous_id
-    if user.actor_ref.startswith("demo:role:") and user.role in {"STUDENT", "TEACHER"}:
+    if _session_scoped_byok_user(user):
         session[DEMO_BYOK_SESSION_KEY] = f"{user.actor_ref}:session:{secrets.token_urlsafe(24)}"
 
 
 def _purge_demo_session_ai_data() -> None:
     owner_ref = session.get(DEMO_BYOK_SESSION_KEY)
-    if not isinstance(owner_ref, str) or not owner_ref.startswith("demo:role:"):
+    if not isinstance(owner_ref, str) or not owner_ref.startswith(("demo:role:", "sandbox:")):
         return
     database_session = cast(Session, db.session)
     try:
@@ -163,6 +227,16 @@ def session_user() -> UserAccount | None:
     return user
 
 
+def email_verification_pending(user: UserAccount) -> bool:
+    """신규 이메일-only 계정이 소유 확인을 마치지 않았는지 판정한다.
+
+    Phase 19 이전의 `login_name` 계정은 운영 중단 없이 로그인을
+    유지하고, 계정 보안 화면에서 이메일을 별도로 인증한다.
+    """
+
+    return user.login_name is None and user.email_verified_at is None
+
+
 def actor_ref() -> str:
     user = session_user()
     if user is not None:
@@ -176,11 +250,7 @@ def actor_ref() -> str:
 
 def byok_actor_ref() -> str:
     user = session_user()
-    if (
-        user is not None
-        and user.actor_ref.startswith("demo:role:")
-        and user.role in {"STUDENT", "TEACHER"}
-    ):
+    if user is not None and _session_scoped_byok_user(user):
         session_actor = session.get(DEMO_BYOK_SESSION_KEY)
         expected_prefix = f"{user.actor_ref}:session:"
         if isinstance(session_actor, str) and session_actor.startswith(expected_prefix):
@@ -201,9 +271,11 @@ def roles_required(
             if user is None:
                 if allow_legacy and _legacy_admin_authenticated():
                     return view(*args, **kwargs)
-                next_path = request.path if request.method == "GET" else None
+                next_path = current_request_path() if request.method == "GET" else None
                 login_endpoint = "admin.login" if roles == {"ADMIN"} else "auth.login"
                 return redirect(url_for(login_endpoint, next=next_path))
+            if email_verification_pending(user):
+                return redirect(url_for("auth.pending"))
             if user.status != "ACTIVE":
                 return redirect(url_for("auth.pending"))
             effective_role = "MEMBER" if user.actor_ref == DEMO_ACTOR_REF else user.role
@@ -216,6 +288,19 @@ def roles_required(
     return decorate
 
 
+def signed_in_required(view: Callable[..., Any]) -> Callable[..., Any]:
+    """승인 상태와 무관하게 DB 계정 로그인만 요구한다."""
+
+    @wraps(view)
+    def wrapped(*args: Any, **kwargs: Any) -> Any:
+        if session_user() is None:
+            next_path = current_request_path() if request.method == "GET" else None
+            return redirect(url_for("auth.login", next=next_path))
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
 member_required = roles_required("ADMIN", "MEMBER", "TEACHER", "STUDENT")
 student_required = roles_required("STUDENT", allow_legacy=False)
 admin_required = roles_required("ADMIN")
@@ -223,13 +308,13 @@ approval_required = roles_required("ADMIN", "ASSISTANT_ADMIN", allow_legacy=Fals
 
 
 def teacher_required(view: Callable[..., Any]) -> Callable[..., Any]:
-    """교사와 비데모 주 관리자의 교사 업무 화면을 보호한다."""
+    """교사와 주 관리자의 교사 업무 화면을 보호한다."""
 
     @wraps(view)
     def wrapped(*args: Any, **kwargs: Any) -> Any:
         user = session_user()
         if user is None:
-            next_path = request.path if request.method == "GET" else None
+            next_path = current_request_path() if request.method == "GET" else None
             return redirect(url_for("auth.login", next=next_path))
         if user.status != "ACTIVE":
             return redirect(url_for("auth.pending"))
@@ -257,12 +342,17 @@ def non_demo_required(view: Callable[..., Any]) -> Callable[..., Any]:
 
 def post_login_destination(user: UserAccount, requested_next: str | None = None) -> str:
     candidate = safe_next(requested_next)
+    if candidate and current_app.config.get("DEMO_SANDBOX_ENABLED") is True:
+        application_root = str(current_app.config.get("APPLICATION_ROOT", "/")).rstrip("/")
+        candidate_path = urlparse(candidate).path.rstrip("/") or "/"
+        if application_root and not (
+            candidate_path == application_root or candidate_path.startswith(f"{application_root}/")
+        ):
+            candidate = None
     if candidate:
         return candidate
     if user.actor_ref == DEMO_ACTOR_REF:
         return url_for("main.public_calculation_input", example="1")
-    if user.role == "ASSISTANT_ADMIN" and not is_demo_actor_ref(user.actor_ref):
-        return url_for("members.index")
     return url_for("main.dashboard")
 
 
@@ -288,9 +378,8 @@ def register_auth_cli(app: Flask) -> None:
         if request.endpoint in DEMO_PUBLIC_CALCULATION_ALLOWED_UNSAFE_ENDPOINTS:
             return
         if (
-            user.role in {"STUDENT", "TEACHER"}
-            and request.endpoint in DEMO_BYOK_ALLOWED_UNSAFE_ENDPOINTS
-        ):
+            user.role == "STUDENT" or has_teacher_capability(user)
+        ) and request.endpoint in DEMO_BYOK_ALLOWED_UNSAFE_ENDPOINTS:
             return
         abort(403)
 
@@ -322,6 +411,26 @@ def register_auth_cli(app: Flask) -> None:
         """공통 공개 비밀번호로 네 역할 showcase 계정을 멱등 생성한다."""
         login_name = current_app.config.get("DEMO_LOGIN_NAME")
         public_password = current_app.config.get("DEMO_PUBLIC_PASSWORD")
+        sandbox_entry = current_app.config.get("DEMO_SANDBOX_ENTRY_URL")
+        if (
+            isinstance(sandbox_entry, str)
+            and sandbox_entry.startswith("/demo/")
+            and safe_next(sandbox_entry) == sandbox_entry
+            and not current_app.config.get("DEMO_SANDBOX_ENABLED")
+        ):
+            if not current_app.config.get("DATABASE_URL"):
+                click.echo("격리 체험 환경 연결 — 운영 showcase 계정 없음")
+                return
+            database_session = cast(Session, db.session)
+            try:
+                revoke_demo_role_accounts(database_session, occurred_at=datetime.now(UTC))
+                revoke_demo_member(database_session, occurred_at=datetime.now(UTC))
+                database_session.commit()
+            except MembershipError as error:
+                database_session.rollback()
+                raise click.ClickException(str(error)) from error
+            click.echo("격리 체험 환경 연결 — 운영 showcase 계정 전체 해제 완료")
+            return
         login_configured = isinstance(login_name, str) and bool(login_name.strip())
         password_configured = isinstance(public_password, str) and bool(public_password)
         if not password_configured:

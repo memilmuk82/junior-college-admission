@@ -11,7 +11,7 @@
   <body class="landing-page">
     <header class="landing-header">
       <div class="landing-header__inner">
-        <a class="landing-brand" href="/">2027 전문대 입시 상담</a>
+        <a class="landing-brand" href="{{ url_for('main.index') }}">2027 전문대 입시 상담</a>
         <nav class="landing-nav" aria-label="사용자 메뉴">
           {% if account and account.status == 'ACTIVE' %}
             <span class="landing-account">{{ account.display_name }} · {{ account.role }}</span>
@@ -29,8 +29,8 @@
               <button type="submit">로그아웃</button>
             </form>
           {% else %}
-            <a href="{{ url_for('auth.login', account_type='student', next='/account/records') }}">학생 로그인</a>
-            <a href="{{ url_for('auth.login', account_type='teacher', next='/account/records') }}">교사 로그인</a>
+            <a href="{{ url_for('auth.login', account_type='student', next=url_for('account.records')) }}">학생 로그인</a>
+            <a href="{{ url_for('auth.login', account_type='teacher', next=url_for('account.records')) }}">교사 로그인</a>
             <a href="{{ url_for('auth.login', account_type='admin') }}">관리자 기능</a>
           {% endif %}
         </nav>

@@ -23,6 +23,7 @@ def _production_config() -> dict[str, object]:
         "TRUSTED_HOSTS": ["service.example.test"],
         "TRUST_PROXY_HOPS": 1,
         "GOOGLE_OIDC_ENABLED": False,
+        "ACCOUNT_EMAIL_ENABLED": False,
         "TESTING": True,
     }
 
@@ -197,6 +198,73 @@ def test_production_google_oidc_requires_exact_trusted_https_callback() -> None:
         create_app(config)
 
 
+def test_production_account_email_is_opt_in_and_fails_closed_without_smtp() -> None:
+    config = _production_config()
+    config["ACCOUNT_EMAIL_ENABLED"] = True
+
+    with pytest.raises(RuntimeError) as caught:
+        create_app(config)
+
+    for variable_name in (
+        "SMTP_HOST",
+        "SMTP_USERNAME",
+        "SMTP_PASSWORD",
+        "EMAIL_FROM_ADDRESS",
+    ):
+        assert variable_name in str(caught.value)
+
+
+def test_production_account_email_requires_starttls_and_bounded_transport() -> None:
+    config = _production_config() | {
+        "ACCOUNT_EMAIL_ENABLED": True,
+        "SMTP_HOST": "smtp.example.test",
+        "SMTP_PORT": "587",
+        "SMTP_USERNAME": "synthetic-user",
+        "SMTP_PASSWORD": "synthetic-secret",
+        "SMTP_USE_STARTTLS": True,
+        "EMAIL_FROM_ADDRESS": "accounts@service.example.test",
+        "SMTP_TIMEOUT_SECONDS": "5",
+    }
+
+    app = create_app(config)
+    assert app.config["ACCOUNT_EMAIL_ENABLED"] is True
+
+    config["SMTP_USE_STARTTLS"] = False
+    config["SMTP_PORT"] = "587.5"
+    config["SMTP_TIMEOUT_SECONDS"] = "31"
+    with pytest.raises(RuntimeError) as caught:
+        create_app(config)
+    assert "SMTP_USE_STARTTLS" in str(caught.value)
+    assert "SMTP_PORT" in str(caught.value)
+    assert "SMTP_TIMEOUT_SECONDS" in str(caught.value)
+
+
+def test_production_account_email_reads_credentials_from_secret_files(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    username_file = tmp_path / "smtp_username"
+    password_file = tmp_path / "smtp_password"
+    username_file.write_text("synthetic-smtp-user\n", encoding="utf-8")
+    password_file.write_text("synthetic-smtp-password\n", encoding="utf-8")
+    monkeypatch.delenv("SMTP_USERNAME", raising=False)
+    monkeypatch.delenv("SMTP_PASSWORD", raising=False)
+    monkeypatch.setenv("SMTP_USERNAME_FILE", str(username_file))
+    monkeypatch.setenv("SMTP_PASSWORD_FILE", str(password_file))
+
+    config = _production_config() | {
+        "ACCOUNT_EMAIL_ENABLED": True,
+        "SMTP_HOST": "smtp.example.test",
+        "SMTP_PORT": "587",
+        "SMTP_USE_STARTTLS": True,
+        "EMAIL_FROM_ADDRESS": "accounts@service.example.test",
+        "SMTP_TIMEOUT_SECONDS": "5",
+    }
+    app = create_app(config)
+
+    assert app.config["SMTP_USERNAME"] == "synthetic-smtp-user"
+    assert app.config["SMTP_PASSWORD"] == "synthetic-smtp-password"
+
+
 def test_default_compose_origin_port_is_loopback_only() -> None:
     compose = Path("docker-compose.yml").read_text(encoding="utf-8")
 
@@ -309,7 +377,11 @@ def test_production_nginx_rate_limits_every_public_auth_entrypoint() -> None:
     )
 
     assert "limit_req_zone $binary_remote_addr zone=auth_per_ip:10m rate=20r/m;" in nginx
-    assert "location ~ ^/(auth/(login|register|google/start)|admin/login)$" in nginx
+    assert (
+        "location ~ ^/(auth/(login|register|google/start|email/resend|password/forgot)"
+        "|account/security/(password|email|google/(connect|disconnect))|admin/login)$" in nginx
+    )
+    assert "location ~ ^/auth/(email/verify|password/reset)$" in nginx
     assert "limit_req zone=auth_per_ip burst=10 nodelay;" in nginx
     assert callback is not None
     assert "limit_req zone=auth_per_ip burst=10 nodelay;" in callback.group("body")
@@ -351,6 +423,88 @@ def test_google_oidc_environment_contract_contains_no_committed_credentials() ->
     assert "GOOGLE_OIDC_CLIENT_SECRET_FILE: /run/secrets/google_oidc_client_secret" in oidc_override
     assert "GOOGLE_OIDC_CLIENT_ID:" not in oidc_override
     assert "GOOGLE_OIDC_CLIENT_SECRET:" not in oidc_override
+
+
+def test_account_email_environment_uses_disabled_base_and_secret_file_override() -> None:
+    example = Path(".env.example").read_text(encoding="utf-8")
+    environment = dict(
+        line.split("=", 1)
+        for line in example.splitlines()
+        if line and not line.startswith("#") and "=" in line
+    )
+
+    assert environment["ACCOUNT_EMAIL_ENABLED"] == "false"
+    assert environment["SMTP_USE_STARTTLS"] == "true"
+    assert environment["SMTP_PORT"] == "587"
+    assert environment["SMTP_TIMEOUT_SECONDS"] == "10"
+    for name in (
+        "SMTP_HOST",
+        "SMTP_USERNAME",
+        "SMTP_PASSWORD",
+        "SMTP_USERNAME_FILE",
+        "SMTP_PASSWORD_FILE",
+        "EMAIL_FROM_ADDRESS",
+    ):
+        assert environment[name] == ""
+
+    production = Path("docker-compose.production.yml").read_text(encoding="utf-8")
+    assert 'ACCOUNT_EMAIL_ENABLED: "${ACCOUNT_EMAIL_ENABLED:-false}"' in production
+    assert "SMTP_USERNAME:" not in production
+    assert "SMTP_PASSWORD:" not in production
+
+    override = Path("docker-compose.smtp.yml").read_text(encoding="utf-8")
+    assert 'ACCOUNT_EMAIL_ENABLED: "true"' in override
+    assert "SMTP_USERNAME_FILE: /run/secrets/smtp_username" in override
+    assert "SMTP_PASSWORD_FILE: /run/secrets/smtp_password" in override
+    assert "${PRODUCTION_SECRETS_DIR" in override
+    assert "SMTP_USERNAME:" not in override
+    assert "SMTP_PASSWORD:" not in override
+
+
+def test_combined_account_auth_operations_are_gated_and_keep_both_overrides() -> None:
+    makefile = Path("Makefile").read_text(encoding="utf-8")
+    preflight = makefile.split("production-origin-account-auth-preflight:", 1)[1].split(
+        "\nproduction-origin-account-auth-up:", 1
+    )[0]
+    up = makefile.split(
+        "production-origin-account-auth-up: production-origin-account-auth-preflight", 1
+    )[1].split("\nproduction-origin-account-auth-check:", 1)[0]
+    check = makefile.split("production-origin-account-auth-check:", 1)[1].split(
+        "\nproduction-origin-account-auth-status:", 1
+    )[0]
+    disable = makefile.split("production-origin-account-auth-disable:", 1)[1].split(
+        "\n# Image-only rollback", 1
+    )[0]
+    override_flags = "-f docker-compose.smtp.yml -f docker-compose.google-oidc.yml"
+
+    assert 'test "$(ACCOUNT_AUTH_CHANGE_APPROVED)" = "APPROVED"' in preflight
+    assert 'test "$(ACCOUNT_AUTH_HOST_GATE_CONFIRMED)" = "PASSED"' in preflight
+    assert 'test "$(ACCOUNT_AUTH_BACKUP_RESTORE_CONFIRMED)" = "VERIFIED"' in preflight
+    assert preflight.count(override_flags) == 3
+    assert preflight.index("config --quiet") < preflight.index("build web-production")
+    assert preflight.index("build web-production") < preflight.index(
+        "run --rm --no-deps web-production python -c"
+    )
+    assert 'app.config["ACCOUNT_EMAIL_ENABLED"] is True' in preflight
+    assert 'app.config["GOOGLE_OIDC_ENABLED"] is True' in preflight
+    assert override_flags in up
+    assert "up -d --no-build --wait web-production" in up
+    assert override_flags in check
+    assert "scripts.check_production_https" in check
+    assert "scripts.check_google_oidc_https" in check
+    assert 'app.config["ACCOUNT_EMAIL_ENABLED"] is True' in check
+    assert 'app.config["GOOGLE_OIDC_ENABLED"] is True' in check
+    assert "flask --app wsgi db current" in check
+    assert disable.count("ACCOUNT_EMAIL_ENABLED=false GOOGLE_OIDC_ENABLED=false") == 2
+    assert override_flags not in disable
+    assert "--no-build --no-deps --force-recreate --wait web-production" in disable
+
+    readme = Path("README.md").read_text(encoding="utf-8")
+    assert "production-origin-account-auth-preflight" in readme
+    assert "production-origin-account-auth-up" in readme
+    assert "production-origin-account-auth-check" in readme
+    assert "production-origin-account-auth-disable" in readme
+    assert "외부 자격증명이 없는 기본 배포" in readme
 
 
 def test_public_demo_account_is_optional_and_bootstrapped_before_server_start() -> None:

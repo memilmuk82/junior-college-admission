@@ -42,6 +42,7 @@
 
       {% if error %}<div class="admin-alert" role="alert" tabindex="-1">{{ error }}</div>{% endif %}
       {% if message in notice_messages %}<div class="members-notice" role="status">{{ notice_messages[message] }}</div>{% endif %}
+      {% if config.DEMO_SANDBOX_ENABLED %}<div class="public-notice" role="status"><strong>승인 흐름 체험 방법</strong> 새 시크릿 창에서 체험용 <code>@example.invalid</code> 이메일로 가입하고, <a href="{{ url_for('auth.demo_outbox') }}">체험 메일함</a>의 인증 링크를 연 뒤 이 화면을 새로고침하세요. 보조 관리자는 승인만, 주 관리자는 승인 후 역할·상태 변경까지 할 수 있습니다. 실제 이메일과 개인정보는 입력하지 마세요.</div>{% endif %}
       {% if demo_mode %}<div class="public-notice" role="status"><strong>읽기 전용 공개 체험</strong> 실제 회원 계정과 가입 정보는 표시하지 않으며 승인·역할·상태 변경도 수행하지 않습니다.</div>{% endif %}
 
       <section class="admin-section" aria-labelledby="member-list-heading">
@@ -60,17 +61,19 @@
               <tbody>
                 {% for member in members %}
                   <tr data-member-id="{{ member.id }}">
-                    <td><strong>{{ member.display_name }}</strong><br><span class="member-secondary">{{ member.login_name or 'Google 계정' }}</span></td>
-                    <td><span class="member-email">{{ member.email }}</span><br><span class="member-secondary">{{ member.created_at }}</span></td>
+                    <td><strong>{{ member.display_name }}</strong><br><span class="member-secondary">{{ member.login_name or ('이메일 계정' if member.password_hash else 'Google 계정') }}</span></td>
+                    <td><span class="member-email">{{ member.email }}</span><br><span class="member-secondary">{{ '이메일 인증 완료' if member.email_verified_at else ('기존 아이디 계정' if member.login_name else '이메일 인증 대기') }} · {{ member.created_at }}</span></td>
                     <td><span class="member-role">{{ member.role }}</span></td>
                     <td><span class="member-status member-status--{{ member.status|lower }}">{{ member.status }}</span></td>
                     <td>
                       <div class="member-actions">
-                        {% if member.status == 'PENDING_APPROVAL' and member.role in ('MEMBER', 'STUDENT', 'TEACHER') and member.id != operator.id %}
+                        {% if member.status == 'PENDING_APPROVAL' and member.role in ('MEMBER', 'STUDENT', 'TEACHER') and member.id != operator.id and (member.email_verified_at or member.login_name) %}
                           <form method="post" action="{{ url_for('members.approve', user_id=member.id) }}">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <button class="member-action-button member-action-button--approve" type="submit" aria-label="{{ member.login_name or member.display_name }} 회원 승인">회원 승인</button>
                           </form>
+                        {% elif member.status == 'PENDING_APPROVAL' and not member.email_verified_at and not member.login_name %}
+                          <span class="member-secondary">이메일 인증 후 승인 가능</span>
                         {% endif %}
 
                         {% if operator.role == 'ADMIN' and member.id != operator.id and member.status in ('ACTIVE', 'SUSPENDED') %}

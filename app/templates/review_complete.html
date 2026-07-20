@@ -8,12 +8,12 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}" media="print">
   </head>
   <body class="review-page">
-    <header class="review-header"><div class="review-shell review-header__inner"><a class="brand-link" href="/">2027 전문대 입시 상담</a></div></header>
+    <header class="review-header"><div class="review-shell review-header__inner"><a class="brand-link" href="{{ url_for('main.index') }}">2027 전문대 입시 상담</a></div></header>
     <main class="completion-shell">
       <div class="completion-mark" aria-hidden="true">✓</div>
       <h1>입력 확정이 완료되었습니다</h1>
       <p><strong>{{ confirmed_count }}개 행을 저장했습니다.</strong> 임시 원본과 파생물의 삭제도 확인했습니다.</p>
-      <a class="primary-button primary-button--link" href="/">처음 화면으로</a>
+      <a class="primary-button primary-button--link" href="{{ url_for('main.index') }}">처음 화면으로</a>
     </main>
   </body>
 </html>

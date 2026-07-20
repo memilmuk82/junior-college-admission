@@ -12,8 +12,10 @@
         <div>
           <h1>저장 성적 관리</h1>
           <p>
-            {% if demo_mode %}
-              데모 계정은 성적과 상담 결과를 저장하지 않습니다.
+            {% if config.DEMO_SANDBOX_ENABLED %}
+              공개 대학 자료와 분리된 체험용 합성 익명 성적입니다. 이 화면에서 직접 수정·저장할 수 있습니다.
+            {% elif demo_mode %}
+              제공된 합성 데모 성적만 표시됩니다.
             {% elif current_user.role == 'STUDENT' %}
               본인이 저장한 성적만 표시됩니다.
             {% elif current_user.role == 'TEACHER' %}
@@ -28,7 +30,7 @@
 
       {% if error %}<div class="error-banner" role="alert">{{ error }}</div>{% endif %}
       {% if message == 'classroom_connected' %}<div class="public-notice" role="status"><strong>교사 학급 연결이 완료되었습니다.</strong> 담당 교사가 입력한 성적과 상담자료가 읽기 전용으로 함께 표시됩니다.</div>{% elif message == 'classroom_disconnected' %}<div class="public-notice" role="status"><strong>교사 학급 연결을 해제했습니다.</strong> 본인 소유 성적과 상담자료는 그대로 유지됩니다.</div>{% elif message == 'consultation_saved' %}<div class="public-notice" role="status"><strong>상담자료를 저장했습니다.</strong> 연결 공유 자료는 상대 계정에서 읽기 전용으로 표시됩니다.</div>{% endif %}
-      {% if demo_mode %}<div class="public-notice" role="status"><strong>읽기 전용 체험 계정입니다.</strong> 데모 계정은 성적과 상담 결과를 저장하지 않습니다. 공개 상담에서 합성 예시를 불러와 전체 계산 흐름을 확인할 수 있습니다.</div>{% endif %}
+      {% if config.DEMO_SANDBOX_ENABLED %}<div class="public-notice" role="status"><strong>체험용 합성 익명 성적</strong> 실제 학생 자료가 없는 개인 영역만 합성값을 사용합니다. 대학·학과·전형과 2025·2026 입시결과는 검수된 공개 자료이며, 새 성적은 <a href="{{ url_for('main.public_calculation_input') }}">공개 성적 계산</a>에서 입력·계산한 뒤 이 계정에 저장할 수 있습니다.</div>{% elif demo_mode %}<div class="public-notice" role="status"><strong>합성 성적 체험</strong> 제공된 1학년 1학기부터 3학년 1학기 성적이며 실제 학생 자료가 아닙니다. 공개 계산의 합성 예시에서도 같은 값을 수정하며 계산 흐름을 확인할 수 있습니다.</div>{% endif %}
 
       {% if current_user.role == 'STUDENT' and not demo_mode %}
         <section class="admin-section" aria-labelledby="classroom-link-heading">
@@ -73,7 +75,7 @@
                   <td class="account-records-table__courses" data-label="과목·성적">
                     <ul class="record-course-list">
                       {% for course in courses_by_record.get(record.id, ()) %}
-                        <li><strong>{{ course.subject_name }}</strong><span>단위 {{ course.credits if course.credits is not none else '-' }} · 등급 {{ course.rank_grade if course.rank_grade is not none else '-' }} · 원점수 {{ course.raw_score_label or course.raw_score or '-' }}</span></li>
+                        <li><strong>{{ course.subject_name }}</strong><span>단위 {{ course.credits if course.credits is not none else '-' }} · 등급 {{ course.rank_grade if course.rank_grade is not none else '-' }} · 원점수 {{ course.raw_score_label or course.raw_score or '-' }} · 과목평균 {{ course.course_mean if course.course_mean is not none else '-' }} · 표준편차 {{ course.standard_deviation if course.standard_deviation is not none else '-' }}</span></li>
                       {% else %}<li><span>등록된 과목 없음</span></li>{% endfor %}
                     </ul>
                   </td>
@@ -87,15 +89,8 @@
                           <label>학년도 <input name="academic_year" value="{{ record.academic_year }}" inputmode="numeric" required></label>
                           <label>학년 <input name="grade" value="{{ record.grade }}" inputmode="numeric" required></label>
                           <label>학기 <input name="semester" value="{{ record.semester }}" inputmode="numeric" required></label>
-                          <label>성적 출처
-                            <select name="record_source" required>
-                              {% for value,label in [('HOME_SCHOOL_RECORD','학교생활기록부'),('VOCATIONAL_TRAINING_RECORD','위탁교육 성적'),('GED_RECORD','검정고시'),('MANUAL_INPUT','직접 입력')] %}<option value="{{ value }}"{% if record.record_source == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
-                            </select>
-                          </label>
-                          <label>위탁학기
-                            <select name="is_vocational_training_semester" required><option value="FALSE"{% if not record.is_vocational_training_semester %} selected{% endif %}>아니오</option><option value="TRUE"{% if record.is_vocational_training_semester %} selected{% endif %}>예</option></select>
-                          </label>
-                          <label>위탁기관명 <input name="vocational_institution_name" value="{{ record.vocational_institution_name or '' }}" maxlength="200"></label>
+                          <label>성적 구분<span class="readonly-value">{{ record_source_labels.get(record.record_source, record.record_source) }}</span><small>1·2학년과 3학년 2학기는 학교생활기록부, 3학년 1학기 위탁 성적만 위탁학기로 유지됩니다.</small></label>
+                          {% if record.is_vocational_training_semester %}<label>위탁기관명 <input name="vocational_institution_name" value="{{ record.vocational_institution_name or '' }}" maxlength="200"></label>{% endif %}
                         </div>
                         {% for course in courses_by_record.get(record.id, ()) %}
                           <fieldset class="saved-course-edit">

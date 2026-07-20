@@ -10,7 +10,7 @@
   <body class="review-page">
     <header class="review-header">
       <div class="review-shell review-header__inner">
-        <a class="brand-link" href="/">2027 전문대 입시 상담</a>
+        <a class="brand-link" href="{{ url_for('main.index') }}">2027 전문대 입시 상담</a>
         <form method="post" action="{{ url_for('main.discard_review', review_session_id=review_session_id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button class="text-action text-action--blue" type="submit">입력 다시 시작</button>

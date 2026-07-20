@@ -720,6 +720,7 @@ def _add_active_account(
             role=role,
             status="ACTIVE",
             auth_version=1,
+            email_verified_at=datetime.now(UTC),
             approved_by_user_id=approved_by_user_id,
             approved_at=datetime.now(UTC),
         )

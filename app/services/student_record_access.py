@@ -17,7 +17,7 @@ from app.services.classroom_links import (
     linked_student_account_ids,
     linked_teacher_user_ids,
 )
-from app.services.membership import has_teacher_capability
+from app.services.membership import has_teacher_capability, is_demo_actor_ref
 
 
 class StudentRecordAccessError(RuntimeError):
@@ -47,11 +47,11 @@ def can_access_academic_record(user: UserAccount, record: StudentAcademicRecord)
     """자료를 수정·삭제할 수 있는 직접 소유자 또는 관리자 여부."""
     if user.status != "ACTIVE":
         return False
-    if user.role == "ADMIN":
+    if user.role == "ADMIN" and not is_demo_actor_ref(user.actor_ref):
         return True
     if user.role == "STUDENT":
         return record.owner_user_account_id == user.id
-    if user.role == "TEACHER":
+    if has_teacher_capability(user):
         return record.managed_by_user_account_id == user.id
     return False
 
@@ -67,7 +67,7 @@ def can_read_academic_record(
         return record.student_id in linked_classroom_student_references(
             session, student_user_id=user.id
         )
-    if user.role == "TEACHER" and record.owner_user_account_id:
+    if has_teacher_capability(user) and record.owner_user_account_id:
         return record.owner_user_account_id in linked_student_account_ids(
             session, teacher_user_id=user.id
         )
@@ -88,7 +88,9 @@ def visible_academic_records(
                 StudentAcademicRecord.student_id.in_(shared_references),
             )
         )
-    elif user.role == "TEACHER":
+    elif has_teacher_capability(user) and (
+        user.role != "ADMIN" or is_demo_actor_ref(user.actor_ref)
+    ):
         linked_user_ids = linked_student_account_ids(session, teacher_user_id=user.id)
         statement = statement.where(
             or_(
@@ -155,6 +157,7 @@ def update_academic_record_courses(
     )
     if record is None or not can_access_academic_record(user, record):
         raise StudentRecordAccessError("저장 성적을 찾을 수 없습니다.")
+    was_vocational_record = record.record_source == "VOCATIONAL_TRAINING_RECORD"
     record.academic_year = _required_integer(
         values.get("academic_year", ""), label="학년도", minimum=2000, maximum=2100
     )
@@ -162,18 +165,20 @@ def update_academic_record_courses(
     record.semester = _required_integer(
         values.get("semester", ""), label="학기", minimum=1, maximum=2
     )
-    record_source = values.get("record_source", "").strip()
-    if record_source not in RECORD_SOURCES:
-        raise StudentRecordAccessError("성적 출처를 확인하세요.")
-    record.record_source = record_source
-    vocational_value = values.get("is_vocational_training_semester", "").strip().upper()
-    if vocational_value not in {"TRUE", "FALSE"}:
-        raise StudentRecordAccessError("위탁학기 여부를 확인하세요.")
-    record.is_vocational_training_semester = vocational_value == "TRUE"
+    if record.record_source in {"HOME_SCHOOL_RECORD", "VOCATIONAL_TRAINING_RECORD"}:
+        is_vocational = was_vocational_record and record.grade == 3 and record.semester == 1
+        record.record_source = (
+            "VOCATIONAL_TRAINING_RECORD" if is_vocational else "HOME_SCHOOL_RECORD"
+        )
+        record.is_vocational_training_semester = is_vocational
+    else:
+        record.is_vocational_training_semester = False
     institution_name = values.get("vocational_institution_name", "").strip()
     if len(institution_name) > 200:
         raise StudentRecordAccessError("위탁기관명은 200자 이하여야 합니다.")
-    record.vocational_institution_name = institution_name or None
+    record.vocational_institution_name = (
+        institution_name or None if record.is_vocational_training_semester else None
+    )
     courses = tuple(
         session.scalars(
             select(StudentCourseRecord).where(StudentCourseRecord.academic_record_id == record.id)
@@ -300,11 +305,11 @@ def can_access_saved_consultation(user: UserAccount, consultation: SavedConsulta
     """상담을 수정·삭제할 수 있는 직접 소유자 또는 관리자 여부."""
     if user.status != "ACTIVE":
         return False
-    if user.role == "ADMIN":
+    if user.role == "ADMIN" and not is_demo_actor_ref(user.actor_ref):
         return True
     if user.role == "STUDENT":
         return consultation.owner_user_account_id == user.id
-    if user.role == "TEACHER":
+    if has_teacher_capability(user):
         return consultation.managed_by_user_account_id == user.id
     return False
 
@@ -324,7 +329,7 @@ def can_read_saved_consultation(
             and consultation.managed_by_user_account_id
             in linked_teacher_user_ids(session, student_user_id=user.id)
         )
-    if user.role == "TEACHER" and consultation.owner_user_account_id:
+    if has_teacher_capability(user) and consultation.owner_user_account_id:
         return consultation.owner_user_account_id in linked_student_account_ids(
             session, teacher_user_id=user.id
         )
@@ -350,7 +355,9 @@ def visible_saved_consultations(
                 ),
             )
         )
-    elif user.role == "TEACHER":
+    elif has_teacher_capability(user) and (
+        user.role != "ADMIN" or is_demo_actor_ref(user.actor_ref)
+    ):
         linked_user_ids = linked_student_account_ids(session, teacher_user_id=user.id)
         statement = statement.where(
             or_(

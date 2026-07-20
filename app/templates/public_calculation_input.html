@@ -58,7 +58,7 @@
             <legend>입력 방식</legend>
             {% for value, label in [('manual','직접 입력'),('paste','표 붙여넣기'),('upload','CSV/XLSX')] %}<label><input type="radio" name="input_mode" value="{{ value }}" {% if selected_input_mode|default('manual') == value %}checked{% endif %}><span>{{ label }}</span></label>{% endfor %}
           </fieldset>
-          <p class="form-help" data-profile-source-help>{% if active_profile == graduate_profile %}일반고 졸업생의 전 학년 성적은 원적교 학교생활기록부로 분류합니다.{% else %}1·2학년은 원적교 학교생활기록부, 3학년은 직업위탁 성적으로 서버에서 분류합니다.{% endif %}</p>
+          <p class="form-help" data-profile-source-help>{% if active_profile == graduate_profile %}일반고 졸업생의 전 학년 성적은 원적교 학교생활기록부로 분류합니다.{% else %}1·2학년과 선택 입력인 3학년 2학기는 원적교 학교생활기록부, 3학년 1학기만 직업위탁 성적으로 서버에서 자동 분류합니다.{% endif %}</p>
           <p class="form-help">과목명이 빈 행은 계산에 포함하지 않습니다. 숫자 0, 빈 값, P는 서로 다르게 보존합니다.</p>
         </section>
 
@@ -74,7 +74,7 @@
               {% set term_rows = rows|selectattr('grade', 'equalto', grade)|selectattr('semester', 'equalto', semester)|list %}
               <section class="semester-card {% if grade == '3' %}semester-card--zscore{% endif %}" data-semester-card>
                 <header>
-                  <div><h3>{{ grade }}학년 {{ semester }}학기{% if grade == '3' and semester == '2' %} <small>선택 입력 · 비워도 계산 가능</small>{% endif %}</h3>{% if grade == '3' %}<p>원점수·과목평균·표준편차를 함께 입력하면 Z점수를 검수합니다. <span data-term-source-label data-grade="{{ grade }}">{% if active_profile == graduate_profile %}원적교 학교생활기록부{% else %}직업위탁 성적{% endif %}</span></p>{% else %}<p><span data-term-source-label data-grade="{{ grade }}">원적교 학교생활기록부</span></p>{% endif %}</div>
+                  <div><h3>{{ grade }}학년 {{ semester }}학기{% if grade == '3' and semester == '2' %} <small>선택 입력 · 비워도 계산 가능</small>{% endif %}</h3>{% if grade == '3' %}<p>원점수·과목평균·표준편차를 함께 입력하면 Z점수를 검수합니다. <span data-term-source-label data-grade="{{ grade }}" data-semester="{{ semester }}">{% if active_profile != graduate_profile and semester == '1' %}직업위탁 성적{% else %}원적교 학교생활기록부{% endif %}</span></p>{% else %}<p><span data-term-source-label data-grade="{{ grade }}" data-semester="{{ semester }}">원적교 학교생활기록부</span></p>{% endif %}</div>
                 </header>
                 <div class="semester-table-wrap">
                   <table class="semester-score-table">
@@ -93,10 +93,10 @@
                           <td data-label="추가정보"><details class="score-row-more"><summary>열기</summary><div>
                             {% if grade != '3' %}{% for field, label in [('raw_score','원점수 또는 P'),('course_mean','과목평균'),('standard_deviation','표준편차')] %}<label for="rows-{{ index }}-{{ field }}">{{ label }}<input id="rows-{{ index }}-{{ field }}" name="rows-{{ index }}-{{ field }}" value="{{ row[field] }}"></label>{% endfor %}{% endif %}
                             {% for field, label in [('achievement_level','성취도'),('enrollment_count','수강자수')] %}<label for="rows-{{ index }}-{{ field }}">{{ label }}<input id="rows-{{ index }}-{{ field }}" name="rows-{{ index }}-{{ field }}" value="{{ row[field] }}"></label>{% endfor %}
-                            {% set is_vocational_row = grade == '3' and active_profile != graduate_profile %}
-                            <input id="rows-{{ index }}-record_source" name="rows-{{ index }}-record_source" type="hidden" value="{{ 'VOCATIONAL_TRAINING_RECORD' if is_vocational_row else 'HOME_SCHOOL_RECORD' }}" data-derived-record-source data-grade="{{ grade }}">
-                            <input id="rows-{{ index }}-is_vocational_training_semester" name="rows-{{ index }}-is_vocational_training_semester" type="hidden" value="{{ 'TRUE' if is_vocational_row else 'FALSE' }}" data-derived-vocational-semester data-grade="{{ grade }}">
-                            <p class="form-help" data-row-source-label data-grade="{{ grade }}">성적 구분: {{ '직업위탁 성적 · 위탁 학기' if is_vocational_row else '원적교 학교생활기록부 · 일반 학기' }}</p>
+                            {% set is_vocational_row = grade == '3' and semester == '1' and active_profile != graduate_profile %}
+                            <input id="rows-{{ index }}-record_source" name="rows-{{ index }}-record_source" type="hidden" value="{{ 'VOCATIONAL_TRAINING_RECORD' if is_vocational_row else 'HOME_SCHOOL_RECORD' }}" data-derived-record-source data-grade="{{ grade }}" data-semester="{{ semester }}">
+                            <input id="rows-{{ index }}-is_vocational_training_semester" name="rows-{{ index }}-is_vocational_training_semester" type="hidden" value="{{ 'TRUE' if is_vocational_row else 'FALSE' }}" data-derived-vocational-semester data-grade="{{ grade }}" data-semester="{{ semester }}">
+                            <p class="form-help" data-row-source-label data-grade="{{ grade }}" data-semester="{{ semester }}">성적 구분: {{ '직업위탁 성적 · 위탁 학기' if is_vocational_row else '원적교 학교생활기록부 · 일반 학기' }}</p>
                           </div></details></td>
                         </tr>
                         {% set ns.index = ns.index + 1 %}

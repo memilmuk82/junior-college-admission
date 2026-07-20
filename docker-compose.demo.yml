@@ -1,0 +1,165 @@
+name: junior-college-admission-demo
+
+services:
+  web-demo:
+    image: "${DEMO_APP_IMAGE:-junior-college-admission-demo-app:local}"
+    build: .
+    user: "${DEMO_APP_UID:-65532}:${DEMO_APP_GID:-65532}"
+    command: ["sh", "/app/scripts/run_demo_web.sh"]
+    environment:
+      APP_ENV: demo-sandbox
+      SECRET_KEY_FILE: /run/secrets/demo_app_secret_key
+      DATABASE_URL_FILE: /run/secrets/demo_database_url
+      BYOK_MASTER_KEY_FILE: /run/secrets/demo_byok_master_key
+      DEMO_SANDBOX_PUBLIC_PASSWORD_FILE: /run/secrets/demo_public_password
+      DEMO_SANDBOX_INSTANCE_ID: public-v1
+      DEMO_SANDBOX_ENABLED: "true"
+      DEMO_EMAIL_OUTBOX_ENABLED: "true"
+      DEMO_GOOGLE_STUB_ENABLED: "true"
+      DEMO_CRAWLER_FIXTURE_ENABLED: "true"
+      ACCOUNT_EMAIL_ENABLED: "true"
+      GOOGLE_OIDC_ENABLED: "false"
+      EMAIL_FROM_ADDRESS: demo-no-reply@local.invalid
+      PUBLIC_BASE_URL: "${DEMO_PUBLIC_BASE_URL:-https://admission.memilmuk82.com/demo}"
+      APPLICATION_ROOT: /demo
+      SESSION_COOKIE_NAME: admission_demo_session
+      SESSION_COOKIE_PATH: /demo
+      TRUSTED_HOSTS: "${DEMO_TRUSTED_HOSTS:-admission.memilmuk82.com}"
+      TRUST_PROXY_HOPS: "1"
+      HEALTHCHECK_HOST: "${DEMO_HEALTHCHECK_HOST:-admission.memilmuk82.com}"
+      TEMP_UPLOAD_ROOT: /var/lib/admission/demo-uploads
+      DEMO_WEB_WORKERS: "${DEMO_WEB_WORKERS:-1}"
+      DEMO_WEB_THREADS: "${DEMO_WEB_THREADS:-4}"
+    depends_on:
+      db-demo:
+        condition: service_healthy
+    expose:
+      - "5000"
+    secrets:
+      - demo_app_secret_key
+      - demo_database_url
+      - demo_byok_master_key
+      - demo_public_password
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import os, urllib.request;
+          request = urllib.request.Request(
+          'http://127.0.0.1:5000/health',
+          headers={'Host': os.environ['HEALTHCHECK_HOST']});
+          urllib.request.urlopen(request, timeout=3).read()
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,mode=1777,uid=${DEMO_APP_UID:-65532},gid=${DEMO_APP_GID:-65532}
+      - /var/lib/admission/demo-uploads:rw,noexec,nosuid,nodev,mode=0700,uid=${DEMO_APP_UID:-65532},gid=${DEMO_APP_GID:-65532}
+    networks:
+      - demo-backend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  gateway-demo:
+    image: nginx:1.27-alpine
+    user: "101:101"
+    depends_on:
+      web-demo:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${DEMO_ORIGIN_PORT:-8002}:8080"
+    volumes:
+      - ./deploy/nginx.demo-origin.conf:/etc/nginx/conf.d/default.conf:ro
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:rw,noexec,nosuid,nodev,mode=0700,uid=101,gid=101
+      - /var/run:rw,noexec,nosuid,nodev,mode=0700,uid=101,gid=101
+      - /tmp:rw,noexec,nosuid,nodev,mode=1777,uid=101,gid=101
+    networks:
+      - demo-backend
+      - demo-ingress
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          wget -q -O /dev/null --header='Host: admission.memilmuk82.com'
+          http://127.0.0.1:8080/health
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    stop_grace_period: 10s
+
+  db-demo:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: "${DEMO_POSTGRES_DB:-admission_demo}"
+      POSTGRES_USER: "${DEMO_POSTGRES_USER:-admission_demo}"
+      POSTGRES_PASSWORD_FILE: /run/secrets/demo_postgres_password
+    secrets:
+      - demo_postgres_password
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          pg_isready -U ${DEMO_POSTGRES_USER:-admission_demo}
+          -d ${DEMO_POSTGRES_DB:-admission_demo}
+      interval: 3s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - demo_postgres_data:/var/lib/postgresql/data
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,mode=1777
+      - /var/run/postgresql:rw,nosuid,nodev,mode=0775
+    networks:
+      - demo-backend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+networks:
+  demo-backend:
+    driver: bridge
+    internal: true
+  demo-ingress:
+    driver: bridge
+
+volumes:
+  demo_postgres_data:
+    name: junior-college-admission-demo-postgres-data
+
+secrets:
+  demo_app_secret_key:
+    file: "${DEMO_SECRETS_DIR:?DEMO_SECRETS_DIR must be set}/demo_app_secret_key"
+  demo_database_url:
+    file: "${DEMO_SECRETS_DIR:?DEMO_SECRETS_DIR must be set}/demo_database_url"
+  demo_byok_master_key:
+    file: "${DEMO_SECRETS_DIR:?DEMO_SECRETS_DIR must be set}/demo_byok_master_key"
+  demo_public_password:
+    file: "${DEMO_SECRETS_DIR:?DEMO_SECRETS_DIR must be set}/demo_public_password"
+  demo_postgres_password:
+    file: "${DEMO_SECRETS_DIR:?DEMO_SECRETS_DIR must be set}/demo_postgres_password"

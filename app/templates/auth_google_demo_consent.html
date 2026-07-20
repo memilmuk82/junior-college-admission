@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Google 연결 체험 · 2027 전문대 입시 상담</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="auth-page">
+    <header class="auth-header"><a class="brand-link" href="{{ url_for('main.index') }}">2027 전문대 입시 상담</a><span>외부 Google과 분리된 체험 승인</span></header>
+    <main class="auth-shell" id="main-content">
+      <p class="admin-eyebrow">LOCAL GOOGLE CONSENT</p>
+      <h1>Google {{ '계정 연결' if intent_kind == 'link' else '로그인' }} 체험</h1>
+      <p class="auth-lead">실제 Google로 이동하거나 토큰을 받지 않고, 동일한 계정 연결·콜백 검증 흐름을 체험 환경 안에서 실행합니다.</p>
+      <dl class="auth-action-guide" aria-label="Google 체험 사용 안내">
+        <div><dt>무엇인가요?</dt><dd>Google OIDC 화면을 대신하는 체험 전용 로컬 승인 단계입니다.</dd></div>
+        <div><dt>언제 쓰나요?</dt><dd>계정 자동 병합 없이 Google 로그인 수단을 연결하고 해제하는 동작을 확인할 때 사용합니다.</dd></div>
+        <div><dt>완료되면</dt><dd>기존 일회성 요청과 검증된 이메일 규칙을 거쳐 계정 보안 또는 승인 대기 화면으로 이동합니다.</dd></div>
+      </dl>
+      <div class="public-notice" role="status"><strong>실제 Google 계정은 사용하지 않습니다.</strong> 반드시 <code>.invalid</code>로 끝나는 예시 이메일만 입력하세요.</div>
+      {% if error %}<div class="auth-alert auth-alert--error" role="alert"><strong>승인할 수 없습니다.</strong><p>{{ error }}</p></div>{% endif %}
+      <form class="auth-form" method="post" action="{{ url_for('auth.google_demo_consent') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="demo-google-email">Google 체험 이메일</label>
+        <input id="demo-google-email" name="email" type="email" value="{{ email }}" maxlength="320" required {% if intent_kind == 'link' %}readonly{% endif %}>
+        <label for="demo-google-name">Google 표시 이름</label>
+        <input id="demo-google-name" name="display_name" value="{{ display_name }}" maxlength="120" required>
+        <button class="primary-button auth-submit" type="submit">체험 승인 계속하기</button>
+      </form>
+      <nav class="auth-links" aria-label="Google 체험 취소"><a href="{{ url_for('account.security') if intent_kind == 'link' else url_for('auth.login') }}">취소</a></nav>
+    </main>
+  </body>
+</html>

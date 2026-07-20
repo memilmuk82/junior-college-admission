@@ -336,6 +336,40 @@ def test_anonymous_manual_entry_reaches_review_and_keeps_zero_distinct(tmp_path:
     assert "계정 DB에 저장되지 않습니다" in body
 
 
+def test_demo_example_uses_the_requested_five_term_score_sheet(tmp_path: Path) -> None:
+    app = create_app(
+        {
+            "TESTING": True,
+            "SECRET_KEY": "test-only-secret",
+            "TEMP_UPLOAD_ROOT": str(tmp_path),
+        }
+    )
+    body = app.test_client().get("/calculate?example=1").get_data(as_text=True)
+
+    for subject in (
+        "국어",
+        "통합사회",
+        "통합과학",
+        "문학",
+        "수학Ⅰ",
+        "독서",
+        "수학Ⅱ",
+        "빅데이터 프로그래밍",
+        "웹 프로그래밍 실무",
+        "응용 프로그래밍 개발",
+    ):
+        assert f'value="{subject}"' in body
+    assert 'value="91.35"' in body
+    assert 'value="63.50"' in body
+    assert 'value="27.50"' in body
+    assert 'value="93.50"' in body
+    assert 'value="56.90"' in body
+    assert 'value="23.40"' in body
+    assert 'value="93.00"' in body
+    assert 'value="76.10"' in body
+    assert 'value="21.80"' in body
+
+
 def test_anonymous_review_session_is_hidden_from_another_browser(tmp_path: Path) -> None:
     app = create_app(
         {

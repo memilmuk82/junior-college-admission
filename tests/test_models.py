@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import Engine
@@ -9,10 +9,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import (
+    AccountAuthToken,
     AdmissionEligibilityRule,
     Institution,
     SourceDocument,
     StudentAcademicRecord,
+    UserAccount,
 )
 
 
@@ -98,3 +100,77 @@ def test_home_and_vocational_records_stay_separate(session: Session) -> None:
         "HOME_SCHOOL_RECORD",
         "VOCATIONAL_TRAINING_RECORD",
     ]
+
+
+def test_email_only_local_account_and_digest_only_auth_token_persist(
+    session: Session,
+) -> None:
+    now = datetime.now(UTC)
+    account = UserAccount(
+        actor_ref="user:synthetic-phase19-model-account",
+        login_name=None,
+        email="phase19-model@example.invalid",
+        display_name="합성 이메일 회원",
+        password_hash="synthetic-password-hash",
+        role="MEMBER",
+        status="PENDING_APPROVAL",
+        auth_version=1,
+    )
+    session.add(account)
+    session.flush()
+
+    token = AccountAuthToken(
+        user_account_id=account.id,
+        purpose="EMAIL_VERIFICATION",
+        token_digest="a" * 64,
+        issued_auth_version=account.auth_version,
+        target_email=account.email,
+        expires_at=now + timedelta(minutes=30),
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(token)
+    session.flush()
+
+    assert account.email_verified_at is None
+    assert account.bootstrap_password_managed is False
+    assert token.user_account_id == account.id
+    assert token.consumed_at is None
+    assert token.revoked_at is None
+    assert {
+        "token",
+        "raw_token",
+        "verification_token",
+        "reset_token",
+    }.isdisjoint(AccountAuthToken.__table__.columns.keys())
+
+
+def test_auth_token_rejects_non_digest_storage(session: Session) -> None:
+    now = datetime.now(UTC)
+    account = UserAccount(
+        actor_ref="user:synthetic-phase19-invalid-token-account",
+        login_name=None,
+        email="phase19-invalid-token@example.invalid",
+        display_name="합성 잘못된 토큰 회원",
+        password_hash="synthetic-password-hash",
+        role="MEMBER",
+        status="PENDING_APPROVAL",
+        auth_version=1,
+    )
+    session.add(account)
+    session.flush()
+    session.add(
+        AccountAuthToken(
+            user_account_id=account.id,
+            purpose="PASSWORD_RESET",
+            token_digest="synthetic-raw-token",
+            issued_auth_version=account.auth_version,
+            target_email=account.email,
+            expires_at=now + timedelta(minutes=30),
+            created_at=now,
+            updated_at=now,
+        )
+    )
+
+    with pytest.raises(IntegrityError):
+        session.flush()

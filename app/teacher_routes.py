@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from collections.abc import Mapping
 from io import StringIO
 from typing import Any, cast
 
@@ -12,7 +13,6 @@ from app.auth import (
     csrf_token,
     is_demo_user,
     require_csrf,
-    roles_required,
     session_user,
     teacher_required,
 )
@@ -35,6 +35,7 @@ from app.services.classroom_links import (
     list_teacher_classrooms,
     rotate_connection_code,
 )
+from app.services.demo_workspace import demo_classroom_workspace, demo_institutional_outcomes
 from app.services.institutional_results import (
     InstitutionalOutcomeView,
     InstitutionalResultError,
@@ -47,6 +48,50 @@ from app.services.institutional_results import (
 from app.services.student_record_access import academic_record_courses
 
 bp = Blueprint("teacher", __name__, url_prefix="/teacher")
+
+
+def _vocational_course_values(values: Mapping[str, str]) -> dict[str, str]:
+    """Apply the product's fixed score-source policy to a classroom course."""
+
+    normalized = dict(values)
+    try:
+        grade = int(values.get("grade", ""))
+        semester = int(values.get("semester", ""))
+    except ValueError:
+        # The classroom service owns the localized grade/semester validation errors.
+        return normalized
+    if grade not in {1, 2, 3} or semester not in {1, 2}:
+        return normalized
+
+    if grade in {1, 2}:
+        expected_source = "HOME_SCHOOL_RECORD"
+        expected_vocational = "FALSE"
+        contradiction_message = (
+            "1·2학년 성적은 학교생활기록부 성적(위탁학기 아님)으로만 입력할 수 있습니다."
+        )
+    elif semester == 1:
+        expected_source = "VOCATIONAL_TRAINING_RECORD"
+        expected_vocational = "TRUE"
+        contradiction_message = (
+            "3학년 1학기 성적은 직업위탁 성적(위탁학기)으로만 입력할 수 있습니다."
+        )
+    else:
+        expected_source = "HOME_SCHOOL_RECORD"
+        expected_vocational = "FALSE"
+        contradiction_message = (
+            "3학년 2학기 성적은 학교생활기록부 성적(위탁학기 아님)으로만 입력할 수 있습니다."
+        )
+
+    submitted_source = values.get("record_source", "").strip()
+    submitted_vocational = values.get("is_vocational_training_semester", "").strip().upper()
+    if submitted_source and submitted_source != expected_source:
+        raise ClassroomLinkError(contradiction_message)
+    if submitted_vocational and submitted_vocational != expected_vocational:
+        raise ClassroomLinkError(contradiction_message)
+
+    normalized["record_source"] = expected_source
+    normalized["is_vocational_training_semester"] = expected_vocational
+    return normalized
 
 
 def _private(content: str, status: int = 200, mimetype: str = "text/html") -> Response:
@@ -86,11 +131,13 @@ def _render_classrooms(
     records: tuple[StudentAcademicRecord, ...]
     courses_by_record: dict[str, tuple[StudentCourseRecord, ...]]
     if demo_mode:
-        classrooms = ()
-        students_by_classroom = {}
-        selected_student = None
-        records = ()
-        courses_by_record = {}
+        (
+            classrooms,
+            students_by_classroom,
+            selected_student,
+            records,
+            courses_by_record,
+        ) = demo_classroom_workspace(user)
     else:
         classrooms = list_teacher_classrooms(database_session, user=user)
         students_by_classroom = {
@@ -241,12 +288,16 @@ def add_student_course(classroom_student_id: str) -> Response | Any:
     user = session_user()
     assert user is not None
     try:
-        add_classroom_course(
+        values = _vocational_course_values(request.form)
+        course = add_classroom_course(
             cast(Session, db.session),
             user=user,
             classroom_student_id=classroom_student_id,
-            values=request.form,
+            values=values,
         )
+        record = db.session.get(StudentAcademicRecord, course.academic_record_id)
+        assert record is not None
+        record.is_vocational_training_semester = values["is_vocational_training_semester"] == "TRUE"
         db.session.commit()
     except ClassroomLinkError as error:
         db.session.rollback()
@@ -283,7 +334,7 @@ def _render_outcomes(*, error: str | None = None, status: int = 200) -> Response
     demo_mode = is_demo_user(user)
     filters = _filters()
     if demo_mode:
-        rows: tuple[InstitutionalOutcomeView, ...] = ()
+        rows = demo_institutional_outcomes(user)
     else:
         try:
             rows = _filtered_rows()
@@ -309,7 +360,7 @@ def _render_outcomes(*, error: str | None = None, status: int = 200) -> Response
 
 
 @bp.route("/outcomes", methods=["GET", "POST"])
-@roles_required("TEACHER", "ADMIN", allow_legacy=False)
+@teacher_required
 def outcomes() -> Response | Any:
     if request.method == "GET":
         return _render_outcomes()
@@ -331,7 +382,7 @@ def outcomes() -> Response | Any:
 
 
 @bp.post("/outcomes/<outcome_id>/delete")
-@roles_required("TEACHER", "ADMIN", allow_legacy=False)
+@teacher_required
 def delete_outcome_route(outcome_id: str) -> Response | Any:
     require_csrf()
     user = session_user()
@@ -346,7 +397,7 @@ def delete_outcome_route(outcome_id: str) -> Response | Any:
 
 
 @bp.get("/outcomes.csv")
-@roles_required("TEACHER", "ADMIN", allow_legacy=False)
+@teacher_required
 def outcomes_csv() -> Response:
     try:
         rows = _filtered_rows()

@@ -15,7 +15,19 @@
     <main class="auth-shell auth-shell--wide" id="main-content">
       <p class="admin-eyebrow">{{ 'STUDENT' if account_type == 'student' else 'TEACHER' }} REGISTRATION</p>
       <h1>{{ '학생' if account_type == 'student' else '교사' }} 회원가입</h1>
-      <p class="auth-lead">{{ '본인 성적과 계산 결과를 저장할 학생 계정을 신청합니다.' if account_type == 'student' else '학생 상담자료를 관리할 교사 계정을 신청합니다.' }} 가입 후 관리자 승인이 필요합니다.</p>
+      <p class="auth-lead">{{ '본인 성적과 계산 결과를 저장할 학생 계정을 신청합니다.' if account_type == 'student' else '학생 상담자료를 관리할 교사 계정을 신청합니다.' }} 이메일 인증과 관리자 승인을 모두 마친 뒤 사용할 수 있습니다.</p>
+      <dl class="auth-action-guide" aria-label="회원가입 사용 안내">
+        <div><dt>무엇인가요?</dt><dd>{{ '내 성적·계산 결과를 저장할 학생' if account_type == 'student' else '학생 상담자료를 관리할 교사' }} 계정을 신청합니다.</dd></div>
+        <div><dt>언제 쓰나요?</dt><dd>아직 계정이 없고 내 이메일로 계속 사용할 계정이 필요할 때 신청합니다.</dd></div>
+        <div><dt>완료되면</dt><dd>메일에서 주소를 확인한 뒤 관리자가 역할을 승인해야 업무공간이 열립니다.</dd></div>
+      </dl>
+
+      {% if not email_available and not errors %}
+        <div class="auth-alert auth-alert--info" role="status">
+          <strong>현재 이메일 가입 준비 중입니다.</strong>
+          <p>운영 메일 발송 설정이 완료될 때까지 기존 계정 로그인을 이용해 주세요.</p>
+        </div>
+      {% endif %}
 
       {% if errors %}
         <div class="auth-alert auth-alert--error" role="alert" tabindex="-1">
@@ -44,23 +56,7 @@
           required
         >
 
-        <label for="register-login-name">아이디</label>
-        <input
-          id="register-login-name"
-          name="login_name"
-          value="{{ values.login_name|default('') if values is defined else '' }}"
-          minlength="4"
-          maxlength="80"
-          pattern="[A-Za-z0-9][A-Za-z0-9._\-]{3,79}"
-          aria-describedby="login-name-help"
-          autocomplete="username"
-          autocapitalize="none"
-          spellcheck="false"
-          required
-        >
-        <p class="field-help" id="login-name-help">영문자 또는 숫자로 시작하고 영문자·숫자·마침표·밑줄·하이픈만 사용합니다.</p>
-
-        <label for="register-email">업무용 이메일</label>
+        <label for="register-email">로그인 이메일</label>
         <input
           id="register-email"
           name="email"
@@ -78,7 +74,7 @@
           name="password"
           type="password"
           minlength="12"
-          maxlength="128"
+          maxlength="256"
           aria-describedby="password-help"
           autocomplete="new-password"
           required
@@ -91,7 +87,7 @@
           name="password_confirmation"
           type="password"
           minlength="12"
-          maxlength="128"
+          maxlength="256"
           autocomplete="new-password"
           required
         >
@@ -99,13 +95,14 @@
         <div class="auth-consent">
           <p><strong>가입 신청 시 적용되는 원칙</strong></p>
           <ul>
-            <li>계정은 {{ '학생' if account_type == 'student' else '교사' }}·승인 대기 상태로만 생성됩니다.</li>
+            <li>가입 후 인증 메일에서 이메일 소유를 먼저 확인합니다.</li>
+            <li>계정은 {{ '학생' if account_type == 'student' else '교사' }}·승인 대기 상태로 생성되며 이메일 인증은 관리자 승인을 대신하지 않습니다.</li>
             <li>승인 전에는 상담·성적 검수·관리 기능을 사용할 수 없습니다.</li>
             <li>실제 학생 이름·학번을 계정 정보에 입력하지 않습니다.</li>
           </ul>
         </div>
 
-        <button class="primary-button auth-submit" type="submit">가입 승인 요청</button>
+        <button class="primary-button auth-submit" type="submit" {% if not email_available %}disabled aria-disabled="true"{% endif %}>가입 승인 요청</button>
       </form>
 
       <nav class="auth-links" aria-label="계정 이동">

@@ -5,16 +5,36 @@ from collections.abc import Mapping
 from typing import Any
 
 from authlib.integrations.flask_client import OAuth
-from flask import Flask, current_app
+from flask import Flask, current_app, redirect, session, url_for
 
 from app.services.membership import MembershipError, canonicalize_google_issuer
 
 GOOGLE_DISCOVERY_URL = "https://accounts.google.com/.well-known/openid-configuration"
 GOOGLE_SCOPE = "openid email profile"
 AUTHLIB_CLIENT_LOGGER = "authlib.integrations.base_client"
+DEMO_GOOGLE_CLAIMS_SESSION_KEY = "demo_google_verified_claims"
+
+
+class DemoGoogleOidcClient:
+    """Same-origin OIDC stand-in available only in the isolated demo app."""
+
+    def authorize_redirect(self, _redirect_uri: str):  # type: ignore[no-untyped-def]
+        return redirect(url_for("auth.google_demo_consent"), code=303)
+
+    def authorize_access_token(self) -> Mapping[str, Any]:
+        token = session.pop(DEMO_GOOGLE_CLAIMS_SESSION_KEY, None)
+        if not isinstance(token, Mapping):
+            raise MembershipError("Google 체험 승인을 확인할 수 없습니다.")
+        return token
 
 
 def init_google_oidc(app: Flask) -> None:
+    if app.config.get("DEMO_GOOGLE_STUB_ENABLED"):
+        if app.config.get("DEMO_SANDBOX_ENABLED") is not True:
+            raise RuntimeError("Google 체험 연결은 격리 체험 환경에서만 사용할 수 있습니다.")
+        app.extensions["google_oidc"] = None
+        app.extensions["google_oidc_client"] = DemoGoogleOidcClient()
+        return
     if not app.config.get("GOOGLE_OIDC_ENABLED"):
         app.extensions["google_oidc_client"] = None
         return

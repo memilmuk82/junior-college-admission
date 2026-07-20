@@ -1,12 +1,33 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any, cast
 
-from flask import Blueprint, Response, make_response, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    Response,
+    abort,
+    current_app,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from werkzeug.security import check_password_hash
 
-from app.auth import csrf_token, is_demo_user, require_csrf, roles_required, session_user
+from app.auth import (
+    begin_google_oidc_intent,
+    csrf_token,
+    is_demo_user,
+    require_csrf,
+    roles_required,
+    session_user,
+    signed_in_required,
+    start_user_session,
+)
 from app.database import db
 from app.models import (
     ClassroomStudent,
@@ -15,6 +36,17 @@ from app.models import (
     StudentCourseRecord,
     TeacherClassroom,
 )
+from app.services.account_emails import (
+    AccountEmailError,
+    account_email_available,
+    send_email_verification,
+)
+from app.services.account_security import (
+    change_password,
+    disconnect_google_identity,
+    google_identity_for_user,
+    issue_email_verification_token,
+)
 from app.services.classroom_links import (
     ClassroomLinkError,
     connect_student_account,
@@ -22,6 +54,8 @@ from app.services.classroom_links import (
     linked_classrooms_for_student,
 )
 from app.services.consultations import list_consultation_programs
+from app.services.demo_workspace import demo_academic_records
+from app.services.membership import MembershipError
 from app.services.public_student_profiles import (
     GENERAL_GRADUATE,
     VOCATIONAL_CURRENT,
@@ -44,6 +78,13 @@ from app.services.student_record_access import (
 bp = Blueprint("account", __name__, url_prefix="/account")
 
 
+def _google_enabled() -> bool:
+    return bool(
+        current_app.config.get("GOOGLE_OIDC_ENABLED")
+        or current_app.config.get("DEMO_GOOGLE_STUB_ENABLED")
+    )
+
+
 def _private(content: str, status: int = 200) -> Response:
     response = make_response(content, status)
     response.headers["Cache-Control"] = "no-store, max-age=0"
@@ -57,6 +98,145 @@ def _private(content: str, status: int = 200) -> Response:
     return response
 
 
+def _render_security(*, error: str | None = None, status: int = 200) -> Response:
+    user = session_user()
+    assert user is not None
+    return _private(
+        render_template(
+            "account_security.html",
+            current_user=user,
+            csrf_token=csrf_token(),
+            error=error,
+            message=request.args.get("message"),
+            demo_mode=is_demo_user(user),
+            email_available=account_email_available(),
+            google_enabled=_google_enabled(),
+            google_identity=google_identity_for_user(cast(Session, db.session), user=user),
+        ),
+        status,
+    )
+
+
+def _mutable_security_user() -> Any:
+    user = session_user()
+    assert user is not None
+    if is_demo_user(user):
+        abort(403)
+    return user
+
+
+@bp.get("/security")
+@signed_in_required
+def security() -> Response:
+    return _render_security()
+
+
+@bp.post("/security/password")
+@signed_in_required
+def change_security_password() -> Any:
+    require_csrf()
+    user = _mutable_security_user()
+    new_password = request.form.get("new_password", "")
+    if new_password != request.form.get("new_password_confirmation", ""):
+        return _render_security(error="비밀번호 확인이 일치하지 않습니다.", status=400)
+    try:
+        changed = change_password(
+            cast(Session, db.session),
+            user=user,
+            current_password=request.form.get("current_password", ""),
+            new_password=new_password,
+            occurred_at=datetime.now(UTC),
+        )
+        db.session.commit()
+    except MembershipError as error:
+        db.session.rollback()
+        return _render_security(error=str(error), status=400)
+    start_user_session(changed)
+    return redirect(url_for("account.security", message="password_changed"), code=303)
+
+
+@bp.post("/security/email")
+@signed_in_required
+def change_security_email() -> Any:
+    require_csrf()
+    user = _mutable_security_user()
+    if user.status != "ACTIVE":
+        return _render_security(
+            error="활성 계정에서만 로그인 이메일을 변경할 수 있습니다.", status=403
+        )
+    if not account_email_available():
+        return _render_security(error="인증 메일 발송 설정이 필요합니다.", status=503)
+    if user.password_hash is None or not check_password_hash(
+        user.password_hash, request.form.get("current_password", "")
+    ):
+        return _render_security(error="현재 비밀번호를 확인하세요.", status=400)
+    target_email = request.form.get("email", "").strip().lower()
+    if current_app.config.get("DEMO_SANDBOX_ENABLED") and not target_email.endswith(".invalid"):
+        return _render_security(
+            error="체험 환경에는 개인정보가 아닌 .invalid 예시 이메일을 입력하세요.",
+            status=400,
+        )
+    try:
+        raw_token = issue_email_verification_token(
+            cast(Session, db.session),
+            user=user,
+            target_email=target_email,
+            occurred_at=datetime.now(UTC),
+        )
+        db.session.commit()
+    except MembershipError as error:
+        db.session.rollback()
+        if str(error) == "이미 사용 중인 이메일입니다.":
+            return redirect(url_for("account.security", message="email_requested"), code=303)
+        return _render_security(error=str(error), status=400)
+    try:
+        send_email_verification(recipient=target_email, raw_token=raw_token)
+    except AccountEmailError as error:
+        return _render_security(error=str(error), status=503)
+    return redirect(url_for("account.security", message="email_requested"), code=303)
+
+
+@bp.post("/security/google/connect")
+@signed_in_required
+def connect_google() -> Any:
+    require_csrf()
+    user = _mutable_security_user()
+    if user.status != "ACTIVE":
+        return _render_security(
+            error="활성 계정에서만 Google 계정을 연결할 수 있습니다.", status=403
+        )
+    if not _google_enabled():
+        return _render_security(error="Google 로그인 설정이 필요합니다.", status=503)
+    if user.email_verified_at is None:
+        return _render_security(error="이메일을 먼저 인증하세요.", status=400)
+    if user.password_hash is None or not check_password_hash(
+        user.password_hash, request.form.get("current_password", "")
+    ):
+        return _render_security(error="현재 비밀번호를 확인하세요.", status=400)
+    begin_google_oidc_intent(kind="link", user=user)
+    return redirect(url_for("auth.google_start", intent="link"), code=303)
+
+
+@bp.post("/security/google/disconnect")
+@signed_in_required
+def disconnect_google() -> Any:
+    require_csrf()
+    user = _mutable_security_user()
+    try:
+        disconnect_google_identity(
+            cast(Session, db.session),
+            user=user,
+            current_password=request.form.get("current_password", ""),
+            occurred_at=datetime.now(UTC),
+        )
+        db.session.commit()
+    except MembershipError as error:
+        db.session.rollback()
+        return _render_security(error=str(error), status=400)
+    start_user_session(user)
+    return redirect(url_for("account.security", message="google_disconnected"), code=303)
+
+
 def _render_records(*, error: str | None = None, status: int = 200) -> Response:
     user = session_user()
     assert user is not None
@@ -66,9 +246,8 @@ def _render_records(*, error: str | None = None, status: int = 200) -> Response:
     courses_by_record: dict[str, tuple[StudentCourseRecord, ...]]
     linked_classrooms: tuple[tuple[ClassroomStudent, TeacherClassroom], ...] = ()
     if demo_mode:
-        records = ()
+        records, courses_by_record = demo_academic_records(user)
         consultations = ()
-        courses_by_record = {}
     else:
         try:
             records = visible_academic_records(cast(Session, db.session), user=user)
@@ -91,8 +270,12 @@ def _render_records(*, error: str | None = None, status: int = 200) -> Response:
             error=error,
             demo_mode=demo_mode,
             linked_classrooms=linked_classrooms,
-            manageable_record_ids=frozenset(
-                record.id for record in records if can_access_academic_record(user, record)
+            manageable_record_ids=(
+                frozenset()
+                if demo_mode
+                else frozenset(
+                    record.id for record in records if can_access_academic_record(user, record)
+                )
             ),
             manageable_consultation_ids=frozenset(
                 consultation.id

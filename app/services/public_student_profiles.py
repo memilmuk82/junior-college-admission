@@ -35,11 +35,15 @@ def public_student_fact_values(profile: str) -> dict[str, str]:
     return facts
 
 
-def public_record_classification(profile: str, *, grade: int) -> tuple[str, bool]:
+def public_record_classification(
+    profile: str, *, grade: int, semester: int = 1
+) -> tuple[str, bool]:
     resolved = resolve_public_student_profile(profile)
     if grade not in {1, 2, 3}:
         raise ValueError("학년은 1~3만 입력할 수 있습니다.")
-    if grade == 3 and resolved == VOCATIONAL_CURRENT:
+    if semester not in {1, 2}:
+        raise ValueError("학기는 1~2만 입력할 수 있습니다.")
+    if grade == 3 and semester == 1 and resolved == VOCATIONAL_CURRENT:
         return "VOCATIONAL_TRAINING_RECORD", True
     return "HOME_SCHOOL_RECORD", False
 

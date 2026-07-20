@@ -10,7 +10,7 @@
     <header class="admin-header"><div><p class="admin-eyebrow">CONSULTATION RESULT</p>{% if demo_mode %}<a href="{{ url_for('main.index') }}">처음 화면</a>{% elif current_user %}<a href="{{ url_for('main.dashboard') }}">내 업무공간</a>{% else %}<a href="{{ url_for('admin.rules') }}">규칙 관리자</a>{% endif %}</div><span>{{ actor_ref }}</span></header>
     <main class="admin-shell consultation-shell">
       <a class="admin-back" href="{{ url_for('admin.new_consultation') }}">← 새 상담</a>
-      {% if demo_mode %}<div class="demo-banner" role="status"><strong>DEMO_SYNTHETIC · 합성 예시</strong><span>표시된 학생·대학·학과·전형·평균등급·입시결과는 모두 실제 자료가 아닙니다.</span></div>{% endif %}
+      {% if config.DEMO_SANDBOX_ENABLED %}<div class="demo-banner" role="status"><strong>체험용 합성 학생 + 검수 공개 입시자료</strong><span>학생 성적·메모는 합성 익명 시작값이고 직접 수정할 수 있습니다. 대학·학과·전형과 2025·2026 공개 결과는 검수 자료입니다.</span></div>{% elif demo_mode %}<div class="demo-banner" role="status"><strong>DEMO_SYNTHETIC · 합성 예시</strong><span>표시된 학생·대학·학과·전형·평균등급·입시결과는 모두 실제 자료가 아닙니다.</span></div>{% endif %}
       <div class="admin-heading"><div><h1>지원자격 확인 완료</h1><p>선택한 {{ result.selected_programs|length }}개 학과의 전형을 각각 독립 판정했습니다.</p></div><span class="step-indicator">{{ result.academic_year }}학년도</span></div>
       {% for warning in result.warnings %}<div class="admin-alert" role="status">{{ warning }}</div>{% endfor %}
 

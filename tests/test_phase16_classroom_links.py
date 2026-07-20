@@ -227,6 +227,156 @@ def _course_values(subject_name: str) -> dict[str, str]:
     }
 
 
+def _create_course_entry_student(postgres_engine: Engine, *, teacher: UserAccount) -> str:
+    with Session(postgres_engine, expire_on_commit=False) as database_session:
+        classroom = create_classroom(
+            database_session,
+            user=teacher,
+            values={
+                "academic_year": "2027",
+                "department_name": "합성 위탁과",
+                "class_name": "3-V",
+            },
+        )
+        issued = add_classroom_student(
+            database_session,
+            user=teacher,
+            classroom_id=classroom.id,
+            anonymous_code="VOC-001",
+        )
+        database_session.commit()
+        return issued.student.id
+
+
+def test_teacher_course_entry_automatically_applies_vocational_product_sources(
+    postgres_engine: Engine,
+    phase16_app: Flask,
+    phase16_accounts: dict[str, UserAccount],
+) -> None:
+    teacher = phase16_accounts["teacher"]
+    classroom_student_id = _create_course_entry_student(postgres_engine, teacher=teacher)
+    teacher_client = _client_for(phase16_app, teacher)
+
+    page = teacher_client.get(
+        "/teacher/classrooms", query_string={"student_id": classroom_student_id}
+    )
+    body = page.get_data(as_text=True)
+
+    assert page.status_code == 200
+    assert 'name="record_source"' not in body
+    assert 'name="is_vocational_training_semester"' not in body
+    assert "성적 출처는 학년별로 자동 적용됩니다." in body
+    assert "1·2학년은 이미 확정된 학교생활기록부 성적" in body
+    assert "3학년 1학기만 직업위탁 성적으로 고정" in body
+    assert "3학년 2학기는 학교생활기록부 성적" in body
+    assert "입력하지 않아도 대학 선택과 성적 산출" in body
+    assert '<option value="3" selected>3학년</option>' in body
+    assert '<option value="1">1학기</option>' in body
+
+    expected_terms = (
+        ("1", "1", "합성 1학년 성적", "HOME_SCHOOL_RECORD", False),
+        ("2", "2", "합성 2학년 성적", "HOME_SCHOOL_RECORD", False),
+        ("3", "1", "합성 3학년 1학기 성적", "VOCATIONAL_TRAINING_RECORD", True),
+        ("3", "2", "합성 3학년 2학기 성적", "HOME_SCHOOL_RECORD", False),
+    )
+    for grade, semester, subject_name, _source, _vocational in expected_terms:
+        values = _course_values(subject_name) | {"grade": grade, "semester": semester}
+        values.pop("record_source")
+        values.pop("is_vocational_training_semester")
+
+        response = teacher_client.post(
+            f"/teacher/students/{classroom_student_id}/courses", data=values
+        )
+
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith(
+            f"/teacher/classrooms?student_id={classroom_student_id}&message=course_added"
+        )
+
+    with Session(postgres_engine) as database_session:
+        records = tuple(
+            database_session.scalars(
+                select(StudentAcademicRecord)
+                .where(
+                    StudentAcademicRecord.student_id == f"classroom-student:{classroom_student_id}"
+                )
+                .order_by(StudentAcademicRecord.grade, StudentAcademicRecord.semester)
+            )
+        )
+        assert tuple(
+            (
+                str(record.grade),
+                str(record.semester),
+                record.record_source,
+                record.is_vocational_training_semester,
+            )
+            for record in records
+        ) == tuple(
+            (grade, semester, source, vocational)
+            for grade, semester, _subject_name, source, vocational in expected_terms
+        )
+
+    saved_page = teacher_client.get(
+        "/teacher/classrooms", query_string={"student_id": classroom_student_id}
+    )
+    saved_body = saved_page.get_data(as_text=True)
+    assert "학교생활기록부" in saved_body
+    assert "직업위탁 성적" in saved_body
+    assert "HOME_SCHOOL_RECORD" not in saved_body
+    assert "VOCATIONAL_TRAINING_RECORD" not in saved_body
+
+
+def test_teacher_course_entry_rejects_contradictory_score_source_submissions(
+    postgres_engine: Engine,
+    phase16_app: Flask,
+    phase16_accounts: dict[str, UserAccount],
+) -> None:
+    teacher = phase16_accounts["teacher"]
+    classroom_student_id = _create_course_entry_student(postgres_engine, teacher=teacher)
+    teacher_client = _client_for(phase16_app, teacher)
+    contradictions = (
+        (
+            {"grade": "1", "record_source": "VOCATIONAL_TRAINING_RECORD"},
+            "1·2학년 성적은 학교생활기록부 성적",
+        ),
+        (
+            {"grade": "2", "is_vocational_training_semester": "TRUE"},
+            "1·2학년 성적은 학교생활기록부 성적",
+        ),
+        (
+            {"grade": "3", "semester": "1", "record_source": "HOME_SCHOOL_RECORD"},
+            "3학년 1학기 성적은 직업위탁 성적",
+        ),
+        (
+            {
+                "grade": "3",
+                "semester": "2",
+                "record_source": "VOCATIONAL_TRAINING_RECORD",
+            },
+            "3학년 2학기 성적은 학교생활기록부 성적",
+        ),
+    )
+
+    for index, (overrides, expected_error) in enumerate(contradictions, start=1):
+        response = teacher_client.post(
+            f"/teacher/students/{classroom_student_id}/courses",
+            data=_course_values(f"모순 제출 {index}") | overrides,
+        )
+
+        assert response.status_code == 400
+        assert expected_error in response.get_data(as_text=True)
+
+    with Session(postgres_engine) as database_session:
+        record_ids = tuple(
+            database_session.scalars(
+                select(StudentAcademicRecord.id).where(
+                    StudentAcademicRecord.student_id == f"classroom-student:{classroom_student_id}"
+                )
+            )
+        )
+        assert record_ids == ()
+
+
 def test_real_admin_can_use_teacher_classroom_routes_and_link_student_account(
     postgres_engine: Engine,
     phase16_app: Flask,
@@ -281,7 +431,7 @@ def test_real_admin_can_use_teacher_classroom_routes_and_link_student_account(
         assert linked_student.linked_user_account_id == student.id
 
 
-def test_teacher_admin_role_transitions_preserve_classroom_links(
+def test_teacher_admin_transition_preserves_but_assistant_transition_revokes_classroom_links(
     postgres_engine: Engine,
     phase16_accounts: dict[str, UserAccount],
 ) -> None:
@@ -329,20 +479,32 @@ def test_teacher_admin_role_transitions_preserve_classroom_links(
             database_session,
             actor=actor,
             target=teacher,
-            new_role="TEACHER",
+            new_role="ASSISTANT_ADMIN",
             occurred_at=datetime(2026, 7, 20, 10, 1, tzinfo=UTC),
+        )
+        database_session.commit()
+        assistant_link = database_session.get(ClassroomStudent, issued.student.id)
+        assert assistant_link is not None
+        assert assistant_link.linked_user_account_id is None
+
+        change_member_role(
+            database_session,
+            actor=actor,
+            target=teacher,
+            new_role="TEACHER",
+            occurred_at=datetime(2026, 7, 20, 10, 2, tzinfo=UTC),
         )
         database_session.commit()
         restored_link = database_session.get(ClassroomStudent, issued.student.id)
         assert restored_link is not None
-        assert restored_link.linked_user_account_id == student.id
+        assert restored_link.linked_user_account_id is None
 
         change_member_role(
             database_session,
             actor=actor,
             target=teacher,
             new_role="MEMBER",
-            occurred_at=datetime(2026, 7, 20, 10, 2, tzinfo=UTC),
+            occurred_at=datetime(2026, 7, 20, 10, 3, tzinfo=UTC),
         )
         database_session.commit()
         revoked_link = database_session.get(ClassroomStudent, issued.student.id)

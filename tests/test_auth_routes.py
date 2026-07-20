@@ -86,6 +86,10 @@ def _app(postgres_engine: Engine):  # type: ignore[no-untyped-def]
             "ADMIN_PASSWORD_HASH": generate_password_hash("phase11-admin-password"),
             "ALLOW_LEGACY_ADMIN_LOGIN": False,
             "GOOGLE_OIDC_ENABLED": False,
+            "PUBLIC_BASE_URL": "https://phase11.example.invalid",
+            "ACCOUNT_EMAIL_ENABLED": True,
+            "EMAIL_FROM_ADDRESS": "accounts@phase11.example.invalid",
+            "ACCOUNT_EMAIL_OUTBOX": [],
             "DEMO_LOGIN_NAME": "phase11-demo-teacher",
             "DEMO_PUBLIC_PASSWORD": "phase11-demo-password",
         }
@@ -105,8 +109,45 @@ def _oidc_app(postgres_engine: Engine):  # type: ignore[no-untyped-def]
             "GOOGLE_OIDC_CLIENT_ID": "synthetic-google-client-id",
             "GOOGLE_OIDC_CLIENT_SECRET": "synthetic-google-client-secret",
             "GOOGLE_REDIRECT_URI": "https://alpha.example.invalid/auth/google/callback",
+            "PUBLIC_BASE_URL": "https://alpha.example.invalid",
+            "ACCOUNT_EMAIL_ENABLED": True,
+            "EMAIL_FROM_ADDRESS": "accounts@phase11.example.invalid",
+            "ACCOUNT_EMAIL_OUTBOX": [],
         }
     )
+
+
+def _latest_account_email_token(app) -> str:  # type: ignore[no-untyped-def]
+    outbox = app.config["ACCOUNT_EMAIL_OUTBOX"]
+    assert isinstance(outbox, list) and outbox
+    body = outbox[-1].get_content()
+    link = next(line for line in body.splitlines() if line.startswith("https://"))
+    token = parse_qs(urlparse(link).query).get("token")
+    assert token is not None and len(token) == 1
+    return token[0]
+
+
+def _verify_latest_account_email(client: FlaskClient, app) -> None:  # type: ignore[no-untyped-def]
+    token = _latest_account_email_token(app)
+    page = client.get(f"/auth/email/verify?token={token}")
+    assert page.status_code == 200
+    response = client.post(
+        "/auth/email/verify",
+        data={"csrf_token": _csrf(page.get_data(as_text=True)), "token": token},
+    )
+    assert response.status_code == 303
+
+
+def _set_google_login_intent(client: FlaskClient) -> None:
+    with client.session_transaction() as browser_session:
+        browser_session["google_oidc_intent"] = {
+            "kind": "login",
+            "user_id": None,
+            "auth_version": None,
+            "requested_next": None,
+            "issued_at": datetime.now(UTC).isoformat(),
+            "nonce": "synthetic-google-intent-nonce",
+        }
 
 
 def _bootstrap(postgres_engine: Engine) -> UserAccount:
@@ -189,7 +230,10 @@ def test_local_signup_ignores_role_tampering_and_blocks_use_until_approval(
     blocked = client.get("/admin/consultations/new")
     assert blocked.status_code == 302
     assert "/auth/login" in blocked.headers["Location"]
-    pending_login = _login(client, "phase11-member", "phase11-member-password")
+    unverified_login = _login(client, "member@phase11.invalid", "phase11-member-password")
+    assert unverified_login.status_code == 401
+    _verify_latest_account_email(client, app)
+    pending_login = _login(client, "member@phase11.invalid", "phase11-member-password")
     assert pending_login.status_code == 302
     assert pending_login.headers["Location"].endswith("/auth/pending")
     with Session(postgres_engine) as database_session:
@@ -198,6 +242,8 @@ def test_local_signup_ignores_role_tampering_and_blocks_use_until_approval(
         )
         assert member is not None
         assert (member.role, member.status) == ("MEMBER", "PENDING_APPROVAL")
+        assert member.login_name is None
+        assert member.email_verified_at is not None
 
 
 @pytest.mark.parametrize(
@@ -241,6 +287,8 @@ def test_role_specific_local_registration_preserves_requested_account_type(
         )
         assert account is not None
         assert (account.role, account.status) == (expected_role, "PENDING_APPROVAL")
+        assert account.login_name is None
+        assert account.email_verified_at is None
 
 
 @pytest.mark.parametrize(
@@ -331,7 +379,9 @@ def test_public_demo_member_is_idempotent_active_and_cannot_use_mutating_feature
     assert "가상 미래전문대" not in body
     records_page = client.get("/account/records")
     assert records_page.status_code == 200
-    assert "데모 계정은 성적과 상담 결과를 저장하지 않습니다" in records_page.get_data(as_text=True)
+    records_body = records_page.get_data(as_text=True)
+    assert "합성 성적 체험" in records_body
+    assert "빅데이터 프로그래밍" in records_body
     assert (
         client.get("/admin/consultations/new").headers["Location"].endswith("/calculate?example=1")
     )
@@ -534,16 +584,17 @@ def test_bootstrap_demo_incomplete_configuration_fails_closed(
 
 
 @pytest.mark.parametrize(
-    ("login_name", "email"),
+    ("login_name", "email", "email_account_created"),
     [
-        ("phase11-demo-teacher", "reserved-login@phase11.invalid"),
-        ("phase11-reserved-email", "public-demo@local.invalid"),
+        ("phase11-demo-teacher", "reserved-login@phase11.invalid", True),
+        ("phase11-reserved-email", "public-demo@local.invalid", False),
     ],
 )
-def test_public_registration_reserves_configured_demo_login_and_fixed_email(
+def test_email_registration_ignores_legacy_id_tampering_and_reserves_demo_email(
     postgres_engine: Engine,
     login_name: str,
     email: str,
+    email_account_created: bool,
 ) -> None:
     _bootstrap(postgres_engine)
     app = _app(postgres_engine)
@@ -570,7 +621,10 @@ def test_public_registration_reserves_configured_demo_login_and_fixed_email(
                 (UserAccount.login_name == login_name) | (UserAccount.email == email)
             )
         )
-        assert reserved is None
+        assert (reserved is not None) is email_account_created
+        if reserved is not None:
+            assert reserved.login_name is None
+            assert reserved.email == email
 
     bootstrap = app.test_cli_runner().invoke(args=["auth", "bootstrap-demo"])
     assert bootstrap.exit_code == 0
@@ -776,10 +830,11 @@ def test_duplicate_registration_has_same_external_response_as_new_request(
     with Session(postgres_engine) as database_session:
         members = tuple(
             database_session.scalars(
-                select(UserAccount).where(UserAccount.login_name == "phase11-duplicate")
+                select(UserAccount).where(UserAccount.email == "duplicate@phase11.invalid")
             )
         )
         assert len(members) == 1
+        assert members[0].login_name is None
 
 
 def test_database_failure_response_and_log_do_not_expose_registration_fields(
@@ -1198,6 +1253,84 @@ class _FailingGoogleClient:
         raise self.error
 
 
+def test_active_local_account_explicitly_links_and_unlinks_matching_google_identity(
+    postgres_engine: Engine,
+) -> None:
+    with Session(postgres_engine) as database_session:
+        admin = _bootstrap(postgres_engine)
+        member = register_local_member(
+            database_session,
+            login_name="phase11-google-link-member",
+            email="google@phase11.invalid",
+            display_name="합성 Google 연결 회원",
+            password="phase11-google-link-password",
+            occurred_at=datetime(2026, 7, 15, 10, 30, tzinfo=UTC),
+        )
+        member.email_verified_at = datetime(2026, 7, 15, 10, 31, tzinfo=UTC)
+        approve_pending_member(
+            database_session,
+            actor=admin,
+            target=member,
+            occurred_at=datetime(2026, 7, 15, 10, 32, tzinfo=UTC),
+        )
+        database_session.commit()
+        member_id = member.id
+
+    app = _oidc_app(postgres_engine)
+    app.extensions["google_oidc_client"] = _SyntheticGoogleClient()
+    client = app.test_client()
+    assert (
+        _login(client, "phase11-google-link-member", "phase11-google-link-password").status_code
+        == 302
+    )
+
+    security_page = client.get("/account/security")
+    connect = client.post(
+        "/account/security/google/connect",
+        data={
+            "csrf_token": _csrf(security_page.get_data(as_text=True)),
+            "current_password": "phase11-google-link-password",
+        },
+    )
+    assert connect.status_code == 303
+    assert connect.headers["Location"].endswith("/auth/google/start?intent=link")
+
+    callback = client.get("/auth/google/callback?code=link&state=synthetic")
+    assert callback.status_code == 303
+    assert callback.headers["Location"].endswith("/account/security?message=google_connected")
+    with Session(postgres_engine) as database_session:
+        identity = database_session.scalar(
+            select(ExternalIdentity).where(ExternalIdentity.user_account_id == member_id)
+        )
+        assert identity is not None
+        assert identity.provider_subject == "phase11-google-subject"
+
+    linked_page = client.get("/account/security")
+    failed_unlink = client.post(
+        "/account/security/google/disconnect",
+        data={
+            "csrf_token": _csrf(linked_page.get_data(as_text=True)),
+            "current_password": "wrong-password",
+        },
+    )
+    assert failed_unlink.status_code == 400
+    successful_unlink = client.post(
+        "/account/security/google/disconnect",
+        data={
+            "csrf_token": _csrf(failed_unlink.get_data(as_text=True)),
+            "current_password": "phase11-google-link-password",
+        },
+    )
+    assert successful_unlink.status_code == 303
+    with Session(postgres_engine) as database_session:
+        assert (
+            database_session.scalar(
+                select(ExternalIdentity).where(ExternalIdentity.user_account_id == member_id)
+            )
+            is None
+        )
+
+
 def test_google_provider_transport_failure_is_generic_and_secret_free(
     postgres_engine: Engine,
     caplog: pytest.LogCaptureFixture,
@@ -1288,6 +1421,7 @@ def test_google_callback_creates_pending_member_without_storing_token(
     app = _app(postgres_engine)
     app.extensions["google_oidc_client"] = _SyntheticGoogleClient()
     client = app.test_client()
+    _set_google_login_intent(client)
     with client.session_transaction() as browser_session:
         browser_session["_state_google_synthetic"] = {
             "data": {"nonce": "must-not-remain", "code_verifier": "must-not-remain"}
@@ -1334,6 +1468,7 @@ def test_approved_google_identity_can_log_in_without_creating_another_account(
     app = _app(postgres_engine)
     app.extensions["google_oidc_client"] = _SyntheticGoogleClient()
     first_client = app.test_client()
+    _set_google_login_intent(first_client)
 
     first = first_client.get("/auth/google/callback?code=first&state=first")
     assert first.status_code == 302
@@ -1357,6 +1492,7 @@ def test_approved_google_identity_can_log_in_without_creating_another_account(
         member_id = member.id
 
     second_client = app.test_client()
+    _set_google_login_intent(second_client)
     second = second_client.get("/auth/google/callback?code=second&state=second")
 
     assert second.status_code == 302

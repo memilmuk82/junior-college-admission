@@ -9,6 +9,7 @@ from sqlalchemy.engine import Connection
 
 PHASE16_HEAD = "8e31b7c4d2a6"
 PHASE17_HEAD = "b6f1e8a42c73"
+REPOSITORY_HEAD = "3d9c0f7a21b4"
 LEGACY_RESULT_COUNT = 482
 LEGACY_PROGRAM_COUNT = 128
 
@@ -304,4 +305,4 @@ def test_phase17_upgrade_preserves_phase16_public_results_and_catalog(
                 dataset_id=dataset_id,
                 institution_ids=institution_ids,
             )
-        command.upgrade(config, PHASE17_HEAD)
+        command.upgrade(config, REPOSITORY_HEAD)

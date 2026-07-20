@@ -1290,10 +1290,11 @@ class UserAccount(TimestampMixin, Base):
             name="actor_ref_valid",
         ),
         CheckConstraint(
-            "(login_name IS NULL AND password_hash IS NULL) OR "
-            "(login_name IS NOT NULL AND password_hash IS NOT NULL AND "
-            "login_name = btrim(lower(login_name)) AND char_length(login_name) BETWEEN 4 AND 80 "
-            "AND char_length(password_hash) > 0)",
+            "(login_name IS NULL OR "
+            "(login_name = btrim(lower(login_name)) "
+            "AND char_length(login_name) BETWEEN 4 AND 80)) "
+            "AND (password_hash IS NULL OR char_length(password_hash) > 0) "
+            "AND (login_name IS NULL OR password_hash IS NOT NULL)",
             name="local_credentials_complete",
         ),
         CheckConstraint(
@@ -1322,11 +1323,69 @@ class UserAccount(TimestampMixin, Base):
         String(30), nullable=False, default="PENDING_APPROVAL", index=True
     )
     auth_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    bootstrap_password_managed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     approved_by_user_id: Mapped[str | None] = mapped_column(
         ForeignKey("user_accounts.id", ondelete="RESTRICT"), nullable=True, index=True
     )
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AccountAuthToken(TimestampMixin, Base):
+    """이메일 소유 확인과 비밀번호 재설정용 일회성 token digest."""
+
+    __tablename__ = "account_auth_tokens"
+    __table_args__ = (
+        UniqueConstraint("token_digest"),
+        CheckConstraint(
+            "purpose IN ('EMAIL_VERIFICATION', 'PASSWORD_RESET')",
+            name="purpose_valid",
+        ),
+        CheckConstraint(
+            "token_digest ~ '^[0-9a-f]{64}$'",
+            name="token_digest_valid",
+        ),
+        CheckConstraint("issued_auth_version > 0", name="issued_auth_version_positive"),
+        CheckConstraint(
+            "target_email = btrim(lower(target_email)) "
+            "AND char_length(target_email) BETWEEN 3 AND 320",
+            name="target_email_normalized",
+        ),
+        CheckConstraint("expires_at > created_at", name="expiry_after_creation"),
+        CheckConstraint(
+            "consumed_at IS NULL OR consumed_at >= created_at",
+            name="consumed_after_creation",
+        ),
+        CheckConstraint(
+            "revoked_at IS NULL OR revoked_at >= created_at",
+            name="revoked_after_creation",
+        ),
+        CheckConstraint(
+            "consumed_at IS NULL OR revoked_at IS NULL",
+            name="single_terminal_state",
+        ),
+        Index(
+            "ix_account_auth_tokens_user_purpose_created",
+            "user_account_id",
+            "purpose",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_account_id: Mapped[str] = mapped_column(
+        ForeignKey("user_accounts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    purpose: Mapped[str] = mapped_column(String(30), nullable=False)
+    token_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    issued_auth_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    target_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class TeacherClassroom(TimestampMixin, Base):
@@ -1464,7 +1523,9 @@ class UserAccountAuditEvent(TimestampMixin, Base):
         CheckConstraint(
             "event_type IN ('REGISTERED_LOCAL', 'REGISTERED_GOOGLE', "
             "'BOOTSTRAPPED_ADMIN', 'APPROVED', 'ROLE_CHANGED', 'STATUS_CHANGED', "
-            "'LOGIN_SUCCEEDED', 'PASSWORD_CHANGED')",
+            "'LOGIN_SUCCEEDED', 'PASSWORD_CHANGED', 'EMAIL_VERIFICATION_REQUESTED', "
+            "'EMAIL_VERIFIED', 'EMAIL_CHANGED', 'PASSWORD_RESET_REQUESTED', "
+            "'PASSWORD_RESET_COMPLETED', 'GOOGLE_LINKED', 'GOOGLE_UNLINKED')",
             name="event_type_valid",
         ),
         CheckConstraint(
@@ -1564,6 +1625,7 @@ class AiConsultationDraft(TimestampMixin, Base):
 
 
 __all__ = [
+    "AccountAuthToken",
     "AiConsultationDraft",
     "AiProviderCredential",
     "AdmissionEligibilityRule",

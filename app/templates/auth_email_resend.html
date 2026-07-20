@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>인증 메일 다시 받기 · 2027 전문대 입시 상담</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="auth-page">
+    <header class="auth-header"><a class="brand-link" href="{{ url_for('main.index') }}">2027 전문대 입시 상담</a><a href="{{ url_for('auth.login') }}">로그인</a></header>
+    <main class="auth-shell" id="main-content">
+      <p class="admin-eyebrow">RESEND VERIFICATION</p>
+      <h1>인증 메일 다시 받기</h1>
+      <p class="auth-lead">가입할 때 사용한 이메일을 입력하세요. 계정 존재 여부와 관계없이 같은 안내를 제공합니다.</p>
+      {% if not email_available and not error %}<div class="auth-alert auth-alert--info" role="status">운영 메일 발송 설정이 완료된 뒤 사용할 수 있습니다.</div>{% endif %}
+      {% if error %}<div class="auth-alert auth-alert--error" role="alert">{{ error }}</div>{% endif %}
+      <form class="auth-form" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="verification-email">이메일</label>
+        <input id="verification-email" name="email" type="email" maxlength="320" autocomplete="email" spellcheck="false" required>
+        <button class="primary-button auth-submit" type="submit" {% if not email_available %}disabled aria-disabled="true"{% endif %}>인증 메일 요청</button>
+      </form>
+      <dl class="auth-action-guide" aria-label="인증 메일 재요청 안내">
+        <div><dt>무엇인가요?</dt><dd>가입한 이메일로 새 인증 링크를 다시 요청합니다.</dd></div>
+        <div><dt>언제 쓰나요?</dt><dd>인증 메일이 안 왔거나 받은 링크를 찾기 어려울 때 사용합니다.</dd></div>
+        <div><dt>완료되면</dt><dd>메일 링크에서 이메일 소유만 확인됩니다. 관리자 역할 승인은 별도입니다.</dd></div>
+      </dl>
+      <nav class="auth-links" aria-label="계정 이동"><a href="{{ url_for('auth.login') }}">로그인 화면으로</a></nav>
+    </main>
+  </body>
+</html>

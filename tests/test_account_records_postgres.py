@@ -420,9 +420,9 @@ def test_account_records_edit_and_consultation_history_are_owner_scoped(
             assert stored_course.enrollment_count == 99
             stored_record = database_session.get(StudentAcademicRecord, own_record.id)
             assert stored_record is not None
-            assert stored_record.record_source == "VOCATIONAL_TRAINING_RECORD"
-            assert stored_record.is_vocational_training_semester
-            assert stored_record.vocational_institution_name == "합성 위탁기관"
+            assert stored_record.record_source == "HOME_SCHOOL_RECORD"
+            assert not stored_record.is_vocational_training_semester
+            assert stored_record.vocational_institution_name is None
             assert stored_consultation is not None
             assert stored_consultation.counselor_note == "합성 상담 메모"
     finally:

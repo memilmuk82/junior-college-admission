@@ -44,6 +44,10 @@ def test_current_vocational_profile_derives_facts_and_mixed_record_sources() -> 
         "VOCATIONAL_TRAINING_RECORD",
         True,
     )
+    assert public_record_classification(VOCATIONAL_CURRENT, grade=3, semester=2) == (
+        "HOME_SCHOOL_RECORD",
+        False,
+    )
 
 
 def test_general_graduate_profile_derives_home_school_records_for_all_grades() -> None:

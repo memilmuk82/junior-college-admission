@@ -45,6 +45,7 @@ from app.services.admission_results import (
     AdmissionResultCollectionError,
     collect_admission_result_raw,
 )
+from app.services.demo_crawler_fixture import DemoPhase17ProcollegeTransport
 from app.services.temporary_uploads import TemporaryUploadStore
 
 bp = Blueprint(
@@ -172,8 +173,20 @@ def collect_procollege() -> Response:
         if target_year != result_year + 1:
             raise ValueError("포털 결과의 상담 대상연도는 결과연도 + 1로 확인하세요.")
         adapter = ProcollegeAdapter(page_count=page_count)
+        demo_fixture = bool(
+            current_app.config.get("DEMO_SANDBOX_ENABLED")
+            and current_app.config.get("DEMO_CRAWLER_FIXTURE_ENABLED")
+        )
+        transport = (
+            DemoPhase17ProcollegeTransport(Path(current_app.root_path).parent)
+            if demo_fixture
+            else RequestsFormTransport()
+        )
         collection = collect_admission_result_raw(
-            adapter, RequestsFormTransport(), academic_year=result_year
+            adapter,
+            transport,
+            academic_year=result_year,
+            wait=(lambda _seconds: None) if demo_fixture else None,
         )
         if collection.row_count <= 0:
             raise AdmissionResultCollectionError("포털에서 수집된 결과 행이 없습니다.")
@@ -197,8 +210,12 @@ def collect_procollege() -> Response:
             source_code=adapter.source_code,
             source_dataset_version=f"{result_year}-{collection.collection_digest[:12]}",
             source_reference=(
-                f"전문대학포털 공개 입시결과 · raw_batch:{raw_batch.id} · "
-                "https://www.procollege.kr/web/entrance/webEntrancePreResult.do"
+                f"체험 fixture · 검수된 Phase 17 공개 결과 · raw_batch:{raw_batch.id}"
+                if demo_fixture
+                else (
+                    f"전문대학포털 공개 입시결과 · raw_batch:{raw_batch.id} · "
+                    "https://www.procollege.kr/web/entrance/webEntrancePreResult.do"
+                )
             ),
             result_academic_year=result_year,
             target_academic_year=target_year,

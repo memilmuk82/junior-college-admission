@@ -18,6 +18,7 @@ from app.models import (
     Program,
     UserAccount,
 )
+from app.services.membership import has_teacher_capability, is_demo_actor_ref
 
 ANONYMOUS_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,39}\Z")
 OUTCOME_STATUSES = frozenset({"INITIAL_ACCEPTED", "WAITLIST_ACCEPTED", "REJECTED", "UNKNOWN"})
@@ -101,7 +102,7 @@ def create_outcome(
     user: UserAccount,
     values: Mapping[str, str],
 ) -> InstitutionApplicationOutcome:
-    if user.status != "ACTIVE" or user.role not in {"TEACHER", "ADMIN"}:
+    if not has_teacher_capability(user):
         raise InstitutionalResultError("활성 교사 계정만 기관 결과를 저장할 수 있습니다.")
     student_code = values.get("anonymous_student_code", "").strip()
     if not ANONYMOUS_CODE.fullmatch(student_code):
@@ -155,7 +156,7 @@ def list_outcomes(
     admission_track_id: str = "",
     outcome_status: str = "",
 ) -> tuple[InstitutionalOutcomeView, ...]:
-    if user.status != "ACTIVE" or user.role not in {"TEACHER", "ADMIN"}:
+    if not has_teacher_capability(user):
         raise InstitutionalResultError("기관 결과 조회 권한이 없습니다.")
     statement = (
         select(
@@ -172,7 +173,7 @@ def list_outcomes(
         .join(Campus, Campus.id == Program.campus_id)
         .join(Institution, Institution.id == Campus.institution_id)
     )
-    if user.role == "TEACHER":
+    if user.role != "ADMIN" or is_demo_actor_ref(user.actor_ref):
         statement = statement.where(
             InstitutionApplicationOutcome.managed_by_user_account_id == user.id
         )
@@ -229,7 +230,8 @@ def delete_outcome(
     session: Session, *, user: UserAccount, outcome_id: str
 ) -> InstitutionApplicationOutcome:
     outcome = session.get(InstitutionApplicationOutcome, outcome_id)
-    if outcome is None or (user.role != "ADMIN" and outcome.managed_by_user_account_id != user.id):
+    global_admin = user.role == "ADMIN" and not is_demo_actor_ref(user.actor_ref)
+    if outcome is None or (not global_admin and outcome.managed_by_user_account_id != user.id):
         raise InstitutionalResultError("기관 결과를 찾을 수 없습니다.")
     session.delete(outcome)
     return outcome
