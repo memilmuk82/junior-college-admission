@@ -262,6 +262,45 @@ def test_each_demo_role_logs_into_its_dashboard_and_logs_out(
     assert client.get("/dashboard").status_code == 302
 
 
+def test_demo_main_admin_session_can_be_replaced_by_real_admin_login(
+    showcase_app: Flask,
+    postgres_engine: Engine,
+) -> None:
+    _bootstrap(showcase_app)
+    client = showcase_app.test_client()
+    assert _login(client, DEMO_ROLE_LOGIN_NAMES["ADMIN"]).status_code == 302
+
+    login_page = client.get("/auth/login")
+    response = client.post(
+        "/auth/login",
+        data={
+            "csrf_token": _csrf(login_page.get_data(as_text=True)),
+            "username": TEST_ADMIN_LOGIN,
+            "password": TEST_ADMIN_PASSWORD,
+        },
+    )
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/dashboard")
+    with Session(postgres_engine) as database_session:
+        real_admin = database_session.scalar(
+            select(UserAccount).where(UserAccount.login_name == TEST_ADMIN_LOGIN)
+        )
+        assert real_admin is not None
+        assert real_admin.actor_ref not in DEMO_ROLE_ACTOR_REFS.values()
+        assert (real_admin.role, real_admin.status) == ("ADMIN", "ACTIVE")
+        real_admin_id = real_admin.id
+        real_admin_auth_version = real_admin.auth_version
+    with client.session_transaction() as browser_session:
+        assert browser_session["user_id"] == real_admin_id
+        assert browser_session["auth_version"] == real_admin_auth_version
+    dashboard = client.get("/dashboard")
+    assert dashboard.status_code == 200
+    dashboard_body = dashboard.get_data(as_text=True)
+    assert "주 관리자 업무공간" in dashboard_body
+    assert "읽기 전용 역할 체험 계정입니다." not in dashboard_body
+
+
 @pytest.mark.parametrize("role", ("ADMIN", "ASSISTANT_ADMIN"))
 def test_demo_administrators_see_no_real_members_and_cannot_write(
     showcase_app: Flask,

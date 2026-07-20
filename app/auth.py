@@ -31,7 +31,9 @@ from app.services.membership import (
 
 DEMO_BYOK_SESSION_KEY = "demo_byok_actor_ref"
 SAFE_HTTP_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
-DEMO_ALWAYS_ALLOWED_UNSAFE_ENDPOINTS = frozenset({"auth.logout", "admin.logout"})
+DEMO_ALWAYS_ALLOWED_UNSAFE_ENDPOINTS = frozenset(
+    {"admin.login", "auth.login", "auth.logout", "admin.logout"}
+)
 DEMO_BYOK_ALLOWED_UNSAFE_ENDPOINTS = frozenset(
     {"admin.save_ai_credential", "admin.delete_ai_credential"}
 )
