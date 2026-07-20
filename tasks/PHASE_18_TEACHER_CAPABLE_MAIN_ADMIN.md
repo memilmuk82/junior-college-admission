@@ -64,7 +64,7 @@
 ## 검증 및 배포 결과
 
 - [x] 단위 361건 통과
-- [x] PostgreSQL 통합 190건과 합성 백업·격리 복원 통과
+- [x] PostgreSQL 통합 191건과 합성 백업·격리 복원 통과
 - [x] Ruff·포맷·mypy 151개 소스 통과
 - [x] 독립 권한 diff 감사 HIGH·MEDIUM 문제 없음
 - [x] 운영 HTTPS Phase 18 Playwright 작성과 목록 검증
@@ -76,4 +76,8 @@
 
 구현 커밋 `8f101f8`을 `origin/main`에 push했다. 운영 백업 `admission_20260720_113828_3857650.dump`의 SHA-256 `4e8064f4874246fe1d5883555bc449c230909e64b95303f2c3b6880c6c3b6ab7`, archive와 격리 복원을 확인했다. 기존 DB 컨테이너·volume을 유지하고 웹만 이미지 `sha256:6fa832729850500104c73c36349f303520a3362f4a0bbc31b8caa4374f7f1062`로 교체했다.
 
-교사 가입·승인·주 관리자 승격 감사 이력을 가진 실사용 계정 1건과 계정 actor별 OPENAI 암호문 1건을 단일 트랜잭션으로 생성했다. 키 원문과 임시 비밀번호는 저장소·문서·로그에 기록하지 않았다. 공인 HTTPS Phase 18 Playwright 1건, TLS·health·보안 헤더, migration head, 화면 캡처 직접 검토와 오류 로그 검사를 통과해 최종 판정은 `PASS_PRODUCTION_PHASE_18`이다.
+교사 가입·승인·주 관리자 승격 감사 이력을 가진 실사용 계정 1건과 계정 actor별 OPENAI 암호문 1건을 단일 트랜잭션으로 생성했다. 키 원문과 임시 비밀번호는 저장소·문서·로그에 기록하지 않았다. 공인 HTTPS Phase 18 Playwright, TLS·health·보안 헤더, migration head, 화면 캡처 직접 검토와 오류 로그 검사를 통과해 최종 판정은 `PASS_PRODUCTION_PHASE_18`이다.
+
+기존 공개 데모 로그인 쿠키가 남은 브라우저에서 실사용 계정 로그인을 제출하면 데모 unsafe 요청 차단기가 `POST /auth/login`까지 403으로 막는 운영 회귀를 확인했다. 인증 CSRF와 rate limit을 그대로 유지하면서 `auth.login`·호환 `admin.login`만 계정 전환 예외로 추가했다. 수정 전 403 실패와 수정 후 실제 사용자 세션 교체를 PostgreSQL 회귀로 고정하고 커밋 `379e57f`을 push했다.
+
+실사용 계정과 BYOK를 포함한 후속 백업 `admission_20260720_115319_3899759.dump`의 SHA-256 `2a35f5b8d7e9099f0c8148221982d4368c8a93086107e61fab812d7c2e04faeb`, archive와 격리 복원을 확인했다. DB 컨테이너·volume은 유지하고 웹만 컨테이너 `ccbc036a4579...`, 이미지 `sha256:d117c49d03bcdb080303f99fb047ea1dcb7c7d7e13589176edb6d93ae6f560ec`로 교체했다. 운영 Chromium 2건에서 깨끗한 세션 로그인과 `demo-main-admin → 실사용 주 관리자` 무로그아웃 전환을 모두 통과했다.

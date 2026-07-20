@@ -311,6 +311,11 @@
 - DB 컨테이너와 volume을 보존한 채 웹만 이미지 `sha256:6fa832729850500104c73c36349f303520a3362f4a0bbc31b8caa4374f7f1062`로 재빌드했다. migration은 `b6f1e8a42c73 (head)`로 변함없고 DB·웹 모두 healthy다.
 - 실사용 계정 1건을 교사 가입→승인→주 관리자 승격 순으로 만들고 사용자 제공 OpenAI 키를 stdin으로만 전달해 그 actor에 Fernet 암호문으로 저장했다. 키·마스킹 끝자리·임시 비밀번호는 소스·문서·로그에 남기지 않았다.
 - 공인 HTTPS Chromium 1건과 화면 직접 검토에서 관리자·교사 메뉴, 학급 추가 폼, BYOK 마스킹, 관리 화면과 로그아웃을 확인했다. TLS·health·보안 헤더와 오류·키 패턴 로그 검사도 통과해 `PASS_PRODUCTION_PHASE_18`로 판정했다.
+- 사용자 브라우저의 기존 데모 로그인 쿠키 때문에 로그인 화면 GET은 200이지만 새 실사용 계정 제출 POST가 전역 데모 쓰기 차단기에서 403이 되는 회귀를 운영 로그로 재현했다.
+- 로그인 CSRF와 rate limit을 유지한 채 `auth.login`·`admin.login` POST만 계정 전환 예외로 추가하고, 데모 주 관리자 세션이 실제 관리자 `user_id`·`auth_version`으로 교체되는 회귀를 추가했다.
+- 후속 회귀는 단위 361건, PostgreSQL 191건, Ruff·포맷·mypy·민감자료 검사를 통과했고 커밋 `379e57f`을 push했다.
+- 실사용 계정·BYOK 포함 후속 백업 `admission_20260720_115319_3899759.dump`의 SHA-256 `2a35f5b8d7e9099f0c8148221982d4368c8a93086107e61fab812d7c2e04faeb`, archive·격리 복원을 확인했다. DB·volume은 유지하고 웹만 이미지 `sha256:d117c49d03bcdb080303f99fb047ea1dcb7c7d7e13589176edb6d93ae6f560ec`로 교체했다.
+- 운영 Chromium 2건에서 깨끗한 세션과 기존 데모 세션 모두 실사용 관리자 로그인·교사/관리자 메뉴·BYOK·로그아웃이 동작하고, access log의 로그인 POST가 302로 완료됨을 확인했다.
 
 ## 확정 기술 결정
 

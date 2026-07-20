@@ -411,7 +411,7 @@ Phase 12 회귀는 단위 290건, PostgreSQL 통합 127건과 합성 백업·격
 - [x] `TEACHER ↔ ADMIN` 역할 전환의 학급 연결 보존과 비교사 역할·비활성 전환의 기존 연결 폐기
 - [x] 공개 데모 주 관리자의 교사 화면·unsafe POST·BYOK 차단 유지
 - [x] 실제 주 관리자 actor 범위의 기존 Fernet BYOK 암호화·마스킹·교체·삭제 계약 재사용
-- [x] 단위 361건, PostgreSQL 통합 190건과 합성 백업·격리 복원 통과
+- [x] 단위 361건, PostgreSQL 통합 191건과 합성 백업·격리 복원 통과
 - [x] Ruff·포맷·mypy 151개 소스와 독립 권한 diff 감사 통과, HIGH·MEDIUM 문제 없음
 - [x] 실사용 계정 로그인→관리자·교사 메뉴→학급 GET→OPENAI 마스킹→관리 화면→로그아웃 운영 Playwright 작성
 
@@ -428,3 +428,13 @@ Phase 18은 단일 `role` 스키마를 변경하지 않고 비데모 `ADMIN`에 
 - TLS·health·보안 헤더, migration `b6f1e8a42c73 (head)`, DB·웹 health와 restart 0건을 확인했다. 배포 이후 로그에 HTTP 5xx·traceback·fatal·critical·unhandled·exception·키 패턴은 0건이다.
 
 최종 판정은 `PASS_PRODUCTION_PHASE_18`이다.
+
+### Phase 18 로그인 403 후속 보완
+
+- 사용자 브라우저에서 `/auth/login` 화면을 연 뒤 제출하면 403이 발생하는 현상을 운영 access log의 `GET 200 → POST 403`으로 확인했다.
+- 원인은 기존 공개 데모 로그인 쿠키였다. 로그인 GET은 열렸지만 전역 데모 unsafe 요청 차단기가 새 계정으로 전환하는 `POST /auth/login`까지 막았다.
+- CSRF·로그인 검증·공개 rate limit은 유지하고 `auth.login`과 호환 `admin.login`만 데모 세션의 안전한 계정 전환 예외로 추가했다. 다른 데모 쓰기 차단은 그대로다.
+- 수정 전 `403 != 302` 실패와 수정 후 실사용 관리자 `user_id`·`auth_version` 세션 교체, 대시보드 200을 PostgreSQL 회귀로 고정했다. 단위 361건, PostgreSQL 191건, Ruff·포맷·mypy·민감자료 검사를 통과했다.
+- 후속 커밋 `379e57f`을 `origin/main`에 push했다. 실사용 계정·BYOK 포함 백업 `admission_20260720_115319_3899759.dump`의 SHA-256 `2a35f5b8d7e9099f0c8148221982d4368c8a93086107e61fab812d7c2e04faeb`, archive와 격리 복원을 확인했다.
+- 기존 DB 컨테이너 `072f1a30e7d5...`와 volume을 유지하고 웹만 컨테이너 `ccbc036a4579...`, 이미지 `sha256:d117c49d03bcdb080303f99fb047ea1dcb7c7d7e13589176edb6d93ae6f560ec`로 교체했다.
+- 공인 HTTPS Chromium 2건에서 기본 실사용 관리자 흐름과 `demo-main-admin 로그인 → 로그아웃하지 않고 /auth/login → 실사용 관리자 로그인 → 대시보드`를 통과했다. 운영 access log는 해당 POST를 모두 302로 기록했고 403·console·page error는 없었다.
